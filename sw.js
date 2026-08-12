@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-cache-v2.3';
+const CACHE_NAME = 'corngrid-cache-v2.5';
 
 // Senarai fail yang ingin disimpan dalam cache browser
 const ASSETS_TO_CACHE = [
