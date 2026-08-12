@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-cache-v1';
+const CACHE_NAME = 'corngrid-cache-v2';
 
 // Senarai fail yang ingin disimpan dalam cache browser
 const ASSETS_TO_CACHE = [
@@ -11,7 +11,7 @@ const ASSETS_TO_CACHE = [
     '/images/dashboard.jpg',
     '/images/myfxbook.png',
     '/files/terms.txt',
-    '/video/background.mp4'
+    '/video/background8.mp4'
 ];
 
 // 1. Install Event - Simpan fail semasa laman web mula diakses
