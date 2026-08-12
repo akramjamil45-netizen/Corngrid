@@ -65,10 +65,9 @@
 </head>
 <body>
 
-    <!-- =========================================
-         HEADER (DIKEKALKAN SEPERTI ASAL)
-    ========================================= -->
-    
+   <!-- =========================================
+     HEADER (DIKEKALKAN SEPERTI ASAL)
+========================================= -->
 <header id="mainHeader">
     <div class="container">
         <nav>
@@ -102,84 +101,222 @@
     </div>
 </header>
 
-    <!-- Floating Support Button -->
-    <div class="cg-contact">
-        <div class="cg-contact-menu" id="cgContactMenu">
-            <div class="cg-contact-title">
-                <div>
-                    <strong>CornGrid Support Desk</strong>
-                    <span>Institutional Client Support</span>
-                </div>
+<!-- Floating Support Button -->
+<div class="cg-contact">
+    <div class="cg-contact-menu" id="cgContactMenu">
+        <div class="cg-contact-title">
+            <div>
+                <strong>CornGrid Support Desk</strong>
+                <span>Institutional Client Support</span>
             </div>
-            <a href="https://t.me/CornGridSupportbot" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
-                <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
-                <div><strong>Telegram Helpdesk</strong><span>@CornGridSupportbot</span></div>
-                <i class="fas fa-chevron-right arrow"></i>
-            </a>
-            <a href="https://t.me/CornGridGroup" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
-                <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
-                <div><strong>Trader Network</strong><span>Join Official Community</span></div>
-                <i class="fas fa-chevron-right arrow"></i>
-            </a>
-            <a href="https://wa.me/60175660753" target="_blank" rel="noopener noreferrer" class="cg-contact-item whatsapp">
-                <div class="cg-contact-icon"><i class="fab fa-whatsapp"></i></div>
-                <div><strong>Direct Client Line</strong><span>Chat via WhatsApp</span></div>
-                <i class="fas fa-chevron-right arrow"></i>
-            </a>
-            <a href="mailto:akramjamil@gmail.com" class="cg-contact-item email">
-                <div class="cg-contact-icon"><i class="fas fa-envelope"></i></div>
-                <div><strong>Corporate Relations</strong><span>akramjamil@gmail.com</span></div>
-                <i class="fas fa-chevron-right arrow"></i>
-            </a>
         </div>
-        <button class="cg-contact-button" id="cgContactButton" aria-label="Open CornGrid Support">
-            <span class="cg-pulse"></span>
-            <i class="fas fa-headset cg-open-icon"></i>
-            <i class="fas fa-times cg-close-icon"></i>
-        </button>
+        <a href="https://t.me/CornGridSupportbot" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+            <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+            <div><strong>Telegram Helpdesk</strong><span>@CornGridSupportbot</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="https://t.me/CornGridGroup" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+            <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+            <div><strong>Trader Network</strong><span>Join Official Community</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="https://wa.me/60175660753" target="_blank" rel="noopener noreferrer" class="cg-contact-item whatsapp">
+            <div class="cg-contact-icon"><i class="fab fa-whatsapp"></i></div>
+            <div><strong>Direct Client Line</strong><span>Chat via WhatsApp</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="mailto:akramjamil@gmail.com" class="cg-contact-item email">
+            <div class="cg-contact-icon"><i class="fas fa-envelope"></i></div>
+            <div><strong>Corporate Relations</strong><span>akramjamil@gmail.com</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
     </div>
+    <button class="cg-contact-button" id="cgContactButton" aria-label="Open CornGrid Support">
+        <span class="cg-pulse"></span>
+        <i class="fas fa-headset cg-open-icon"></i>
+        <i class="fas fa-times cg-close-icon"></i>
+    </button>
+</div>
 
- <!-- =========================================
-     HERO SECTION (DARK QUANT INSTITUTIONAL REDESIGN)
+<!-- =========================================
+     HERO & PORTFOLIO VIDEO BACKGROUND WRAPPER
 ========================================= -->
-<section class="hero-section-dark">
-    <!-- Background Ambient Glow Effects -->
-    <div class="hero-glow glow-top-left"></div>
-    <div class="hero-glow glow-bottom-right"></div>
+<div class="hero-portfolio-wrapper">
 
-    <div class="container">
-        <div class="hero-grid-dark">
+    <!-- Background Video & Dark Overlay -->
+    <video autoplay muted loop playsinline class="bg-video">
+        <source src="video/background.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+    </video>
+    <div class="video-overlay"></div>
+
+    <!-- =========================================
+         HERO SECTION
+    ========================================= -->
+    <section class="hero-section-dark">
+        <!-- Background Ambient Glow Effects -->
+        <div class="hero-glow glow-top-left"></div>
+
+        <div class="container">
+            <div class="hero-grid-dark">
+                
+                <!-- Left Column: Copywriting & Actions -->
+                <div class="hero-content">
+
+                    <!-- Main Heading -->
+                    <h1 class="hero-title" data-i18n="hero_title">
+                        Maximize Recovery &
+                        <span class="highlight-gold">Trade Smarter</span>
+                        with CornGrid EA MT5
+                    </h1>
+
+                    <!-- High-Impact Description -->
+                    <p class="hero-description" data-i18n="hero_desc">
+                        Fully Automated Trading System powered by Smart Reverse Entry & Dynamic Basket Profit Technology. 
+                        Engineered for institutional and retail traders who demand intelligent grid recovery, drawdown control, and sub-millisecond MT5 execution.
+                    </p>
+
+                    <!-- Action Buttons -->
+                    <div class="hero-cta-group">
+                        <button type="button" class="btn-hero btn-hero-yellow" id="openTermsModal" data-i18n="hero_btn_demo">
+                            <i class="fas fa-download"></i> Download Free Demo
+                        </button>
+                        <a href="https://www.mql5.com/en/market/product/185454" target="_blank" class="btn-hero btn-hero-outline" data-i18n="hero_btn_full">
+                            <i class="fas fa-shopping-cart"></i> Get Full Version
+                        </a>
+                    </div>
+
+                    <!-- Trust Micro Features -->
+                    <div class="hero-trust-highlights">
+                        <div class="trust-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span data-i18n="trust_hedging">Native MT5 Hedging</span>
+                        </div>
+                        <div class="trust-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span data-i18n="trust_drawdown">Hard-Stop Drawdown Breaker</span>
+                        </div>
+                        <div class="trust-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span data-i18n="trust_xauusd">XAUUSD Optimized</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right Column: Terminal Preview & Floating Badges -->
+                <div class="hero-visual">
+                    <div class="hero-image-wrapper">
+                        <div class="hero-terminal-bar">
+                            <div class="terminal-dots">
+                                <span class="dot-red"></span>
+                                <span class="dot-yellow"></span>
+                                <span class="dot-green"></span>
+                            </div>
+                            <span class="terminal-tag">CORNGRID.EX5</span>
+                        </div>
+
+                        <div class="hero-img-box">
+                            <img src="images/hero-image.png" alt="CornGrid EA MT5 Trading System" class="hero-img">
+                        </div>
+
+                        <!-- Kad Terapung Diubah ke Bawah Imej -->
+                        <div class="hero-stats-row">
+                            <div class="hero-stat-card">
+                                <div class="float-icon gold-bg"><i class="fas fa-bolt"></i></div>
+                                <div>
+                                    <strong data-i18n="float_exec_title">Sub-5ms Execution</strong>
+                                    <span data-i18n="float_exec_sub">Equinix VPS Latency</span>
+                                </div>
+                            </div>
+
+                            <div class="hero-stat-card">
+                                <div class="float-icon green-bg"><i class="fas fa-shield-alt"></i></div>
+                                <div>
+                                    <strong data-i18n="float_shield_title">Equity Safeguard</strong>
+                                    <span data-i18n="float_shield_sub">Automated Risk Shield</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- =========================================
+         MYFXBOOK VERIFIED PORTFOLIO SHOWCASE
+    ========================================= -->
+    <section id="portfolio">
+        <div class="container">
             
-            <!-- Left Column: Copywriting & Actions -->
-            <div class="hero-content">
-
-
-                <!-- Main Heading -->
-                <h1 class="hero-title" data-i18n="hero_title">
-                    Maximize Recovery &
-                    <span class="highlight-gold">Trade Smarter</span>
-                    with CornGrid EA MT5
-                </h1>
-
-                <!-- High-Impact Description -->
-                <p class="hero-description" data-i18n="hero_desc">
-                    Fully Automated Trading System powered by Smart Reverse Entry & Dynamic Basket Profit Technology. 
-                    Engineered for institutional and retail traders who demand intelligent grid recovery, drawdown control, and sub-millisecond MT5 execution.
-                </p>
-
-               <!-- Action Buttons (Updated) -->
-                <div class="hero-cta-group">
-                    <button type="button" class="btn-hero btn-hero-yellow" id="openTermsModal" data-i18n="hero_btn_demo">
-                    <i class="fas fa-download"></i> Download Free Demo
-                    </button>
-                    <a href="https://www.mql5.com/en/market/product/185454" target="_blank" class="btn-hero btn-hero-outline" data-i18n="hero_btn_full">
-                    <i class="fas fa-shopping-cart"></i> Get Full Version
+            <!-- Section Header / Status Bar -->
+            <div class="portfolio-header">
+                <div>
+                    <div class="verified-badge">
+                        <span class="verified-dot"></span>
+                        <!-- Logo Myfxbook -->
+                        <img src="images/myfxbook.png" alt="Myfxbook Logo" class="myfxbook-logo">
+                        <span data-i18n="myfx_verified_badge">VERIFIED </span>
+                    </div>
+                    <h2 class="portfolio-title" data-i18n="myfx_title">CornGrid Real Account Analytics</h2>
+                </div>
+                
+                <!-- Link Direct ke Myfxbook -->
+                <div>
+                    <a href="https://www.myfxbook.com/members/akramjamil/corngrid-ea-growth/12143796" target="_blank" rel="noopener" class="btn-myfxbook">
+                        <i class="fas fa-chart-line"></i>
+                        <span data-i18n="myfx_btn">Verify on Myfxbook</span>
+                        <i class="fas fa-external-link-alt icon-external"></i>
                     </a>
                 </div>
+            </div>
 
-                <!-- =========================================
-                   TERMS, CONDITIONS & RISK POLICY MODAL
-                ========================================= -->
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+                
+                <div class="metric-box">
+                    <span class="metric-label" data-i18n="myfx_total_gain">Total Gain</span>
+                    <h3 class="metric-val-gain">+124.02%</h3>
+                    <p class="metric-sub" data-i18n="myfx_gain_sub">Automated Cumulative Yield</p>
+                </div>
+
+                <div class="metric-box">
+                    <span class="metric-label" data-i18n="myfx_monthly_gain">Daily Average</span>
+                    <h3 class="metric-val-monthly">+7.21%</h3>
+                    <p class="metric-sub" data-i18n="myfx_monthly_sub">Consistent Daily Return</p>
+                </div>
+
+                <div class="metric-box">
+                    <span class="metric-label" data-i18n="myfx_max_dd">Max Drawdown</span>
+                    <h3 class="metric-val-dd">38.5%</h3>
+                    <p class="metric-sub" data-i18n="myfx_dd_sub">Strict Risk Control Guard</p>
+                </div>
+
+                <div class="metric-box">
+                    <span class="metric-label" data-i18n="myfx_winrate">Profit Factor</span>
+                    <h3 class="metric-val-profit">1.99</h3>
+                    <p class="metric-sub" data-i18n="myfx_winrate_sub">Quantitative Profitability Ratio</p>
+                </div>
+
+            </div>
+
+            <!-- System Verification Note Footer -->
+            <div class="portfolio-footer">
+                <span><i class="fas fa-check-double icon-check"></i> Track Record Verified & Updated Real-Time via Myfxbook Auto-Update</span>
+                <span>Server: MetaTrader 5 | Broker: RoboForex-Pro</span>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+
+<!-- =========================================
+     TERMS, CONDITIONS & RISK POLICY MODAL (DIKEKALKAN 100%)
+========================================= -->
 <div id="termsModal" class="terms-modal-overlay">
     <div class="terms-modal-content">
         
@@ -217,132 +354,6 @@
 
     </div>
 </div>
-
-                <!-- Trust Micro Features -->
-                <div class="hero-trust-highlights">
-                    <div class="trust-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span data-i18n="trust_hedging">Native MT5 Hedging</span>
-                    </div>
-                    <div class="trust-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span data-i18n="trust_drawdown">Hard-Stop Drawdown Breaker</span>
-                    </div>
-                    <div class="trust-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span data-i18n="trust_xauusd">XAUUSD Optimized</span>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Right Column: Terminal Preview & Floating Badges -->
-            <div class="hero-visual">
-                <div class="hero-image-wrapper">
-                    <div class="hero-terminal-bar">
-                        <div class="terminal-dots">
-                            <span class="dot-red"></span>
-                            <span class="dot-yellow"></span>
-                            <span class="dot-green"></span>
-                        </div>
-                        <span class="terminal-tag">CORNGRID.EX5</span>
-                    </div>
-
-                    <div class="hero-img-box">
-                        <img src="images/hero-image.png" alt="CornGrid EA MT5 Trading System" class="hero-img">
-                    </div>
-
-                    <!-- Kad Terapung Diubah ke Bawah Imej -->
-                    <div class="hero-stats-row">
-                        <div class="hero-stat-card">
-                            <div class="float-icon gold-bg"><i class="fas fa-bolt"></i></div>
-                            <div>
-                                <strong data-i18n="float_exec_title">Sub-5ms Execution</strong>
-                                <span data-i18n="float_exec_sub">Equinix VPS Latency</span>
-                            </div>
-                        </div>
-
-                        <div class="hero-stat-card">
-                            <div class="float-icon green-bg"><i class="fas fa-shield-alt"></i></div>
-                            <div>
-                                <strong data-i18n="float_shield_title">Equity Safeguard</strong>
-                                <span data-i18n="float_shield_sub">Automated Risk Shield</span>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-
-        </div>
-    </div>
-</section>
-
-<!-- =========================================
-     MYFXBOOK VERIFIED PORTFOLIO SHOWCASE
-========================================= -->
-<section id="portfolio">
-    <div class="container">
-        
-        <!-- Section Header / Status Bar -->
-        <div class="portfolio-header">
-            <div>
-              <div class="verified-badge">
-                <span class="verified-dot"></span>
-                <!-- Logo Myfxbook -->
-                <img src="images/myfxbook.png" alt="Myfxbook Logo" class="myfxbook-logo">
-                <span data-i18n="myfx_verified_badge">VERIFIED </span>
-             </div>
-                <h2 class="portfolio-title" data-i18n="myfx_title">CornGrid Real Account Analytics</h2>
-            </div>
-            
-            <!-- Link Direct ke Myfxbook -->
-            <div>
-                <a href="https://www.myfxbook.com/members/akramjamil/corngrid-ea-growth/12143796" target="_blank" rel="noopener" class="btn-myfxbook">
-                    <i class="fas fa-chart-line"></i>
-                    <span data-i18n="myfx_btn">Verify on Myfxbook</span>
-                    <i class="fas fa-external-link-alt icon-external"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- Metrics Grid -->
-        <div class="metrics-grid">
-            
-            <div class="metric-box">
-                <span class="metric-label" data-i18n="myfx_total_gain">Total Gain</span>
-                <h3 class="metric-val-gain">+124.02%</h3>
-                <p class="metric-sub" data-i18n="myfx_gain_sub">Automated Cumulative Yield</p>
-            </div>
-
-            <div class="metric-box">
-                <span class="metric-label" data-i18n="myfx_monthly_gain">Daily Average</span>
-                <h3 class="metric-val-monthly">+7.21%</h3>
-                <p class="metric-sub" data-i18n="myfx_monthly_sub">Consistent Daily Return</p>
-            </div>
-
-            <div class="metric-box">
-                <span class="metric-label" data-i18n="myfx_max_dd">Max Drawdown</span>
-                <h3 class="metric-val-dd">38.5%</h3>
-                <p class="metric-sub" data-i18n="myfx_dd_sub">Strict Risk Control Guard</p>
-            </div>
-
-            <div class="metric-box">
-                <span class="metric-label" data-i18n="myfx_winrate">Profit Factor</span>
-                <h3 class="metric-val-profit">1.99</h3>
-                <p class="metric-sub" data-i18n="myfx_winrate_sub">Quantitative Profitability Ratio</p>
-            </div>
-
-        </div>
-
-        <!-- System Verification Note Footer -->
-        <div class="portfolio-footer">
-            <span><i class="fas fa-check-double icon-check"></i> Track Record Verified & Updated Real-Time via Myfxbook Auto-Update</span>
-            <span>Server: MetaTrader 5 | Broker: RoboForex-Pro</span>
-        </div>
-
-    </div>
-</section>
 
  <!-- =========================================
      LIVE DASHBOARD SHOWCASE (DARK QUANT REDESIGN)

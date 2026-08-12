@@ -1,6 +1,6 @@
-================================================================================
+================================================
 CORNGRID EA — TERMS & CONDITIONS AND RISK DISCLOSURE POLICY
-================================================================================
+================================================
 
 Document Version: 01.02.05082026
 Effective Date: 12 July 2026
@@ -19,9 +19,9 @@ downloading, installing, activating, or using this software, you explicitly
 agree to all terms, disclaimers, and risk policies herein.
 
 
-================================================================================
+================================================
 SECTION 1 — TERMS & CONDITIONS
-================================================================================
+================================================
 
 1. Introduction
 This Terms & Conditions document constitutes a legally binding agreement between 
@@ -281,9 +281,9 @@ out through official channels:
 - Customer Support: https://t.me/CorngridSupport
 
 
-================================================================================
+===============================================
 SECTION 2 — CORNGRID EA RISK DISCLOSURE & RISK POLICY
-================================================================================
+===============================================
 
 HIGH-RISK FINANCIAL WARNING:
 TRADING FOREX, FINANCIAL DERIVATIVES, CFDS, AND SPOT GOLD (XAUUSD) INVOLVES AN 
@@ -420,20 +420,20 @@ executing CornGrid EA, you explicitly confirm and declare that:
 4. No Profit Guarantees: I confirm that CornGrid EA has made no profit 
    guarantees or safety promises regarding my capital.
 
---------------------------------------------------------------------------------
+-------------------------------------------
 USER ACKNOWLEDGEMENT FORM
---------------------------------------------------------------------------------
+-------------------------------------------
 User Full Name        : 
 Email Address         : 
 MT5 Account Number(s) : 
 Date of Acceptance    : 
 User Signature        : 
---------------------------------------------------------------------------------
+-------------------------------------------
 
 
-================================================================================
+===============================================
 SECTION 3 — IMPORTANT LEGAL DISCLAIMER FOR LEGAL REVIEW
-================================================================================
+===============================================
 
 This official document is designed and drafted to establish the terms of software 
 usage, licensing limitations, and legal risk disclosures for CornGrid EA. It 
@@ -445,4 +445,4 @@ FROM A QUALIFIED ATTORNEY OR FINANCIAL PROFESSIONAL. THE FINAL VERSION OF THIS
 DOCUMENT SHOULD BE REVIEWED, ADAPTED, AND APPROVED BY A QUALIFIED LEGAL 
 PROFESSIONAL IN YOUR RELEVANT OPERATING JURISDICTION BEFORE BEING PUBLISHED OR 
 USED AS A LEGALLY BINDING AGREEMENT.
-================================================================================
+==============================================
