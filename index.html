@@ -238,28 +238,66 @@
 </section>
 
 <!-- =========================================
-     METRICS SHOWCASE (BIG FIRM ADDITION)
+     MYFXBOOK VERIFIED PORTFOLIO SHOWCASE
 ========================================= -->
-<section style="padding: 40px 0; background: #070707; border-bottom: 1px solid #1a1a1a;">
+<section id="portfolio">
     <div class="container">
-        <div class="metrics-grid">
-            <div class="metric-box">
-                <h3 data-i18n="metric_1_title">MT5 Platform</h3>
-                <p data-i18n="metric_1_sub">Optimized Architecture</p>
+        
+        <!-- Section Header / Status Bar -->
+        <div class="portfolio-header">
+            <div>
+                <div class="verified-badge">
+                    <span class="verified-dot"></span>
+                    <span data-i18n="myfx_verified_badge">VERIFIED MYFXBOOK TRACK RECORD</span>
+                </div>
+                <h2 class="portfolio-title" data-i18n="myfx_title">CornGrid Real Account Analytics</h2>
             </div>
-            <div class="metric-box">
-                <h3 data-i18n="metric_2_title">XAUUSD Focus</h3>
-                <p data-i18n="metric_2_sub">Quantitative Precision</p>
-            </div>
-            <div class="metric-box">
-                <h3 data-i18n="metric_3_title">Sub-Millisecond</h3>
-                <p data-i18n="metric_3_sub">Latency Execution</p>
-            </div>
-            <div class="metric-box">
-                <h3 data-i18n="metric_4_title">Hard Stop Safeguard</h3>
-                <p data-i18n="metric_4_sub">Capital Protection</p>
+            
+            <!-- Link Direct ke Myfxbook -->
+            <div>
+                <a href="https://www.myfxbook.com/members/akramjamil/corngrid-ea-growth/12143796" target="_blank" rel="noopener" class="btn-myfxbook">
+                    <i class="fas fa-chart-line"></i>
+                    <span data-i18n="myfx_btn">Verify on Myfxbook</span>
+                    <i class="fas fa-external-link-alt icon-external"></i>
+                </a>
             </div>
         </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+            
+            <div class="metric-box">
+                <span class="metric-label" data-i18n="myfx_total_gain">Total Gain</span>
+                <h3 class="metric-val-gain">+40.91%</h3>
+                <p class="metric-sub" data-i18n="myfx_gain_sub">Automated Cumulative Yield</p>
+            </div>
+
+            <div class="metric-box">
+                <span class="metric-label" data-i18n="myfx_monthly_gain">Daily Average</span>
+                <h3 class="metric-val-monthly">+4.38%</h3>
+                <p class="metric-sub" data-i18n="myfx_monthly_sub">Consistent Daily Return</p>
+            </div>
+
+            <div class="metric-box">
+                <span class="metric-label" data-i18n="myfx_max_dd">Max Drawdown</span>
+                <h3 class="metric-val-dd">38.5%</h3>
+                <p class="metric-sub" data-i18n="myfx_dd_sub">Strict Risk Control Guard</p>
+            </div>
+
+            <div class="metric-box">
+                <span class="metric-label" data-i18n="myfx_winrate">Profit Factor</span>
+                <h3 class="metric-val-profit">1.46</h3>
+                <p class="metric-sub" data-i18n="myfx_winrate_sub">Quantitative Profitability Ratio</p>
+            </div>
+
+        </div>
+
+        <!-- System Verification Note Footer -->
+        <div class="portfolio-footer">
+            <span><i class="fas fa-check-double icon-check"></i> Track Record Verified & Updated Real-Time via Myfxbook Auto-Update</span>
+            <span>Server: MetaTrader 5 | Broker: RoboForex-Pro</span>
+        </div>
+
     </div>
 </section>
 
@@ -702,69 +740,6 @@
 </section>
 
 <!-- =========================================
-     SIMPLE WHITE THEME DEPLOYMENT GUIDE
-========================================= -->
-<section class="installation-section-white" id="installation">
-    <div class="container">
-        
-        <!-- Header -->
-        <div class="section-header">
-            <span class="section-badge-dark" data-i18n="guide_badge">DEPLOYMENT PROTOCOL</span>
-            <h2 style="color: #111111;" data-i18n="guide_title">Simple 4-Step Setup Guide</h2>
-            <p style="font-size: 15px; font-weight: 400; color: #666666; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="guide_subtitle">
-                Quickly deploy CornGrid EA on MetaTrader 5 in just a few minutes.
-            </p>
-        </div>
-
-        <!-- 4-Step Steps Grid -->
-        <div class="steps-grid">
-            
-            <div class="step-card">
-                <div class="step-badge">01</div>
-                <h3 data-i18n="guide_s1_title">Download EA</h3>
-                <p data-i18n="guide_s1_desc">Get the official release package (.ex5) from our directory.</p>
-            </div>
-
-            <div class="step-card">
-                <div class="step-badge">02</div>
-                <h3 data-i18n="guide_s2_title">Paste in MT5</h3>
-                <p data-i18n="guide_s2_desc">Paste file into <strong>File → Open Data Folder → MQL5 → Experts</strong>.</p>
-            </div>
-
-            <div class="step-card">
-                <div class="step-badge">03</div>
-                <h3 data-i18n="guide_s3_title">Enable Algo</h3>
-                <p data-i18n="guide_s3_desc">Turn on <strong>Allow Algorithmic Trading</strong> and WebRequest in MT5 settings.</p>
-            </div>
-
-            <div class="step-card">
-                <div class="step-badge">04</div>
-                <h3 data-i18n="guide_s4_title">Load Preset</h3>
-                <p data-i18n="guide_s4_desc">Attach EA to XAUUSD M5 chart, load .SET file, and activate.</p>
-            </div>
-
-        </div>
-
-        <!-- Horizontal PDF Banner -->
-        <div class="pdf-banner-white">
-            <div class="pdf-banner-info">
-                <div class="pdf-icon-box">
-                    <i class="fas fa-file-pdf"></i>
-                </div>
-                <div>
-                    <h4 data-i18n="pdf_banner_h4">Need Visual Walkthrough?</h4>
-                    <p data-i18n="pdf_banner_p">Download the complete step-by-step PDF manual & setup guide.</p>
-                </div>
-            </div>
-            <a href="files/Corngrid official support guide.pdf" download="Installation_Guide.pdf" class="btn-pdf-download" data-i18n="pdf_banner_btn">
-                <i class="fas fa-download"></i> Download PDF Guide
-            </a>
-        </div>
-
-    </div>
-</section>
-
-<!-- =========================================
      OFFICIAL SET FILE VAULT (DARK QUANT REDESIGN)
 ========================================= -->
 <section class="setfile-section-dark" id="setfiles">
@@ -965,7 +940,7 @@
                     <li><i class="fas fa-check-circle"></i> Instant Withdrawal Processing</li>
                     <li><i class="fas fa-check-circle"></i> $30 Welcome Capital Option</li>
                 </ul>
-                <a href="https://my.roboinvesting.pro/en/?a=zmox" class="broker-btn-white" target="_blank" rel="noopener" data-i18n="broker_btn">
+                <a href="https://rinfinity.com/a/zmox" class="broker-btn-white" target="_blank" rel="noopener" data-i18n="broker_btn">
                     Open Brokerage Account <i class="fas fa-arrow-right"></i>
                 </a>
             </div>

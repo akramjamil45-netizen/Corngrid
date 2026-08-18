@@ -225,6 +225,18 @@ const translations = {
         metric_4_title: "Hard Stop Safeguard",
         metric_4_sub: "Capital Protection",
 
+        myfx_verified_badge: "VERIFIED MYFXBOOK TRACK RECORD",
+        myfx_title: "CornGrid Real Account Analytics",
+        myfx_btn: "Verify on Myfxbook",
+        myfx_total_gain: "Total Gain",
+        myfx_gain_sub: "Automated Cumulative Yield",
+        myfx_monthly_gain: "Daily Average",
+        myfx_monthly_sub: "Consistent Daily Return",
+        myfx_max_dd: "Max Drawdown",
+        myfx_dd_sub: "Strict Risk Control Guard",
+        myfx_winrate: "Profit Factor",
+        myfx_winrate_sub: "Quantitative Profitability Ratio",
+
         // --- Dashboard Showcase ---
         dash_badge: "TERMINAL INTERFACE",
         dash_title: "CornGrid EA Analytics Dashboard",
@@ -436,6 +448,18 @@ const translations = {
         metric_3_sub: "Eksekusi Latensi Rendah",
         metric_4_title: "Kawalan Hard Stop",
         metric_4_sub: "Perlindungan Modal",
+
+        myfx_verified_badge: "REKOD DISAHKAN MYFXBOOK",
+        myfx_title: "Analisis Akaun Real CornGrid",
+        myfx_btn: "Sahkan di Myfxbook",
+        myfx_total_gain: "Jumlah Keuntungan",
+        myfx_gain_sub: "Hasil Kumulatif Automatikal",
+        myfx_monthly_gain: "Purata Harian",
+        myfx_monthly_sub: "Pulangan Konsisten Harian ",
+        myfx_max_dd: "Drawdown Maksimum",
+        myfx_dd_sub: "Perlindungan Risiko Ketat",
+        myfx_winrate: "Faktor Keuntungan",
+        myfx_winrate_sub: "Nisbah Keuntungan Kuantitatif",
 
         // --- Dashboard Showcase ---
         dash_badge: "ANTARAMUKA TERMINAL",
