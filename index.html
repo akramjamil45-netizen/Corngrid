@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "CornGrid EA MT5",
+  "operatingSystem": "Windows, MetaTrader 5",
+  "applicationCategory": "FinanceApplication",
+  "softwareVersion": "1.80",
+  "description": "CornGrid EA is an intelligent MetaTrader 5 Expert Advisor for XAUUSD (Gold) featuring smart grid recovery, dynamic basket profit technology, and advanced capital risk management.",
+  "image": "https://corngrid.netlify.app/images/CornGrid%20logo%204k.png",
+  "url": "https://corngrid.netlify.app/",
+  "author": {
+    "@type": "Organization",
+    "name": "CornGrid Technologies",
+    "url": "https://corngrid.netlify.app/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "priceValidUntil": "2027-12-31",
+    "availability": "https://schema.org/InStock",
+    "seller": {
+      "@type": "Organization",
+      "name": "CornGrid Technologies"
+    }
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "ratingCount": "128",
+    "reviewCount": "128",
+    "bestRating": "5",
+    "worstRating": "1"
+  }
+}
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CornGrid EA | Institutional Quantitative Trading Systems</title>
+    <meta name="description" content="CornGrid EA delivers institutional-grade automated trading algorithms for XAUUSD featuring dynamic volatility recovery, risk management, and smart execution on MT5.">
+    <meta name="keywords" content="CornGrid EA, MT5 EA, MetaTrader 5 Expert Advisor, XAUUSD EA, Quantitative Trading, Forex EA, Algorithmic Trading System">
+    <meta name="author" content="CornGrid Technologies">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://corngrid.netlify.app/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="CornGrid EA | Institutional Quantitative Trading Systems">
+    <meta property="og:description" content="Enterprise MetaTrader 5 Expert Advisor powered by Dynamic Volatility Recovery and Capital Protection Technology.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://corngrid.netlify.app/images/CornGrid%20logo%204k.png">
+
+    <!-- Favicon & Styles -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="mystyle.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <!-- =========================================
+         HEADER (DIKEKALKAN SEPERTI ASAL)
+    ========================================= -->
+    
+<header id="mainHeader">
+    <div class="container">
+        <nav>
+            <div class="logo-container">
+                <img src="images/CornGrid logo 4k.png" alt="CornGrid Logo" class="logo-img">
+                <div class="logo-text">CORNGRID</div>
+            </div>
+
+            <!-- Hamburger Button (Mobile) -->
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle Navigation">
+                <i class="fas fa-bars icon-open"></i>
+                <i class="fas fa-times icon-close"></i>
+            </button>
+
+            <!-- Navigation Links & Language Selector -->
+            <div class="menu" id="navMenu">
+                <a href="#features" class="nav-link" data-i18n="nav_features">Features</a>
+                <a href="#setup" class="nav-link" data-i18n="nav_setup">Setup</a>
+                <a href="#setfiles" class="nav-link" data-i18n="nav_presets">Preset Files</a>
+                <a href="#support" class="nav-link" data-i18n="nav_support">Support</a>
+                <a href="https://www.mql5.com/en/market/product/185454" target="_blank" class="nav-cta-btn" data-i18n="nav_full_version">Get Full Version</a>
+
+                <!-- LANGUAGE SWITCHER BUTTONS -->
+                <div class="lang-switch-box">
+                    <button class="lang-btn active" id="btnEn" onclick="switchLanguage('en')">EN</button>
+                    <span class="lang-divider">|</span>
+                    <button class="lang-btn" id="btnBm" onclick="switchLanguage('bm')">BM</button>
+                </div>
+            </div>
+        </nav>
+    </div>
+</header>
+
+    <!-- Floating Support Button -->
+    <div class="cg-contact">
+        <div class="cg-contact-menu" id="cgContactMenu">
+            <div class="cg-contact-title">
+                <div>
+                    <strong>CornGrid Support Desk</strong>
+                    <span>Institutional Client Support</span>
+                </div>
+            </div>
+            <a href="https://t.me/CornGridSupportbot" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+                <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+                <div><strong>Telegram Helpdesk</strong><span>@CornGridSupportbot</span></div>
+                <i class="fas fa-chevron-right arrow"></i>
+            </a>
+            <a href="https://t.me/CornGridGroup" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+                <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+                <div><strong>Trader Network</strong><span>Join Official Community</span></div>
+                <i class="fas fa-chevron-right arrow"></i>
+            </a>
+            <a href="https://wa.me/60175660753" target="_blank" rel="noopener noreferrer" class="cg-contact-item whatsapp">
+                <div class="cg-contact-icon"><i class="fab fa-whatsapp"></i></div>
+                <div><strong>Direct Client Line</strong><span>Chat via WhatsApp</span></div>
+                <i class="fas fa-chevron-right arrow"></i>
+            </a>
+            <a href="mailto:akramjamil@gmail.com" class="cg-contact-item email">
+                <div class="cg-contact-icon"><i class="fas fa-envelope"></i></div>
+                <div><strong>Corporate Relations</strong><span>akramjamil@gmail.com</span></div>
+                <i class="fas fa-chevron-right arrow"></i>
+            </a>
+        </div>
+        <button class="cg-contact-button" id="cgContactButton" aria-label="Open CornGrid Support">
+            <span class="cg-pulse"></span>
+            <i class="fas fa-headset cg-open-icon"></i>
+            <i class="fas fa-times cg-close-icon"></i>
+        </button>
+    </div>
+
+ <!-- =========================================
+     HERO SECTION (DARK QUANT INSTITUTIONAL REDESIGN)
+========================================= -->
+<section class="hero-section-dark">
+    <!-- Background Ambient Glow Effects -->
+    <div class="hero-glow glow-top-left"></div>
+    <div class="hero-glow glow-bottom-right"></div>
+
+    <div class="container">
+        <div class="hero-grid-dark">
+            
+            <!-- Left Column: Copywriting & Actions -->
+            <div class="hero-content">
+
+
+                <!-- Main Heading -->
+                <h1 class="hero-title" data-i18n="hero_title">
+                    Maximize Recovery &
+                    <span class="highlight-gold">Trade Smarter</span>
+                    with CornGrid EA MT5
+                </h1>
+
+                <!-- High-Impact Description -->
+                <p class="hero-description" data-i18n="hero_desc">
+                    Fully Automated Trading System powered by Smart Reverse Entry & Dynamic Basket Profit Technology. 
+                    Engineered for institutional and retail traders who demand intelligent grid recovery, drawdown control, and sub-millisecond MT5 execution.
+                </p>
+
+                <!-- Action Buttons -->
+                <div class="hero-cta-group">
+                    <a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" class="btn-hero btn-hero-yellow" data-i18n="hero_btn_demo">
+                        <i class="fas fa-download"></i> Download Free Demo
+                    </a>
+                    <a href="https://www.mql5.com/en/market/product/185454" target="_blank" class="btn-hero btn-hero-outline" data-i18n="hero_btn_full">
+                        <i class="fas fa-shopping-cart"></i> Get Full Version
+                    </a>
+                </div>
+
+                <!-- Trust Micro Features -->
+                <div class="hero-trust-highlights">
+                    <div class="trust-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span data-i18n="trust_hedging">Native MT5 Hedging</span>
+                    </div>
+                    <div class="trust-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span data-i18n="trust_drawdown">Hard-Stop Drawdown Breaker</span>
+                    </div>
+                    <div class="trust-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span data-i18n="trust_xauusd">XAUUSD Optimized</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Terminal Preview & Floating Badges -->
+            <div class="hero-visual">
+                <div class="hero-image-wrapper">
+                    <div class="hero-terminal-bar">
+                        <div class="terminal-dots">
+                            <span class="dot-red"></span>
+                            <span class="dot-yellow"></span>
+                            <span class="dot-green"></span>
+                        </div>
+                        <span class="terminal-tag">CORNGRID.EX5</span>
+                    </div>
+
+                    <div class="hero-img-box">
+                        <img src="images/hero-image.png" alt="CornGrid EA MT5 Trading System" class="hero-img">
+                    </div>
+
+                    <!-- Kad Terapung Diubah ke Bawah Imej -->
+                    <div class="hero-stats-row">
+                        <div class="hero-stat-card">
+                            <div class="float-icon gold-bg"><i class="fas fa-bolt"></i></div>
+                            <div>
+                                <strong data-i18n="float_exec_title">Sub-5ms Execution</strong>
+                                <span data-i18n="float_exec_sub">Equinix VPS Latency</span>
+                            </div>
+                        </div>
+
+                        <div class="hero-stat-card">
+                            <div class="float-icon green-bg"><i class="fas fa-shield-alt"></i></div>
+                            <div>
+                                <strong data-i18n="float_shield_title">Equity Safeguard</strong>
+                                <span data-i18n="float_shield_sub">Automated Risk Shield</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     METRICS SHOWCASE (BIG FIRM ADDITION)
+========================================= -->
+<section style="padding: 40px 0; background: #070707; border-bottom: 1px solid #1a1a1a;">
+    <div class="container">
+        <div class="metrics-grid">
+            <div class="metric-box">
+                <h3 data-i18n="metric_1_title">MT5 Platform</h3>
+                <p data-i18n="metric_1_sub">Optimized Architecture</p>
+            </div>
+            <div class="metric-box">
+                <h3 data-i18n="metric_2_title">XAUUSD Focus</h3>
+                <p data-i18n="metric_2_sub">Quantitative Precision</p>
+            </div>
+            <div class="metric-box">
+                <h3 data-i18n="metric_3_title">Sub-Millisecond</h3>
+                <p data-i18n="metric_3_sub">Latency Execution</p>
+            </div>
+            <div class="metric-box">
+                <h3 data-i18n="metric_4_title">Hard Stop Safeguard</h3>
+                <p data-i18n="metric_4_sub">Capital Protection</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+ <!-- =========================================
+     LIVE DASHBOARD SHOWCASE (DARK QUANT REDESIGN)
+========================================= -->
+<section id="dashboard" class="dashboard-section-dark">
+    <div class="container">
+        
+        <!-- Section Header -->
+        <div class="section-header">
+            <span class="section-badge" data-i18n="dash_badge"><i class="fas fa-desktop"></i> TERMINAL INTERFACE</span>
+            <h2 data-i18n="dash_title">CornGrid EA Analytics Dashboard</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #888888; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="dash_subtitle">
+                Gain complete visual control with real-time exposure monitoring, margin metrics, and institutional risk parameters rendered directly on your MetaTrader 5 chart.
+            </p>
+        </div>
+
+        <!-- Dashboard Terminal Wrapper -->
+        <div class="dashboard-card-dark">
+            
+            <!-- Left Side: Interactive Image Terminal Window -->
+            <div class="dashboard-image-wrapper">
+                <div class="terminal-header-bar">
+                    <div class="terminal-dots">
+                        <span class="dot-red"></span>
+                        <span class="dot-yellow"></span>
+                        <span class="dot-green"></span>
+                    </div>
+                    <span class="terminal-title"><i class="fas fa-chart-bar"></i> MT5 Chart Overlay Terminal v1.90</span>
+                </div>
+                
+                <div class="terminal-image-box">
+                    <img src="images/dashboard.png" alt="CornGrid EA Analytics Dashboard" class="dashboard-img">
+                    
+                    <!-- Floating Tech Badges -->
+                    <div class="floating-badge badge-top-left">
+                        <span class="badge-pulse"></span>
+                        <i class="fas fa-sync-alt fa-spin"></i> Live Equity Feed
+                    </div>
+                    <div class="floating-badge badge-bottom-right">
+                        <i class="fas fa-shield-alt"></i> Auto Drawdown Guard
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Informative Feature Grid -->
+            <div class="dashboard-content-dark">
+                <div class="content-header-tag" data-i18n="dash_tag">
+                    <i class="fas fa-sliders-h"></i> RISK MANAGEMENT ENGINE
+                </div>
+                <h3 data-i18n="dash_h3">Enterprise Analytics Suite</h3>
+                <p class="dashboard-intro" data-i18n="dash_intro">
+                    Directly integrated into MT5 graphics engine to deliver low-latency quantitative metrics without performance lag.
+                </p>
+
+                <div class="dashboard-feature-list">
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon"><i class="fas fa-wallet"></i></div>
+                        <div>
+                            <strong data-i18n="dash_f1_title">Equity & Balance Synchronization</strong>
+                            <span data-i18n="dash_f1_desc">Real-time tracking of floating P/L, total equity yield, and balance fluctuation.</span>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                        <div>
+                            <strong data-i18n="dash_f2_title">Basket Exposure Consolidation</strong>
+                            <span data-i18n="dash_f2_desc">Aggregates long & short positions into unified exposure metrics for quick execution.</span>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                        <div>
+                            <strong data-i18n="dash_f3_title">Margin & Free Capital Buffer</strong>
+                            <span data-i18n="dash_f3_desc">Monitors free margin levels and prevents over-leveraging during extreme market speed.</span>
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-icon"><i class="fas fa-power-off"></i></div>
+                        <div>
+                            <strong data-i18n="dash_f4_title">Hard-Stop Circuit Breaker</strong>
+                            <span data-i18n="dash_f4_desc">Automated safety threshold that freezes new grid cycles upon reaching max drawdown rules.</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- CTA Button -->
+                <div class="dashboard-action">
+                    <a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" class="dashboard-btn-gold" data-i18n="dash_btn">
+                        <i class="fas fa-download"></i> Deploy Demo Terminal
+                    </a>
+                    <span class="demo-subtext"><i class="fas fa-check"></i> <span data-i18n="dash_demo_sub">Includes Free Practice License</span></span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+   <!-- =========================================
+     HOW IT WORKS (TEMA PUTIH PREMIUM)
+========================================= -->
+<section class="section-white-bg">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="hiw_badge">EXECUTION MODEL</span>
+            <h2 style="color: #111;" data-i18n="hiw_title">System Architecture & Order Flow</h2>
+            <p style="color: #555;" data-i18n="hiw_subtitle">Designed like hedge fund execution models, balancing order entry speed with dynamic draw-down stabilization.</p>
+        </div>
+        
+        <div class="cards">
+            <div class="card card-white">
+                <div class="guide-number">01</div>
+                <h3 data-i18n="hiw_c1_title">Momentum Signal Protocol</h3>
+                <p data-i18n="hiw_c1_desc">Analyzes multi-candle price action momentum to pinpoint high-probability reversal channels prior to trade trigger.</p>
+            </div>
+            <div class="card card-white">
+                <div class="guide-number">02</div>
+                <h3 data-i18n="hiw_c2_title">Adaptive Grid Recovery</h3>
+                <p data-i18n="hiw_c2_desc">Dynamically recalculates order spacing during high volatility, mitigating over-leveraging and protecting margin.</p>
+            </div>
+            <div class="card card-white">
+                <div class="guide-number">03</div>
+                <h3 data-i18n="hiw_c3_title">Basket Exposure Clearance</h3>
+                <p data-i18n="hiw_c3_desc">Tracks net floating equity across all open positions, instantly liquidating the basket when net profit targets are hit.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     CORE FEATURES SECTION (DARK QUANT REDESIGN)
+========================================= -->
+<section id="features" class="features-section-dark">
+    <div class="container">
+        <!-- Section Header -->
+        <div class="section-header">
+            <span class="section-badge" data-i18n="feat_badge"><i class="fas fa-microchip"></i> ALGORITHMIC CORE</span>
+            <h2 data-i18n="feat_title">Core Quantitative Capabilities</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #888888; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="feat_subtitle">
+                Algorithmic components engineered for high liquidity markets and extreme gold volatility.
+            </p>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="features-quant-grid">
+            
+            <!-- Feature 1 -->
+            <div class="feature-quant-card">
+                <div class="feature-card-top">
+                    <div class="feature-icon-wrapper">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <span class="feature-tag" data-i18n="feat_m1_tag">MODULE 01</span>
+                </div>
+                
+                <div class="feature-media">
+                    <img src="images/1.jpg" alt="Reverse Entry" class="quant-blend-img">
+                </div>
+
+                <div class="feature-card-body">
+                    <h3 data-i18n="feat_m1_title">Reverse Entry Logic</h3>
+                    <p data-i18n="feat_m1_desc">Filters false breakouts by measuring multi-timeframe candle exhaustion patterns before initiating counter-trend orders.</p>
+                </div>
+
+                <div class="feature-card-footer">
+                    <span class="foot-status"><i class="fas fa-check-circle"></i> <span data-i18n="feat_m1_foot">False Breakout Filter</span></span>
+                </div>
+            </div>
+
+            <!-- Feature 2 -->
+            <div class="feature-quant-card featured-feature">
+                <div class="feature-card-top">
+                    <div class="feature-icon-wrapper gold-glow">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <span class="feature-tag tag-gold" data-i18n="feat_m2_tag">CORE MATRIX</span>
+                </div>
+
+                <div class="feature-media">
+                    <img src="images/2.jpg" alt="Smart Recovery" class="quant-blend-img">
+                </div>
+
+                <div class="feature-card-body">
+                    <h3 data-i18n="feat_m2_title">Dynamic Grid Matrix</h3>
+                    <p data-i18n="feat_m2_desc">Algorithmic grid adjustment adapts lot sizing, recovery distances, and basket targets dynamically based on current ATR velocity.</p>
+                </div>
+
+                <div class="feature-card-footer">
+                    <span class="foot-status gold-status"><i class="fas fa-bolt"></i> <span data-i18n="feat_m2_foot">Adaptive Volatility Spacing</span></span>
+                </div>
+            </div>
+
+            <!-- Feature 3 -->
+            <div class="feature-quant-card">
+                <div class="feature-card-top">
+                    <div class="feature-icon-wrapper">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <span class="feature-tag" data-i18n="feat_m3_tag">MODULE 03</span>
+                </div>
+
+                <div class="feature-media">
+                    <img src="images/3.jpg" alt="Risk Control" class="quant-blend-img">
+                </div>
+
+                <div class="feature-card-body">
+                    <h3 data-i18n="feat_m3_title">Capital Protection Module</h3>
+                    <p data-i18n="feat_m3_desc">Enforces hard-stop equity thresholds, free margin buffers, and automatic circuit breakers to eliminate tail risk and drawdown spikes.</p>
+                </div>
+
+                <div class="feature-card-footer">
+                    <span class="foot-status"><i class="fas fa-lock"></i> <span data-i18n="feat_m3_foot">Equity Circuit Breaker</span></span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+   <!-- =========================================
+     WHY CHOOSE CORNGRID (JADUAL TEMA PUTIH)
+========================================= -->
+<section class="section-white-bg">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="comp_badge">BENCHMARK COMPARISON</span>
+            <h2 style="color: #111;" data-i18n="comp_title">Why Institutional Traders Upgrade to CornGrid</h2>
+            <p style="color: #555;" data-i18n="comp_subtitle">Discover the structural advantages over traditional retail trading practices.</p>
+        </div>
+        
+        <div class="table">
+            <table class="table-white">
+                <thead>
+                    <tr>
+                        <th data-i18n="comp_th_metric">Performance Metric</th>
+                        <th data-i18n="comp_th_manual">Manual Execution</th>
+                        <th data-i18n="comp_th_retail">Standard Retail EA</th>
+                        <th data-i18n="comp_th_corngrid"><strong>CornGrid EA Quant Model</strong></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong data-i18n="comp_r1_metric">Execution Precision</strong></td>
+                        <td data-i18n="comp_r1_manual">Human Delay & Bias</td>
+                        <td data-i18n="comp_r1_retail">Static Rules</td>
+                        <td data-i18n="comp_r1_corngrid">✔ Sub-millisecond Reaction Time</td>
+                    </tr>
+                    <tr>
+                        <td><strong data-i18n="comp_r2_metric">Volatility Handling</strong></td>
+                        <td data-i18n="comp_r2_manual">High Fatigue Factor</td>
+                        <td data-i18n="comp_r2_retail">Static Spacing (Account Blowout Risk)</td>
+                        <td data-i18n="comp_r2_corngrid">✔ Dynamic Volatility Grid Adaptation</td>
+                    </tr>
+                    <tr>
+                        <td><strong data-i18n="comp_r3_metric">Capital Liquidation</strong></td>
+                        <td data-i18n="comp_r3_manual">Manual Close Lag</td>
+                        <td data-i18n="comp_r3_retail">Basic Single Stop Loss</td>
+                        <td data-i18n="comp_r3_corngrid">✔ Net Basket Equity Target Clearance</td>
+                    </tr>
+                    <tr>
+                        <td><strong data-i18n="comp_r4_metric">Risk Management</strong></td>
+                        <td data-i18n="comp_r4_manual">Inconsistent Discipline</td>
+                        <td data-i18n="comp_r4_retail">No Equity Protection</td>
+                        <td data-i18n="comp_r4_corngrid">✔ Institutional Hard-Stop Protection</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<!-- =========================================
+     ALGORITHMIC SPECIFICATIONS (GRID CARDS)
+========================================= -->
+<section class="algo-specs-section">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-badge" data-i18n="algo_badge">CORE ALGORITHM</span>
+            <h2 data-i18n="algo_title">Algorithmic Specifications</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #a0a0a0; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="algo_subtitle">
+                Engineered with high-speed execution protocols and mathematical exposure control.
+            </p>
+        </div>
+
+        <div class="algo-specs-grid">
+            <div class="algo-card">
+                <div class="algo-icon"><i class="fas fa-microchip"></i></div>
+                <div class="algo-info">
+                    <h3 data-i18n="algo_c1_title">Dynamic Basket Profit Engine</h3>
+                    <p data-i18n="algo_c1_desc">Evaluates aggregate floating P/L continuously and automatically liquidates full exposure upon target completion.</p>
+                </div>
+            </div>
+
+            <div class="algo-card">
+                <div class="algo-icon"><i class="fas fa-shield-virus"></i></div>
+                <div class="algo-info">
+                    <h3 data-i18n="algo_c2_title">Margin Integrity Safeguard</h3>
+                    <p data-i18n="algo_c2_desc">Monitors real-time free margin levels, slippage parameters, and full MT5 Hedging structure compliance.</p>
+                </div>
+            </div>
+
+            <div class="algo-card">
+                <div class="algo-icon"><i class="fas fa-calculator"></i></div>
+                <div class="algo-info">
+                    <h3 data-i18n="algo_c3_title">Smart Lot Multiplier Algorithm</h3>
+                    <p data-i18n="algo_c3_desc">Calculates dynamic lot progression mathematically aligned with overall account balance and risk limits.</p>
+                </div>
+            </div>
+
+            <div class="algo-card">
+                <div class="algo-icon"><i class="fas fa-network-wired"></i></div>
+                <div class="algo-info">
+                    <h3 data-i18n="algo_c4_title">Broker Conditions Validator</h3>
+                    <p data-i18n="algo_c4_desc">Checks current spreads, order execution delays, and market liquidity before submitting orders.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     ENVIRONMENT SETUP (WHITE CLEAN THEME)
+========================================= -->
+<section id="setup" class="section-white-bg">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="setup_badge">SYSTEM REQUIREMENTS</span>
+            <h2 style="color: #111111;" data-i18n="setup_title">Institutional Environment Setup</h2>
+            <p style="color: #666666; font-size: 15px; font-weight: 400; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="setup_subtitle">
+                Recommended account architecture and infrastructure for low-latency execution.
+            </p>
+        </div>
+
+        <div class="setup-grid">
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l1">Trading Architecture</div>
+                <div class="setup-val">MetaTrader 5</div>
+                <span class="setup-tag" data-i18n="setup_l1_tag">Hedging Mandated</span>
+            </div>
+
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l2">Supported Assets</div>
+                <div class="setup-val">XAUUSD <small>(Gold Primary)</small></div>
+                <span class="setup-tag">EURUSD, GBPUSD, USDJPY</span>
+            </div>
+
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l3">Operating Timeframes</div>
+                <div class="setup-val">M1 – M30</div>
+                <span class="setup-tag">M5 / M15 Optimal</span>
+            </div>
+
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l4">Cent / Micro Tier</div>
+                <div class="setup-val">$300 – $500</div>
+                <span class="setup-tag" data-i18n="setup_l4_tag">Base Testing Capital</span>
+            </div>
+
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l5">Standard Institutional Tier</div>
+                <div class="setup-val">$30,000 – $50,000+</div>
+                <span class="setup-tag" data-i18n="setup_l5_tag">Full Exposure Capacity</span>
+            </div>
+
+            <div class="setup-card">
+                <div class="setup-label" data-i18n="setup_l6">Leverage & Infrastructure</div>
+                <div class="setup-val">1:1000 Leverage</div>
+                <span class="setup-tag">Equinix VPS Recommended</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+ <!-- =========================================
+     SIMPLE WHITE THEME DEPLOYMENT GUIDE
+========================================= -->
+<section class="installation-section-white" id="installation">
+    <div class="container">
+        
+        <!-- Header -->
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="guide_badge">DEPLOYMENT PROTOCOL</span>
+            <h2 style="color: #111111;" data-i18n="guide_title">Simple 4-Step Setup Guide</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #666666; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="guide_subtitle">
+                Quickly deploy CornGrid EA on MetaTrader 5 in just a few minutes.
+            </p>
+        </div>
+
+        <!-- 4-Step Steps Grid -->
+        <div class="steps-grid">
+            
+            <div class="step-card">
+                <div class="step-badge">01</div>
+                <h3 data-i18n="guide_s1_title">Download EA</h3>
+                <p data-i18n="guide_s1_desc">Get the official release package (.ex5) from our directory.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">02</div>
+                <h3 data-i18n="guide_s2_title">Paste in MT5</h3>
+                <p data-i18n="guide_s2_desc">Paste file into <strong>File → Open Data Folder → MQL5 → Experts</strong>.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">03</div>
+                <h3 data-i18n="guide_s3_title">Enable Algo</h3>
+                <p data-i18n="guide_s3_desc">Turn on <strong>Allow Algorithmic Trading</strong> and WebRequest in MT5 settings.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">04</div>
+                <h3 data-i18n="guide_s4_title">Load Preset</h3>
+                <p data-i18n="guide_s4_desc">Attach EA to XAUUSD M5 chart, load .SET file, and activate.</p>
+            </div>
+
+        </div>
+
+        <!-- Horizontal PDF Banner -->
+        <div class="pdf-banner-white">
+            <div class="pdf-banner-info">
+                <div class="pdf-icon-box">
+                    <i class="fas fa-file-pdf"></i>
+                </div>
+                <div>
+                    <h4 data-i18n="pdf_banner_h4">Need Visual Walkthrough?</h4>
+                    <p data-i18n="pdf_banner_p">Download the complete step-by-step PDF manual & setup guide.</p>
+                </div>
+            </div>
+            <a href="files/Corngrid official support guide.pdf" download="Installation_Guide.pdf" class="btn-pdf-download" data-i18n="pdf_banner_btn">
+                <i class="fas fa-download"></i> Download PDF Guide
+            </a>
+        </div>
+
+    </div>
+</section>
+
+<!-- =========================================
+     SIMPLE WHITE THEME DEPLOYMENT GUIDE
+========================================= -->
+<section class="installation-section-white" id="installation">
+    <div class="container">
+        
+        <!-- Header -->
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="guide_badge">DEPLOYMENT PROTOCOL</span>
+            <h2 style="color: #111111;" data-i18n="guide_title">Simple 4-Step Setup Guide</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #666666; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="guide_subtitle">
+                Quickly deploy CornGrid EA on MetaTrader 5 in just a few minutes.
+            </p>
+        </div>
+
+        <!-- 4-Step Steps Grid -->
+        <div class="steps-grid">
+            
+            <div class="step-card">
+                <div class="step-badge">01</div>
+                <h3 data-i18n="guide_s1_title">Download EA</h3>
+                <p data-i18n="guide_s1_desc">Get the official release package (.ex5) from our directory.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">02</div>
+                <h3 data-i18n="guide_s2_title">Paste in MT5</h3>
+                <p data-i18n="guide_s2_desc">Paste file into <strong>File → Open Data Folder → MQL5 → Experts</strong>.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">03</div>
+                <h3 data-i18n="guide_s3_title">Enable Algo</h3>
+                <p data-i18n="guide_s3_desc">Turn on <strong>Allow Algorithmic Trading</strong> and WebRequest in MT5 settings.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-badge">04</div>
+                <h3 data-i18n="guide_s4_title">Load Preset</h3>
+                <p data-i18n="guide_s4_desc">Attach EA to XAUUSD M5 chart, load .SET file, and activate.</p>
+            </div>
+
+        </div>
+
+        <!-- Horizontal PDF Banner -->
+        <div class="pdf-banner-white">
+            <div class="pdf-banner-info">
+                <div class="pdf-icon-box">
+                    <i class="fas fa-file-pdf"></i>
+                </div>
+                <div>
+                    <h4 data-i18n="pdf_banner_h4">Need Visual Walkthrough?</h4>
+                    <p data-i18n="pdf_banner_p">Download the complete step-by-step PDF manual & setup guide.</p>
+                </div>
+            </div>
+            <a href="files/Corngrid official support guide.pdf" download="Installation_Guide.pdf" class="btn-pdf-download" data-i18n="pdf_banner_btn">
+                <i class="fas fa-download"></i> Download PDF Guide
+            </a>
+        </div>
+
+    </div>
+</section>
+
+<!-- =========================================
+     OFFICIAL SET FILE VAULT (DARK QUANT REDESIGN)
+========================================= -->
+<section class="setfile-section-dark" id="setfiles">
+    <div class="container">
+        <div class="setfile-container-card">
+            
+            <!-- Header Section -->
+            <div class="setfile-header-dark">
+                <span class="vault-badge" data-i18n="vault_badge"><i class="fas fa-database"></i> QUANTITATIVE PRESETS</span>
+                <h2 data-i18n="vault_title">Official SET File Vault</h2>
+                <p data-i18n="vault_subtitle">
+                    Precision-engineered parameters optimized by CornGrid Quantitative Analysts. 
+                    Stress-tested under real tick data to match specific instrument volatility profiles.
+                </p>
+            </div>
+
+            <!-- Algorithm Meta Bar -->
+            <div class="quant-meta-bar">
+                <div class="meta-item">
+                    <span class="meta-label" data-i18n="meta_build">ALGORITHM BUILD</span>
+                    <span class="meta-val">v1.90 Production</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label" data-i18n="meta_opt">LAST OPTIMIZATION</span>
+                    <span class="meta-val">05 August 2026</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label" data-i18n="meta_status">DEPLOYMENT STATUS</span>
+                    <span class="meta-val status-live"><span class="live-pulse"></span> Live & Verified</span>
+                </div>
+            </div>
+
+            <!-- Instrument Cards Grid -->
+            <div class="vault-grid">
+                
+                <!-- Gold (XAUUSD) -->
+                <div class="vault-card featured-vault">
+                    <div class="featured-ribbon"><i class="fas fa-crown"></i> High Yield</div>
+                    <div class="vault-card-header">
+                        <div class="vault-icon gold-icon"><i class="fas fa-coins"></i></div>
+                        <div>
+                            <h3>XAUUSD</h3>
+                            <span class="asset-type">Gold Commodity</span>
+                        </div>
+                    </div>
+                    <div class="vault-specs">
+                        <div class="spec-row">
+                            <span>Target Strategy:</span>
+                            <strong>Volatility Scalp</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span>Risk Profile:</span>
+                            <span class="risk-badge risk-high">Dynamic Yield</span>
+                        </div>
+                    </div>
+                    <a href="files/xauusd m1 v1.9.rar" download="XAUUSD.rar" class="vault-download-btn btn-gold" data-i18n="vault_download">
+                        <i class="fas fa-download"></i> Download .SET
+                    </a>
+                </div>
+
+                <!-- Euro Dollar (EURUSD) -->
+                <div class="vault-card">
+                    <div class="vault-card-header">
+                        <div class="vault-icon euro-icon"><i class="fas fa-globe-europe"></i></div>
+                        <div>
+                            <h3>EURUSD</h3>
+                            <span class="asset-type">Euro / US Dollar</span>
+                        </div>
+                    </div>
+                    <div class="vault-specs">
+                        <div class="spec-row">
+                            <span>Target Strategy:</span>
+                            <strong>Conservative Grid</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span>Risk Profile:</span>
+                            <span class="risk-badge risk-low">Low Drawdown</span>
+                        </div>
+                    </div>
+                    <a href="files/eurusd m1 v1.9.rar" download="EURUSD.rar" class="vault-download-btn" data-i18n="vault_download">
+                        <i class="fas fa-download"></i> Download .SET
+                    </a>
+                </div>
+
+                <!-- British Pound (GBPUSD) -->
+                <div class="vault-card">
+                    <div class="vault-card-header">
+                        <div class="vault-icon pound-icon"><i class="fas fa-pound-sign"></i></div>
+                        <div>
+                            <h3>GBPUSD</h3>
+                            <span class="asset-type">British Pound</span>
+                        </div>
+                    </div>
+                    <div class="vault-specs">
+                        <div class="spec-row">
+                            <span>Target Strategy:</span>
+                            <strong>Balanced Recovery</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span>Risk Profile:</span>
+                            <span class="risk-badge risk-medium">Moderate Yield</span>
+                        </div>
+                    </div>
+                    <a href="files/gbpusd m1 v1.9.rar" download="GBPUSD.rar" class="vault-download-btn" data-i18n="vault_download">
+                        <i class="fas fa-download"></i> Download .SET
+                    </a>
+                </div>
+
+                <!-- Japanese Yen (USDJPY) -->
+                <div class="vault-card">
+                    <div class="vault-card-header">
+                        <div class="vault-icon yen-icon"><i class="fas fa-yen-sign"></i></div>
+                        <div>
+                            <h3>USDJPY</h3>
+                            <span class="asset-type">US Dollar / Yen</span>
+                        </div>
+                    </div>
+                    <div class="vault-specs">
+                        <div class="spec-row">
+                            <span>Target Strategy:</span>
+                            <strong>Trend Stabilization</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span>Risk Profile:</span>
+                            <span class="risk-badge risk-low">Stable Growth</span>
+                        </div>
+                    </div>
+                    <a href="files/usdjpy m1 v1.9.rar" download="USDJPY.rar" class="vault-download-btn" data-i18n="vault_download">
+                        <i class="fas fa-download"></i> Download .SET
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+<!-- =========================================
+     RECOMMENDED BROKERS (WHITE THEME REDESIGN)
+========================================= -->
+<section class="section-white-bg" id="broker">
+    <div class="container">
+        <!-- Header -->
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="broker_badge">PRIME BROKERAGE DIRECTORY</span>
+            <h2 style="color: #111111;" data-i18n="broker_title">High-Execution MetaTrader 5 Brokers</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #666666; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="broker_subtitle">
+                Select from our verified brokerage partners offering competitive spreads, fast execution routes, and full MT5 Cent / Micro account infrastructure.
+            </p>
+        </div>
+
+        <!-- Broker Grid -->
+        <div class="broker-grid-white">
+            
+            <!-- LiteFinance -->
+            <div class="broker-card-white">
+                <div class="broker-logo-box">
+                    <img src="images/Litefinance.svg" alt="LiteFinance">
+                </div>
+                <h3>LiteFinance</h3>
+                <ul class="broker-features-white">
+                    <li><i class="fas fa-check-circle"></i> MT5 Cent & ECN Accounts</li>
+                    <li><i class="fas fa-check-circle"></i> Leverage up to 1:1000</li>
+                    <li><i class="fas fa-check-circle"></i> Minimum Deposit $10</li>
+                    <li><i class="fas fa-check-circle"></i> Swap-Free Accounts Available</li>
+                </ul>
+                <a href="https://www.litefinance.org/?uid=783572950" class="broker-btn-white" target="_blank" rel="noopener" data-i18n="broker_btn">
+                    Open Brokerage Account <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <!-- HF Markets (Featured) -->
+            <div class="broker-card-white featured-broker">
+                <span class="broker-badge-popular">PREFERRED CHOICE</span>
+                <div class="broker-logo-box">
+                    <img src="images/hfmarket.png" alt="HF Markets">
+                </div>
+                <h3>HF Markets</h3>
+                <ul class="broker-features-white">
+                    <li><i class="fas fa-check-circle"></i> MT5 Cent Accounts</li>
+                    <li><i class="fas fa-check-circle"></i> Leverage up to 1:2000</li>
+                    <li><i class="fas fa-check-circle"></i> Minimum Deposit $0</li>
+                    <li><i class="fas fa-check-circle"></i> Ultra-Low Gold Spreads</li>
+                </ul>
+                <a href="https://register.hfmmalaysia.com/sv/en/new-live-account/?refid=30562469" class="broker-btn-white featured-btn" target="_blank" rel="noopener" data-i18n="broker_btn">
+                    Open Brokerage Account <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <!-- RoboForex -->
+            <div class="broker-card-white">
+                <div class="broker-logo-box">
+                    <img src="images/Roboforex.svg" alt="RoboForex">
+                </div>
+                <h3>RoboForex</h3>
+                <ul class="broker-features-white">
+                    <li><i class="fas fa-check-circle"></i> MT5 ProCent Accounts</li>
+                    <li><i class="fas fa-check-circle"></i> Leverage up to 1:2000</li>
+                    <li><i class="fas fa-check-circle"></i> Instant Withdrawal Processing</li>
+                    <li><i class="fas fa-check-circle"></i> $30 Welcome Capital Option</li>
+                </ul>
+                <a href="https://my.roboinvesting.pro/en/?a=zmox" class="broker-btn-white" target="_blank" rel="noopener" data-i18n="broker_btn">
+                    Open Brokerage Account <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     TESTIMONIALS SECTION (DARK QUANT SLIDER)
+========================================= -->
+<section class="testimonial-section-dark" id="testimonial">
+    <div class="container">
+        <!-- Header -->
+        <div class="section-header">
+            <span class="section-badge" data-i18n="testi_badge"><i class="fas fa-quote-right"></i> TRADER PROOF</span>
+            <h2 data-i18n="testi_title">Validated Trader Experiences</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #888888; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="testi_subtitle">
+                Trusted by independent traders and fund managers utilizing automated quantitative algorithms.
+            </p>
+        </div>
+
+        <!-- Slider Wrapper -->
+        <div class="testimonial-slider-container" id="testimonialSlider">
+            <div class="slider-track" id="sliderTrack">
+                
+                <!-- Slide 1 -->
+                <div class="testimonial-card-dark">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="stars-gold"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                    <p class="testimonial-text">"CornGrid EA completely changed my trading. The Smart Recovery system helped recover difficult market situations while maintaining excellent risk control."</p>
+                    <div class="client-info">
+                        <img src="images/azudin.jfif" alt="Muhammad Azudin" class="client-avatar">
+                        <div>
+                            <h4>Muhammad Azudin</h4>
+                            <span class="client-role">Forex Trader</span>
+                        </div>
+                        <span class="verified-badge"><i class="fas fa-check-circle"></i> <span data-i18n="verified_user">Verified User</span></span>
+                    </div>
+                </div>
+
+                <!-- Slide 2 -->
+                <div class="testimonial-card-dark">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="stars-gold"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                    <p class="testimonial-text">"One of the best MT5 Expert Advisors I've ever used. Easy setup, stable performance, and the dashboard looks fantastic."</p>
+                    <div class="client-info">
+                        <img src="images/akram.jfif" alt="Akram Jamil" class="client-avatar">
+                        <div>
+                            <h4>Akram Jamil</h4>
+                            <span class="client-role">Gold Trader</span>
+                        </div>
+                        <span class="verified-badge"><i class="fas fa-check-circle"></i> <span data-i18n="verified_user">Verified User</span></span>
+                    </div>
+                </div>
+
+                <!-- Slide 3 -->
+                <div class="testimonial-card-dark">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="stars-gold"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                    <p class="testimonial-text">"The Dynamic Basket Profit feature is amazing. I can manage multiple recovery trades much more efficiently than before."</p>
+                    <div class="client-info">
+                        <img src="images/suhaimi.jfif" alt="Suhaimi Bachek" class="client-avatar">
+                        <div>
+                            <h4>Suhaimi Bachek</h4>
+                            <span class="client-role">Professional Trader</span>
+                        </div>
+                        <span class="verified-badge"><i class="fas fa-check-circle"></i> <span data-i18n="verified_user">Verified User</span></span>
+                    </div>
+                </div>
+
+                <!-- Slide 4 -->
+                <div class="testimonial-card-dark">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="stars-gold"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                    <p class="testimonial-text">"At first I was hesitant to try it, but after running it for a few weeks I really saw a difference. The settings were easy to understand, daily profit was running smoothly, and account equity was increasing consistently."</p>
+                    <div class="client-info">
+                        <img src="images/Nadiah.jfif" alt="Nadiah Suhaimi" class="client-avatar">
+                        <div>
+                            <h4>Nadiah Suhaimi</h4>
+                            <span class="client-role">Daily Scalper</span>
+                        </div>
+                        <span class="verified-badge"><i class="fas fa-check-circle"></i> <span data-i18n="verified_user">Verified User</span></span>
+                    </div>
+                </div>
+
+                <!-- Slide 5 -->
+                <div class="testimonial-card-dark">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="stars-gold"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                    <p class="testimonial-text">"Most impressed with the way CornGrid EA manages drawdown. Even though it uses a grid strategy, floating is very controlled and profits are consistent daily. Very suitable for anyone looking for an EA that is calmer!"</p>
+                    <div class="client-info">
+                        <img src="images/fahrul.jfif" alt="Fazrullan Tahir" class="client-avatar">
+                        <div>
+                            <h4>Fazrullan Tahir</h4>
+                            <span class="client-role">Service Technician</span>
+                        </div>
+                        <span class="verified-badge"><i class="fas fa-check-circle"></i> <span data-i18n="verified_user">Verified User</span></span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Navigation Arrows -->
+            <button class="slider-btn prev-btn" id="prevBtn" aria-label="Previous Slide"><i class="fas fa-chevron-left"></i></button>
+            <button class="slider-btn next-btn" id="nextBtn" aria-label="Next Slide"><i class="fas fa-chevron-right"></i></button>
+        </div>
+
+        <!-- Dots Indicator -->
+        <div class="slider-dots" id="sliderDots">
+            <span class="dot-item active" data-index="0"></span>
+            <span class="dot-item" data-index="1"></span>
+            <span class="dot-item" data-index="2"></span>
+            <span class="dot-item" data-index="3"></span>
+            <span class="dot-item" data-index="4"></span>
+        </div>
+    </div>
+</section>
+
+<!-- Risk Disclaimer -->
+<section class="warning-section-dark">
+    <div class="container">
+        <div class="warning-box-dark">
+            <div class="warning-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div>
+                <h3 data-i18n="risk_title">High Risk Investment Warning</h3>
+                <p data-i18n="risk_desc">
+                    Algorithmic trading using Grid models involves significant financial exposure. Capital protection parameters should be strictly configured. Past results do not guarantee future performance. Always test parameters on Demo Accounts prior to live deployment.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     FAQ SECTION (WHITE THEME REDESIGN)
+========================================= -->
+<section class="section-white-bg" id="faq">
+    <div class="container">
+        <!-- Header -->
+        <div class="section-header">
+            <span class="section-badge-dark" data-i18n="faq_badge">FREQUENTLY ASKED QUESTIONS</span>
+            <h2 style="color: #111111;" data-i18n="faq_title">Frequently Asked Questions</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #666666; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="faq_subtitle">
+                Comprehensive answers regarding deployment, infrastructure, and risk models.
+            </p>
+        </div>
+
+        <!-- FAQ Container -->
+        <div class="faq-container-white">
+            
+            <div class="faq-item-white active">
+                <button class="faq-question-white">
+                    <span data-i18n="faq_q1">Is CornGrid EA compliant with Prop Firm rules?</span>
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div class="faq-answer-white">
+                    <p data-i18n="faq_a1">Yes. CornGrid EA can be deployed on Prop Firm platforms that permit Expert Advisors and Hedging. Ensure max drawdown equity safeguards are aligned with your Prop Firm's specific daily loss limits.</p>
+                </div>
+            </div>
+
+            <div class="faq-item-white">
+                <button class="faq-question-white">
+                    <span data-i18n="faq_q2">Why is MetaTrader 5 Hedging required?</span>
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div class="faq-answer-white">
+                    <p data-i18n="faq_a2">CornGrid EA utilizes independent order management protocols. MT5 Hedging structure allows concurrent long and short positions, maximizing the efficiency of the Dynamic Basket Recovery algorithm.</p>
+                </div>
+            </div>
+
+            <div class="faq-item-white">
+                <button class="faq-question-white">
+                    <span data-i18n="faq_q3">What latency and leverage conditions are optimal?</span>
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div class="faq-answer-white">
+                    <p data-i18n="faq_a3">We recommend a leverage environment of <strong>1:1000</strong> paired with an Equinix-hosted VPS (&lt; 5ms latency) for optimal basket liquidation timing.</p>
+                </div>
+            </div>
+
+            <div class="faq-item-white">
+                <button class="faq-question-white">
+                    <span data-i18n="faq_q4">How are algorithm updates delivered?</span>
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div class="faq-answer-white">
+                    <p data-i18n="faq_a4">CornGrid EA receives ongoing version optimizations, bug fixes, performance enhancements, and new preset releases delivered automatically to license holders.</p>
+                </div>
+            </div>
+
+            <div class="faq-item-white">
+                <button class="faq-question-white">
+                    <span data-i18n="faq_q5">Can lot progression and grid parameters be customized?</span>
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div class="faq-answer-white">
+                    <p data-i18n="faq_a5">Full customization is supported. Users can configure Lot Multipliers, Grid Distances, Basket Target Levels, Max Recovery Trades, and Hard Stop Loss Limits.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+ <!-- =========================================
+     SUPPORT & CLIENT RELATIONS (REDESIGNED)
+========================================= -->
+<section id="support" class="support-section">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-badge" data-i18n="supp_badge">CLIENT DESK</span>
+            <h2 data-i18n="supp_title">Support & Institutional Relations</h2>
+            <p style="font-size: 15px; font-weight: 400; color: #a0a0a0; max-width: 650px; margin: auto; line-height: 1.6;" data-i18n="supp_subtitle">
+                Get direct access to our technical specialists, quantitative assistance, and official community channels.
+            </p>
+        </div>
+
+        <div class="support-grid">
+            <!-- Left Side: Official Communication Channels -->
+            <div class="support-channels">
+                <h3 class="support-card-title"><i class="fas fa-headset"></i> Communication Channels</h3>
+                <div class="channel-list">
+                    
+                    <a href="https://t.me/CorngridSupport" target="_blank" class="channel-item">
+                        <div class="channel-icon telegram-icon"><i class="fab fa-telegram-plane"></i></div>
+                        <div class="channel-info">
+                            <strong>Telegram Helpdesk</strong>
+                            <span>@CorngridSupport</span>
+                        </div>
+                        <i class="fas fa-arrow-right channel-arrow"></i>
+                    </a>
+
+                    <a href="https://t.me/CornGridGroup" target="_blank" class="channel-item">
+                        <div class="channel-icon telegram-icon"><i class="fas fa-users"></i></div>
+                        <div class="channel-info">
+                            <strong>Trader Network & Group</strong>
+                            <span>@CornGridGroup</span>
+                        </div>
+                        <i class="fas fa-arrow-right channel-arrow"></i>
+                    </a>
+
+                    <a href="https://wa.me/60175660753" target="_blank" class="channel-item">
+                        <div class="channel-icon whatsapp-icon"><i class="fab fa-whatsapp"></i></div>
+                        <div class="channel-info">
+                            <strong>Direct Client Line</strong>
+                            <span>+60 17-566 0753</span>
+                        </div>
+                        <i class="fas fa-arrow-right channel-arrow"></i>
+                    </a>
+
+                    <a href="mailto:akramjamil45@gmail.com" class="channel-item">
+                        <div class="channel-icon email-icon"><i class="fas fa-envelope"></i></div>
+                        <div class="channel-info">
+                            <strong>Corporate Email Support</strong>
+                            <span>akramjamil45@gmail.com</span>
+                        </div>
+                        <i class="fas fa-arrow-right channel-arrow"></i>
+                    </a>
+
+                    <a href="https://tiktok.com/@corngrid" target="_blank" class="channel-item">
+                        <div class="channel-icon tiktok-icon"><i class="fab fa-tiktok"></i></div>
+                        <div class="channel-info">
+                            <strong>Official TikTok Channel</strong>
+                            <span>@corngrid</span>
+                        </div>
+                        <i class="fas fa-arrow-right channel-arrow"></i>
+                    </a>
+
+                </div>
+            </div>
+
+            <!-- Right Side: Full Version Privileges & Operating Hours -->
+            <div class="support-privileges">
+                <div class="privilege-card">
+                    <h3 class="support-card-title"><i class="fas fa-shield-alt"></i> <span data-i18n="priv_title">Full Version Privilege Suite</span></h3>
+                    <p class="privilege-subtitle" data-i18n="priv_sub">Subscribing to the Full Version unlocks institutional-grade support and core quantitative assets:</p>
+                    
+                    <ul class="privilege-list">
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>Optimized Quant .SET Directory</strong>
+                                <span>Access pre-tested strategy presets for major instruments.</span>
+                            </div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>Complete Technical & Setup Protocols</strong>
+                                <span>Detailed manual for low-latency VPS deployment.</span>
+                            </div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>Continuous Lifetime Version Upgrades</strong>
+                                <span>Automatic access to all algorithm improvements & updates.</span>
+                            </div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>Priority Direct Desk Support</strong>
+                                <span>One-on-one technical troubleshooting with specialists.</span>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <div class="support-hours">
+                        <i class="fas fa-clock"></i>
+                        <span><strong data-i18n="supp_hours">Desk Hours: Mon - Fri | 24/5 Active Market Coverage</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================
+     CORPORATE FOOTER (REDESIGNED)
+========================================= -->
+<footer class="footer-section">
+    <div class="container">
+        
+        <!-- Top Footer Grid -->
+        <div class="footer-grid">
+            
+            <!-- Column 1: Brand & Overview -->
+            <div class="footer-col brand-col">
+                <div class="footer-logo">
+                    <img src="images/CornGrid logo 4k.png" alt="CornGrid EA Logo" class="footer-logo-img">
+                    <span class="footer-logo-text">CORNGRID</span>
+                </div>
+                <p class="footer-about" data-i18n="footer_about">
+                    Next-generation quantitative trading algorithms engineered for MetaTrader 5. Specializing in intelligent XAUUSD grid recovery, dynamic risk management, and capital protection.
+                </p>
+                <div class="footer-status">
+                    <span class="status-dot"></span>
+                    <span>System Status: <strong>v1.90 Operational</strong></span>
+                </div>
+            </div>
+
+            <!-- Column 2: Quick Navigation -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-i18n="footer_nav">Navigation</h4>
+                <ul class="footer-links">
+                    <li><a href="#features" data-i18n="nav_features">Core Features</a></li>
+                    <li><a href="#dashboard" data-i18n="dash_title">Analytics Terminal</a></li>
+                    <li><a href="#setup" data-i18n="nav_setup">Setup & Requirements</a></li>
+                    <li><a href="#setfiles" data-i18n="nav_presets">Quant SET Vault</a></li>
+                    <li><a href="#faq" data-i18n="faq_title">Frequently Asked Questions</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 3: Resources & Downloads -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-i18n="footer_res">Resources & Tools</h4>
+                <ul class="footer-links">
+                    <li><a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" data-i18n="hero_btn_demo">Download Free Demo</a></li>
+                    <li><a href="files/Installation_Guide.pdf" download="Installation_Guide.pdf" data-i18n="pdf_banner_btn">Installation Manual (PDF)</a></li>
+                    <li><a href="#broker" data-i18n="broker_title">Recommended MT5 Brokers</a></li>
+                    <li><a href="https://www.mql5.com/en/market/product/185454" target="_blank" rel="noopener">MQL5 Official Store</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 4: Institutional Contact -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-i18n="footer_contact">Direct Client Support</h4>
+                <ul class="footer-contact">
+                    <li>
+                        <i class="fab fa-telegram-plane"></i>
+                        <a href="https://t.me/CorngridSupport" target="_blank">@CorngridSupport</a>
+                    </li>
+                    <li>
+                        <i class="fab fa-whatsapp"></i>
+                        <a href="https://wa.me/60175660753" target="_blank">+60 17-566 0753</a>
+                    </li>
+                    <li>
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:akramjamil45@gmail.com">akramjamil45@gmail.com</a>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Footer Divider -->
+        <hr class="footer-divider">
+
+        <!-- Bottom Footer: Copyright & Legal -->
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+                <p>© 2026 <strong>CornGrid Technologies</strong>. All Rights Reserved.</p>
+                <span class="footer-motto" data-i18n="footer_motto">Trade Smart. Recover Smarter.</span>
+            </div>
+            <div class="footer-legal">
+                <a href="#faq">Risk Policy</a>
+                <span class="sep">•</span>
+                <a href="#installation">Terms of Deployment</a>
+            </div>
+        </div>
+
+    </div>
+</footer>
+
+</body>
+</html>
