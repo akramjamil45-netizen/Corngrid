@@ -1,0 +1,448 @@
+================================================================================
+CORNGRID EA — TERMS & CONDITIONS AND RISK DISCLOSURE POLICY
+================================================================================
+
+Document Version: 01.02.05082026
+Effective Date: 12 July 2026
+Last Updated: 19 August 2026
+
+Product Name: CornGrid EA
+Platform: MetaTrader 5 (MT5)
+Product Type: Automated Trading Expert Advisor (EA)
+Strategy / Market: Smart Reverse Grid Recovery System (Forex / Gold - XAUUSD)
+Developer / Brand: CornGrid
+
+LEGAL NOTICE & AGREEMENT BINDING:
+This official legal document governs the acquisition, installation, operation, 
+software licensing, and risk acknowledgement of CornGrid EA. By purchasing, 
+downloading, installing, activating, or using this software, you explicitly 
+agree to all terms, disclaimers, and risk policies herein.
+
+
+================================================================================
+SECTION 1 — TERMS & CONDITIONS
+================================================================================
+
+1. Introduction
+This Terms & Conditions document constitutes a legally binding agreement between 
+you (hereinafter referred to as the 'User', 'Customer', 'Licensee', or 'You') 
+and CornGrid (hereinafter referred to as 'Developer', 'Brand', 'We', 'Us', or 
+'Our'), governing the access, purchase, installation, licensing, and usage of 
+the CornGrid EA software application designed for the MetaTrader 5 (MT5) 
+platform.
+
+By accessing, purchasing, downloading, installing, activating, copying, or 
+otherwise using CornGrid EA, you acknowledge that you have read, understood, 
+and unreservedly agree to be bound by all the terms, conditions, disclaimers, 
+and policies set forth in this document. If you do not agree with any part of 
+these terms, you must immediately cease installation and refrain from using 
+the software.
+
+2. Product Description & Nature of Software
+CornGrid EA is an automated trading software tool (Expert Advisor) built 
+specifically for execution on the MetaTrader 5 (MT5) trading platform, 
+utilizing proprietary algorithmic logic designated as a Smart Reverse Grid 
+Recovery System, primarily focused on Forex currency pairs and Spot Gold 
+(XAUUSD).
+
+CornGrid EA is solely a technical software tool designed to execute automated 
+trading routines according to pre-programmed parameters and algorithms. 
+CORNGRID EA DOES NOT GUARANTEE PROFITS, SPECIFIC FINANCIAL RETURNS, TRADING 
+PERFORMANCE, OR CAPITAL PRESERVATION. Under no circumstances should CornGrid EA 
+be regarded, interpreted, or represented as a guaranteed-profit system, an 
+investment program, a managed account service, or a financial product.
+
+3. Software License & Usage Rights
+Subject to your compliance with these Terms & Conditions and payment of 
+applicable license fees, CornGrid grants you a limited, non-exclusive, 
+non-transferable, non-sublicensable, revocable license to install and execute 
+CornGrid EA on a designated number of MetaTrader 5 trading accounts or terminals 
+as specified in your purchase agreement or license activation terms.
+The software license is granted strictly to the original purchaser and is bound 
+to the designated account number(s), hardware environment, or activation key 
+provided. License transfers, account reassignment, or sharing without prior 
+written consent from CornGrid is strictly prohibited.
+
+You explicitly agree NOT to, and will not permit any third party to:
+a) Unauthorized Distribution: Sell, resell, rent, lease, sublicense, 
+   distribute, publish, broadcast, or transfer CornGrid EA or any part thereof 
+   to any third party without explicit authorization.
+b) Reverse Engineering: Decompile, reverse engineer, disassemble, decrypt, 
+   attempt to derive the source code of, or modify CornGrid EA, MQL5 files, 
+   compiled binaries (.ex5), or associated licensing mechanisms.
+c) License Bypass: Crack, bypass, disable, circumvent, or modify any license 
+   validation, hardware locking, account authorization, or security features 
+   embedded within the software.
+d) Modifications: Create derivative works, modifications, or altered versions 
+   of CornGrid EA for personal use, redistribution, or commercial gain.
+
+4. Account & Installation Requirements
+The User bears sole responsibility for the setup, configuration, and maintenance 
+of their trading environment. Specifically, the User agrees to and warrants the 
+following:
+a) Software Compatibility: Ensuring the MetaTrader 5 terminal is installed, 
+   updated, and fully compatible with Expert Advisor execution.
+b) Broker Conditions: Selecting a reputable, regulated broker that supports 
+   automated EA trading, offers appropriate leverage, manageable spreads, low 
+   latency, reasonable swaps, and permits grid/recovery trading strategies.
+c) Correct Installation: Ensuring CornGrid EA is correctly installed, 
+   configured with appropriate input parameters (set files), and authorized 
+   for Automated Trading in the MT5 terminal.
+d) Infrastructure & VPS: Maintaining a stable, uninterrupted high-speed 
+   internet connection and/or utilizing a dedicated Virtual Private Server (VPS) 
+   with high uptime to ensure continuous EA operation.
+e) Active Monitoring: Regularly monitoring trading account status, open 
+   positions, floating equity, drawdown, and server connections.
+
+5. User Responsibility & Operational Control
+You acknowledge and agree that automated trading software requires active 
+supervision and rigorous risk control. The User retains 100% full operational 
+responsibility and complete authority over their trading account.
+User responsibilities include, but are not limited to:
+- Account & Capital: Deposit amounts, capital allocation, account leverage 
+  selection, and overall portfolio exposure.
+- EA Configuration: Input settings, lot sizes, grid step parameters, risk 
+  percentages, maximum drawdown thresholds, and stop-loss selections.
+- Third-Party Tools: Selection of trading broker, account type 
+  (ECN/STP/Cent/Standard), execution server, and VPS hosting provider.
+- Risk Oversight: Proactive risk management, monitoring news events, turning 
+  off the EA during extreme market anomalies, and managing floating equity.
+
+6. Absolute No Guarantee of Profit
+CornGrid EA makes NO WARRANTIES, PROMISES, OR GUARANTEES, whether express, 
+implied, or statutory, regarding the profitability or success of any trading 
+strategy or trade executed by the software. WITHOUT LIMITING THE FOREGOING, 
+CORNGRID EA DOES NOT GUARANTEE:
+- No Profit Guarantee: Any monetary profit, return on investment (ROI), or 
+  financial gain.
+- No Fixed Returns: Fixed, consistent, or predictable daily, weekly, monthly, 
+  or annual returns.
+- No Capital Preservation: Preservation of invested capital, deposit protection, 
+  or complete immunity from account wipeout.
+- No Performance Cap: Any specific maximum drawdown level, historical equity 
+  curve continuity, or trade win percentage.
+- No Loss Recovery Guarantee: The full recovery of floating trading losses or 
+  negative equity positions through the recovery system.
+
+7. Performance Disclaimer & Market Conditions
+Trading results generated by CornGrid EA in historical backtesting, simulated 
+environments, or demo accounts do not represent actual live trading conditions 
+and are not indicative of future performance.
+- Backtesting Limitations: Backtest metrics rely on historical tick data and 
+  simplified market assumptions, which fail to replicate real-time slippage, 
+  order routing delays, dynamic broker spreads, variable liquidity, and 
+  execution rejections.
+- Demo vs Live Discrepancies: Demo trading accounts operate under ideal 
+  execution conditions without actual order filling in interbank markets. 
+  Live account execution differs due to market impact and broker server latency.
+- Execution Realities: Variable spreads, market slippage, broker commissions, 
+  swap fees, news spikes, order latency, and order fill policies directly impact 
+  performance and can turn theoretically profitable trades into losses.
+- Changing Market Dynamics: Financial markets are dynamic, inherently 
+  unpredictable, and subject to structural shifts. Past market patterns do 
+  not guarantee future price behaviors.
+
+8. Third-Party Services & Infrastructure
+CornGrid EA relies on third-party infrastructure, software platforms, and 
+services beyond the control of the Developer. These include, but are not 
+limited to: MetaQuotes (MetaTrader 5 platform), brokerage firms, Virtual 
+Private Server (VPS) hosts, news data providers, internet service providers 
+(ISPs), MQL5 Market infrastructure, and payment processors.
+CornGrid shall not be held liable or responsible for any losses, missed trades, 
+order delays, unexpected position closes, or technical failures caused by 
+third-party downtime, server outages, platform updates, broker execution 
+errors, spread widening, internet disconnection, or modifications to 
+third-party services.
+
+9. Refund & Cancellation Policy
+All sales, software purchases, and subscription fee payments for CornGrid EA are 
+subject to the following standard policy:
+[INSERT REFUND POLICY]
+Please review the refund policy stated above carefully prior to purchase. If no 
+refund period is explicitly specified, all digital product purchases, 
+downloadable files, and license activations are non-refundable to the maximum 
+extent permitted by applicable law, due to the immediate digital delivery and 
+non-returnable nature of software licenses.
+
+10. Subscription & License Expiration
+Software licenses provided for CornGrid EA may be subject to specific duration 
+limits, terminal activation limits, or recurring subscription schedules as 
+determined at the time of purchase:
+[INSERT LICENSE PERIOD]
+Upon the expiration or termination of a subscription or license period, access 
+to automated trading functions within CornGrid EA will automatically cease or be 
+restricted. Renewal terms, extension options, and subscription management shall 
+follow the official billing channels provided by CornGrid.
+
+11. Intellectual Property Rights
+All title, ownership rights, intellectual property, trademarks, trade secrets, 
+algorithms, source code, MQL5 files, documentation, graphics, branding, logos, 
+website contents, and promotional materials associated with CornGrid EA are 
+and shall remain the exclusive proprietary property of CornGrid.
+Nothing in this agreement conveys any ownership rights to the User. Unlawful 
+copying, re-branding, white-labeling, distribution, or commercial exploitation 
+of CornGrid intellectual property without express written authorization will 
+result in immediate license termination and civil/criminal legal action.
+
+12. Prohibited Activities
+Users are strictly prohibited from engaging in any of the following activities:
+- Software Piracy: Engaging in or facilitating software piracy, illegal file 
+  sharing, torrenting, or unauthorized upload of CornGrid EA files.
+- Account / License Sharing: Sharing license credentials, activation keys, or 
+  MT5 account authorizations with unauthorized third parties.
+- System Tampering: Utilizing reverse engineering, decompilation, memory hacking, 
+  or cracking tools to modify software binary behavior.
+- Commercial Exploitation: Attempting to white-label, rebrand, resell, rent, 
+  or distribute modified or unmodified copies of the software.
+- Brand Infringement: Using CornGrid branding, trademarks, logos, or marketing 
+  material without written prior authorization.
+
+13. Updates, Upgrades & Modifications
+CornGrid reserves the right, at its sole discretion, to issue software 
+updates, patches, performance improvements, bug fixes, or algorithmic 
+modifications to CornGrid EA. Developers may also modify supported broker 
+conditions, symbol lists, or feature sets, or discontinue deprecated features 
+when deemed necessary for system stability or market adaptability.
+Users are encouraged to maintain updated versions of the software. CornGrid 
+is under no obligation to support outdated versions of the EA that have been 
+superseded by official updates.
+
+14. Technical Support Scope
+CornGrid provides technical customer support strictly limited to standard 
+operational assistance, including:
+- Installation Guidance: Assistance with EA file installation, MT5 directory 
+  placement, and basic parameter loading.
+- Configuration Clarification: Explaining input parameter settings, set files, 
+  and configuration menus.
+- Technical Troubleshooting: Diagnosing technical setup issues, error messages, 
+  and platform authorization faults.
+Technical support DOES NOT include individualized financial advice, trade 
+management on live accounts, market forecasting, or guarantee of trading 
+profits. Rendering technical support shall not be construed as assuming 
+responsibility for User trading losses.
+
+15. Service Availability & Continuity
+While CornGrid strives to ensure high software performance and operational 
+stability, uninterrupted or error-free operation of CornGrid EA cannot be 
+guaranteed. Continuous operation is dependent upon external factors including 
+hardware reliability, operating system updates, MT5 platform connectivity, 
+broker server availability, internet connection stability, and market conditions.
+
+16. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL CORNGRID, 
+ITS DEVELOPERS, DIRECTORS, EMPLOYEES, AFFILIATES, AGENTS, OR LICENSORS BE LIABLE 
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR 
+EXEMPLARY DAMAGES WHATSOEVER.
+THIS LIMITATION INCLUDES, WITHOUT LIMITATION, DAMAGES FOR LOSS OF TRADING 
+CAPITAL, TRADING LOSSES, LOST PROFITS, BUSINESS INTERRUPTION, LOSS OF DATA, 
+BROKER EXECUTION FAILURES, SLIPPAGE, SPREAD WIDENING, HARDWARE OR SOFTWARE 
+FAILURE, INTERNET DISCONNECTION, VPS OUTAGES, UNEXPECTED MARKET VOLATILITY, 
+MARKET GAPS, OR ANY OTHER FINANCIAL LOSSES ARISING OUT OF THE USE OR INABILITY 
+TO USE CORNGRID EA.
+
+17. Indemnification
+You agree to defend, indemnify, hold harmless, and release CornGrid, its 
+developers, operators, employees, agents, and affiliates from and against 
+any and all claims, demands, liabilities, damages, losses, costs, or expenses 
+(including reasonable legal fees) arising from or related to: (a) your use 
+or misuse of CornGrid EA; (b) your breach of any provision of these Terms & 
+Conditions; (c) trading decisions, execution, or losses on your trading 
+accounts; or (d) your violation of any third-party rights or applicable 
+financial laws.
+
+18. License Termination
+CornGrid reserves the right to immediately suspend or terminate your software 
+license and revoke product access without notice or refund if you breach any 
+term of this agreement, engage in software piracy, attempt unauthorized 
+distribution, reverse engineer the product, abuse support channels, or engage 
+in fraudulent activities. Upon termination, you must cease all use of 
+CornGrid EA and delete all copies from your computers and servers.
+
+19. Amendments & Changes to Terms
+CornGrid reserves the right to modify, update, or revise these Terms & 
+Conditions and Risk Disclosure Policy at any time. Updated versions will be 
+published on official distribution channels and website portals. Your continued 
+use of CornGrid EA following the posting of modifications constitutes full 
+acceptance of the updated terms.
+
+20. Governing Law & Jurisdiction
+Governing Law: [INSERT JURISDICTION]
+This agreement shall be governed by, construed, and enforced in accordance 
+with the laws of the jurisdiction specified above, without regard to its 
+conflict of law principles. Any legal dispute or claim arising from this 
+agreement shall be submitted to the exclusive jurisdiction of the competent 
+courts in said jurisdiction.
+
+21. Official Contact Information
+For legal inquiries, technical support, or license verification, please reach 
+out through official channels:
+- Official Website: https://corngrid.netlify.app/
+- Official Email: akramjamil45@gmail.com
+- Customer Support: https://t.me/CorngridSupport
+
+
+================================================================================
+SECTION 2 — CORNGRID EA RISK DISCLOSURE & RISK POLICY
+================================================================================
+
+HIGH-RISK FINANCIAL WARNING:
+TRADING FOREX, FINANCIAL DERIVATIVES, CFDS, AND SPOT GOLD (XAUUSD) INVOLVES AN 
+INHERENTLY HIGH DEGREE OF RISK AND MAY RESULT IN THE TOTAL LOSS OF YOUR 
+INVESTED CAPITAL. DO NOT TRADE WITH CAPITAL YOU CANNOT AFFORD TO LOSE.
+
+1. General Financial Market Risk
+Trading foreign exchange (Forex), Contracts for Difference (CFDs), metals 
+(Gold/XAUUSD), and leveraged financial instruments carries extreme financial 
+risk. Market prices are driven by complex global macroeconomics, central bank 
+decisions, political events, and market sentiment, making them highly volatile 
+and unpredictable.
+Leveraged trading enables market participants to control large position sizes 
+with relatively small margin deposits. While leverage can magnify trading gains, 
+it equally magnifies market losses. Price movements against your position can 
+lead to rapid capital depletion, margin calls, or complete liquidation of 
+trading account funds.
+
+2. Automated Trading Systems Risk
+Automated trading software (Expert Advisors) executes trades automatically based 
+on pre-programmed computer code, mathematical logic, and incoming price ticks. 
+Automated trading introduces specific technical and operational risks that Users 
+must thoroughly understand:
+- Programmed Logic Risk: EAs execute rules dispassionately; unexpected market 
+  spikes can trigger multiple automated entries rapidly, escalating account 
+  exposure.
+- Execution Latency & Slippage: High volatility or rapid price jumps can lead to 
+  significant execution latency, resulting in trades being filled far from 
+  intended price levels (slippage).
+- Spread Widening & Liquidity: Spreads can widen dramatically during rollover 
+  hours, low liquidity periods, or news releases, triggering premature 
+  stop-outs or unexpected trade entries.
+- Technical & Infrastructure Failures: Hardware crashes, operating system 
+  freezes, MT5 client disconnects, internet disruptions, or VPS downtime can 
+  interrupt EA execution, leaving open trades unmanaged.
+- Parameter Configuration Error: Incorrect lot size inputs, misconfigured 
+  parameters, or incorrect set file loading by the User can lead to immediate 
+  catastrophic account losses.
+
+3. Specific Grid & Recovery Strategy Risk
+CornGrid EA utilizes a Smart Reverse Grid Recovery System. Grid and recovery 
+strategies carry unique structural financial risks that every User MUST fully 
+comprehend prior to deployment:
+- Position Scaling: When the market moves persistently against an open 
+  position, grid algorithms open additional orders at structured price 
+  intervals to average the entry price.
+- Exponential Drawdown: In strong, sustained one-way trending markets without 
+  market pullbacks, grid positions accumulate rapidly. This exponentially 
+  increases total volume, margin utilization, and floating drawdown.
+- Margin Call & Stop-Out Risk: Accumulating open grid positions requires 
+  substantial margin backing. If market adverse movement continues, free 
+  margin rapidly diminishes, leading to broker margin calls or automated 
+  stop-outs.
+- Total Capital Loss: If open floating losses exceed total account equity, 
+  the entire trading account balance can be liquidated and lost in a short 
+  timeframe.
+Users MUST NOT assume that grid recovery strategies will always successfully 
+close positions in profit. Unprecedented market trends can severely exceed 
+historical drawdown limits and result in 100% account loss.
+
+4. Leverage & Margin Risk
+High leverage acts as a double-edged sword. Utilizing high leverage (e.g., 
+1:500, 1:1000 or higher) alongside grid recovery trading drastically elevates 
+account risk. While high leverage lowers initial margin requirements per trade, 
+it enables the EA to build large total position exposures that can wipe out 
+equity rapidly during market shocks.
+
+5. News Events & Market Volatility
+Financial markets experience extreme volatility, price gaps, and severe 
+liquidity drops during high-impact economic news releases (e.g., US Non-Farm 
+Payrolls [NFP], Consumer Price Index [CPI], Interest Rate Decisions, FOMC, 
+geopolitical conflicts, and central bank speeches).
+Although CornGrid EA incorporates built-in News Filter mechanisms designed to 
+halt trading around major news events, THE USER ACKNOWLEDGES THAT NO NEWS 
+FILTER CAN GUARANTEE COMPREHENSIVE PROTECTION. News data feeds may experience 
+delays, unexpected unscheduled news events may occur, or broker price gaps 
+may bypass news filter boundaries, leading to trading losses.
+
+6. Broker Execution & Environment Discrepancies
+Live trading performance varies significantly across different brokerage firms 
+due to structural execution differences:
+- Execution Metrics: Different brokers offer varying spread models (floating 
+  vs fixed), latency, server speeds, slippage policies, and commission structures.
+- Swap Rates & Rollover: Overnight swap rates (rollover charges) can accumulate 
+  heavy negative interest on multi-day grid positions, eroding account equity.
+- Broker Restrictions: Certain brokers impose maximum order limits, leverage 
+  restrictions during news, or specific restrictions on grid/martingale/hedging EAs.
+
+7. Backtesting & Historical Data Disclaimer
+Backtest results produced using MetaTrader 5 Strategy Tester are hypothetical 
+and constructed using past price data. Backtest results HAVE INHERENT LIMITATIONS 
+because they do not reflect actual financial risk, liquidity constraints, 
+slippage, real-time spread expansion, or human emotional factors. HISTORICAL 
+PERFORMANCE IS NO GUARANTEE OF FUTURE TRADING RESULTS.
+
+8. Demo Account vs Live Trading Realities
+Simulated or demo trading accounts provide a zero-risk testing environment but 
+DO NOT fully reflect real live trading conditions. Demo environments feature 
+perfect order fill speeds, zero slippage, artificial liquidity, and lack real 
+market order book impact. Performance achieved on demo accounts will rarely be 
+identical to live capital trading.
+
+9. Capital & Risk Management Principles
+CornGrid strongly advises all Users to observe strict capital risk management 
+guidelines:
+- Risk Capital Only: NEVER trade with capital, savings, or funds you cannot 
+  afford to lose completely.
+- Conservative Sizing: Avoid excessive account leverage; select conservative 
+  lot sizing relative to account balance.
+- Demo & Forward Testing: Always perform extensive forward testing on demo 
+  accounts or low-risk cent accounts prior to risking significant live capital.
+- Parameter Familiarity: Understand every input parameter, grid distance, 
+  multiplier, and safety stop setting within CornGrid EA prior to live execution.
+- Active Supervision: Continuously monitor account floating equity, open grid 
+  exposure, and overall margin levels.
+
+10. Absolute No Financial Advice Disclaimer
+CornGrid, its developers, operators, and distributors ARE NOT REGISTERED 
+FINANCIAL ADVISORS, BROKERS, OR INVESTMENT MANAGERS. CornGrid EA is purely 
+technical software. Nothing contained within this document, software, website, 
+or support communication constitutes financial, investment, legal, or tax 
+advice. Users are solely responsible for conducting independent research and 
+consulting licensed financial advisors before undertaking live trading.
+
+11. User Risk Acknowledgement & Acceptance
+By signing below or electronically activating, purchasing, downloading, or 
+executing CornGrid EA, you explicitly confirm and declare that:
+1. Terms Acceptance: I have read, fully understood, and accepted the CornGrid 
+   EA Terms & Conditions and Risk Disclosure Policy.
+2. Risk Comprehension: I fully understand the inherent severe risks of 
+   leveraged trading and grid recovery algorithms, including total account loss.
+3. Sole Responsibility: I accept 100% sole responsibility for my trading 
+   decisions, account management, lot sizing, broker selection, and financial losses.
+4. No Profit Guarantees: I confirm that CornGrid EA has made no profit 
+   guarantees or safety promises regarding my capital.
+
+--------------------------------------------------------------------------------
+USER ACKNOWLEDGEMENT FORM
+--------------------------------------------------------------------------------
+User Full Name        : 
+Email Address         : 
+MT5 Account Number(s) : 
+Date of Acceptance    : 
+User Signature        : 
+--------------------------------------------------------------------------------
+
+
+================================================================================
+SECTION 3 — IMPORTANT LEGAL DISCLAIMER FOR LEGAL REVIEW
+================================================================================
+
+This official document is designed and drafted to establish the terms of software 
+usage, licensing limitations, and legal risk disclosures for CornGrid EA. It 
+serves as a comprehensive corporate agreement template suited for website 
+integration, MQL5 product listings, software onboarding, and commercial licensing.
+
+THIS DOCUMENT IS NOT A SUBSTITUTE FOR INDIVIDUALIZED LEGAL OR FINANCIAL ADVICE 
+FROM A QUALIFIED ATTORNEY OR FINANCIAL PROFESSIONAL. THE FINAL VERSION OF THIS 
+DOCUMENT SHOULD BE REVIEWED, ADAPTED, AND APPROVED BY A QUALIFIED LEGAL 
+PROFESSIONAL IN YOUR RELEVANT OPERATING JURISDICTION BEFORE BEING PUBLISHED OR 
+USED AS A LEGALLY BINDING AGREEMENT.
+================================================================================

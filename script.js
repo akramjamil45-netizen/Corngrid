@@ -225,7 +225,7 @@ const translations = {
         metric_4_title: "Hard Stop Safeguard",
         metric_4_sub: "Capital Protection",
 
-        myfx_verified_badge: "VERIFIED MYFXBOOK TRACK RECORD",
+        myfx_verified_badge: "VERIFIED",
         myfx_title: "CornGrid Real Account Analytics",
         myfx_btn: "Verify on Myfxbook",
         myfx_total_gain: "Total Gain",
@@ -449,7 +449,7 @@ const translations = {
         metric_4_title: "Kawalan Hard Stop",
         metric_4_sub: "Perlindungan Modal",
 
-        myfx_verified_badge: "REKOD DISAHKAN MYFXBOOK",
+        myfx_verified_badge: "REKOD DISAHKAN",
         myfx_title: "Analisis Akaun Real CornGrid",
         myfx_btn: "Sahkan di Myfxbook",
         myfx_total_gain: "Jumlah Keuntungan",
@@ -640,3 +640,114 @@ const translations = {
         footer_motto: "Trade Smart. Recover Smarter."
     }
 };
+
+document.addEventListener("DOMContentLoaded", function () {
+    const openModalBtn = document.getElementById("openTermsModal");
+    const closeModalBtn = document.getElementById("closeTermsModal");
+    const cancelModalBtn = document.getElementById("cancelTermsBtn");
+    const termsModal = document.getElementById("termsModal");
+    const termsScrollBox = document.getElementById("termsScrollBox");
+    const termsTextContent = document.getElementById("termsTextContent");
+    const termsCheckbox = document.getElementById("termsCheckbox");
+    const confirmDownloadBtn = document.getElementById("confirmDownloadBtn");
+
+    let isTxtLoaded = false;
+    let hasScrolledToBottom = false;
+
+    // Fungsi membaca fail .txt
+    function loadTermsTxt() {
+        if (isTxtLoaded) return;
+
+        // Tukar 'files/terms.txt' mengikut laluan/nama fail .txt anda
+        fetch('files/terms.txt')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Fail terms.txt tidak dijumpai.');
+                }
+                return response.text();
+            })
+            .then(data => {
+                // Tukar pemutus baris \n kepada <br> supaya teks tersusun kemas
+                termsTextContent.innerHTML = data.replace(/\n/g, '<br>');
+                isTxtLoaded = true;
+                checkScrollRequirement();
+            })
+            .catch(error => {
+                console.error('Ralat membaca fail:', error);
+                termsTextContent.innerHTML = '<p style="color:#ef4444;">Gagal memuat turun terma. Sila pastikan fail terms.txt wujud.</p>';
+            });
+    }
+
+    // Buka Modal & Muat Fail TXT
+    if (openModalBtn) {
+        openModalBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            termsModal.classList.add("active");
+            document.body.style.overflow = "hidden";
+            loadTermsTxt();
+        });
+    }
+
+    // Tutup Modal
+    function closeModal() {
+        termsModal.classList.remove("active");
+        document.body.style.overflow = "auto";
+    }
+
+    if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
+    if (cancelModalBtn) cancelModalBtn.addEventListener("click", closeModal);
+
+    // Semakan keperluan scroll
+    function checkScrollRequirement() {
+        // Jika kandungan teks pendek dan tiada scrollbar, buka kuncian checkbox terus
+        if (termsScrollBox.scrollHeight <= termsScrollBox.clientHeight + 20) {
+            hasScrolledToBottom = true;
+            termsCheckbox.disabled = false;
+        }
+    }
+
+    // Pengesanan Scroll hingga bawah
+    if (termsScrollBox) {
+        termsScrollBox.addEventListener("scroll", function () {
+            const scrollPosition = termsScrollBox.scrollTop + termsScrollBox.clientHeight;
+            const scrollTotal = termsScrollBox.scrollHeight;
+
+            if (scrollTotal - scrollPosition <= 20) {
+                if (!hasScrolledToBottom) {
+                    hasScrolledToBottom = true;
+                    termsCheckbox.disabled = false;
+                }
+            }
+        });
+    }
+
+    // Kawalan Checkbox
+    if (termsCheckbox) {
+        termsCheckbox.addEventListener("change", function () {
+            if (this.checked && hasScrolledToBottom) {
+                confirmDownloadBtn.classList.remove("disabled");
+            } else {
+                confirmDownloadBtn.classList.add("disabled");
+            }
+        });
+    }
+
+    // Tutup modal selepas muat turun bermula
+    if (confirmDownloadBtn) {
+        confirmDownloadBtn.addEventListener("click", function () {
+            setTimeout(closeModal, 500);
+        });
+    }
+});
+
+// Gantikan logik pembukaan modal sedia ada di script.js dengan kod ini:
+const openModalBtns = document.querySelectorAll("#openTermsModal, .open-terms-modal-btn");
+
+openModalBtns.forEach(btn => {
+    btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        termsModal.classList.add("active");
+        document.body.style.overflow = "hidden";
+        loadTermsTxt();
+    });
+});

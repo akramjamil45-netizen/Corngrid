@@ -9,7 +9,7 @@
   "name": "CornGrid EA MT5",
   "operatingSystem": "Windows, MetaTrader 5",
   "applicationCategory": "FinanceApplication",
-  "softwareVersion": "1.80",
+  "softwareVersion": "2.00",
   "description": "CornGrid EA is an intelligent MetaTrader 5 Expert Advisor for XAUUSD (Gold) featuring smart grid recovery, dynamic basket profit technology, and advanced capital risk management.",
   "image": "https://corngrid.netlify.app/images/CornGrid%20logo%204k.png",
   "url": "https://corngrid.netlify.app/",
@@ -167,15 +167,56 @@
                     Engineered for institutional and retail traders who demand intelligent grid recovery, drawdown control, and sub-millisecond MT5 execution.
                 </p>
 
-                <!-- Action Buttons -->
+               <!-- Action Buttons (Updated) -->
                 <div class="hero-cta-group">
-                    <a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" class="btn-hero btn-hero-yellow" data-i18n="hero_btn_demo">
-                        <i class="fas fa-download"></i> Download Free Demo
-                    </a>
+                    <button type="button" class="btn-hero btn-hero-yellow" id="openTermsModal" data-i18n="hero_btn_demo">
+                    <i class="fas fa-download"></i> Download Free Demo
+                    </button>
                     <a href="https://www.mql5.com/en/market/product/185454" target="_blank" class="btn-hero btn-hero-outline" data-i18n="hero_btn_full">
-                        <i class="fas fa-shopping-cart"></i> Get Full Version
+                    <i class="fas fa-shopping-cart"></i> Get Full Version
                     </a>
                 </div>
+
+                <!-- =========================================
+                   TERMS, CONDITIONS & RISK POLICY MODAL
+                ========================================= -->
+<div id="termsModal" class="terms-modal-overlay">
+    <div class="terms-modal-content">
+        
+        <!-- Modal Header -->
+        <div class="terms-modal-header">
+            <h3><i class="fas fa-file-contract"></i> Terms, Conditions & Risk Policy</h3>
+            <button type="button" class="terms-modal-close" id="closeTermsModal">&times;</button>
+        </div>
+
+        <!-- Scrollable Terms Box (Kandungan .txt akan dimasukkan di sini) -->
+        <div class="terms-scroll-box" id="termsScrollBox">
+            <div id="termsTextContent">
+                <p><i class="fas fa-spinner fa-spin"></i> Loading policy terms...</p>
+            </div>
+
+            <div class="terms-scroll-end">
+                <i class="fas fa-check-circle"></i> You have reached the end of the document.
+            </div>
+        </div>
+
+        <!-- Checkbox & Action Footer -->
+        <div class="terms-modal-footer">
+            <label class="terms-checkbox-label">
+                <input type="checkbox" id="termsCheckbox" disabled>
+                <span>I have read, understood, and accept the Terms, Conditions & Risk Disclosure Policy.</span>
+            </label>
+
+            <div class="terms-btn-group">
+                <button type="button" class="btn-terms-cancel" id="cancelTermsBtn">Cancel</button>
+                <a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" id="confirmDownloadBtn" class="btn-terms-download disabled">
+                    <i class="fas fa-download"></i> Accept & Download
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
 
                 <!-- Trust Micro Features -->
                 <div class="hero-trust-highlights">
@@ -246,10 +287,12 @@
         <!-- Section Header / Status Bar -->
         <div class="portfolio-header">
             <div>
-                <div class="verified-badge">
-                    <span class="verified-dot"></span>
-                    <span data-i18n="myfx_verified_badge">VERIFIED MYFXBOOK TRACK RECORD</span>
-                </div>
+              <div class="verified-badge">
+                <span class="verified-dot"></span>
+                <!-- Logo Myfxbook -->
+                <img src="images/myfxbook.png" alt="Myfxbook Logo" class="myfxbook-logo">
+                <span data-i18n="myfx_verified_badge">VERIFIED </span>
+             </div>
                 <h2 class="portfolio-title" data-i18n="myfx_title">CornGrid Real Account Analytics</h2>
             </div>
             
@@ -268,13 +311,13 @@
             
             <div class="metric-box">
                 <span class="metric-label" data-i18n="myfx_total_gain">Total Gain</span>
-                <h3 class="metric-val-gain">+40.91%</h3>
+                <h3 class="metric-val-gain">+73.11%</h3>
                 <p class="metric-sub" data-i18n="myfx_gain_sub">Automated Cumulative Yield</p>
             </div>
 
             <div class="metric-box">
                 <span class="metric-label" data-i18n="myfx_monthly_gain">Daily Average</span>
-                <h3 class="metric-val-monthly">+4.38%</h3>
+                <h3 class="metric-val-monthly">+6.29%</h3>
                 <p class="metric-sub" data-i18n="myfx_monthly_sub">Consistent Daily Return</p>
             </div>
 
@@ -286,7 +329,7 @@
 
             <div class="metric-box">
                 <span class="metric-label" data-i18n="myfx_winrate">Profit Factor</span>
-                <h3 class="metric-val-profit">1.46</h3>
+                <h3 class="metric-val-profit">1.74</h3>
                 <p class="metric-sub" data-i18n="myfx_winrate_sub">Quantitative Profitability Ratio</p>
             </div>
 
@@ -327,11 +370,11 @@
                         <span class="dot-yellow"></span>
                         <span class="dot-green"></span>
                     </div>
-                    <span class="terminal-title"><i class="fas fa-chart-bar"></i> MT5 Chart Overlay Terminal v1.90</span>
+                    <span class="terminal-title"><i class="fas fa-chart-bar"></i> MT5 Chart Overlay Terminal v2.00</span>
                 </div>
-                
+
                 <div class="terminal-image-box">
-                    <img src="images/dashboard.png" alt="CornGrid EA Analytics Dashboard" class="dashboard-img">
+                    <img src="images/dashboard.jpg" alt="CornGrid EA Analytics Dashboard" class="dashboard-img">
                     
                     <!-- Floating Tech Badges -->
                     <div class="floating-badge badge-top-left">
@@ -392,11 +435,13 @@
 
                 <!-- CTA Button -->
                 <div class="dashboard-action">
-                    <a href="download/Corngrid Demo.rar" download="Corngrid Demo.zip" class="dashboard-btn-gold" data-i18n="dash_btn">
-                        <i class="fas fa-download"></i> Deploy Demo Terminal
-                    </a>
-                    <span class="demo-subtext"><i class="fas fa-check"></i> <span data-i18n="dash_demo_sub">Includes Free Practice License</span></span>
-                </div>
+    <button type="button" class="dashboard-btn-gold open-terms-modal-btn" data-i18n="dash_btn">
+        <i class="fas fa-download"></i> Deploy Demo Terminal
+    </button>
+    <span class="demo-subtext">
+        <i class="fas fa-check"></i> <span data-i18n="dash_demo_sub">Includes Free Practice License</span>
+    </span>
+</div>
             </div>
 
         </div>
@@ -760,7 +805,7 @@
             <div class="quant-meta-bar">
                 <div class="meta-item">
                     <span class="meta-label" data-i18n="meta_build">ALGORITHM BUILD</span>
-                    <span class="meta-val">v1.90 Production</span>
+                    <span class="meta-val">v2.00 Production</span>
                 </div>
                 <div class="meta-item">
                     <span class="meta-label" data-i18n="meta_opt">LAST OPTIMIZATION</span>
@@ -1280,7 +1325,7 @@
                 </p>
                 <div class="footer-status">
                     <span class="status-dot"></span>
-                    <span>System Status: <strong>v1.90 Operational</strong></span>
+                    <span>System Status: <strong>v2.00 Operational</strong></span>
                 </div>
             </div>
 
@@ -1331,19 +1376,18 @@
         <!-- Footer Divider -->
         <hr class="footer-divider">
 
-        <!-- Bottom Footer: Copyright & Legal -->
+       <!-- Bottom Footer: Copyright & Legal -->
         <div class="footer-bottom">
             <div class="footer-copyright">
-                <p>© 2026 <strong>CornGrid Technologies</strong>. All Rights Reserved.</p>
+             <p>© 2026 <strong>CornGrid Technologies</strong>. All Rights Reserved.</p>
                 <span class="footer-motto" data-i18n="footer_motto">Trade Smart. Recover Smarter.</span>
             </div>
             <div class="footer-legal">
-                <a href="#faq">Risk Policy</a>
+                <a href="files/terms,Condition,Risk policy.pdf" download="Risk_Policy.pdf" data-i18n="footer_risk_policy">Risk Policy</a>
                 <span class="sep">•</span>
-                <a href="#installation">Terms of Deployment</a>
+                <a href="files/terms,Condition,Risk policy.pdf" download="Terms_of_Deployment.pdf" data-i18n="footer_terms_deployment">Terms of Deployment</a>
             </div>
         </div>
-
     </div>
 </footer>
 
