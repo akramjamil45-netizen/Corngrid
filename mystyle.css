@@ -949,7 +949,7 @@ footer {
 }
 
 /* =========================================
-   14. CORNGRID FLOATING SUPPORT
+   14. CORNGRID FLOATING SUPPORT (OPTIMIZED)
 ========================================= */
 .cg-contact {
     position: fixed;
@@ -973,7 +973,7 @@ footer {
     align-items: center;
     justify-content: center;
     box-shadow: 0 0 0 5px rgba(255, 212, 0, .05), 0 10px 35px rgba(0, 0, 0, .5);
-    transition: .35s ease;
+    transition: transform .35s ease, background .35s ease, color .35s ease, box-shadow .35s ease;
 }
 
 .cg-contact-button:hover {
@@ -983,6 +983,33 @@ footer {
     box-shadow: 0 0 30px rgba(255, 212, 0, .35), 0 15px 40px rgba(0, 0, 0, .6);
 }
 
+/* Tetapan Semula Ikon Supaya Tepat Di Tengah & Bertukar Mulus */
+.cg-open-icon,
+.cg-close-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.cg-close-icon {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-90deg) scale(0.5);
+}
+
+.cg-contact.open .cg-open-icon {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(90deg) scale(0.5);
+}
+
+.cg-contact.open .cg-close-icon {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+}
+
+/* Animasi Pulse */
 .cg-pulse {
     position: absolute;
     inset: -6px;
@@ -992,21 +1019,23 @@ footer {
     pointer-events: none;
 }
 
+/* Hentikan pulse apabila menu terbuka */
+.cg-contact.open .cg-pulse {
+    display: none;
+}
+
 @keyframes cgPulse {
     0% { transform: scale(.9); opacity: .8; }
     70% { transform: scale(1.25); opacity: 0; }
     100% { transform: scale(1.25); opacity: 0; }
 }
 
-.cg-close-icon { display: none; }
-.cg-contact.open .cg-open-icon { display: none; }
-.cg-contact.open .cg-close-icon { display: block; }
-
+/* Menu Pop-Up Support */
 .cg-contact-menu {
     position: absolute;
     right: 0;
-    bottom: 82px;
-    width: 330px;
+    bottom: 78px;
+    width: 320px;
     padding: 15px;
     background: rgba(20, 20, 20, .96);
     -webkit-backdrop-filter: blur(20px);
@@ -1018,7 +1047,7 @@ footer {
     visibility: hidden;
     transform: translateY(15px) scale(.96);
     transform-origin: bottom right;
-    transition: .3s ease;
+    transition: opacity .3s ease, visibility .3s ease, transform .3s ease;
 }
 
 .cg-contact.open .cg-contact-menu {
@@ -1028,23 +1057,23 @@ footer {
 }
 
 .cg-contact-title {
-    padding: 12px 15px 18px;
+    padding: 10px 12px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, .07);
     margin-bottom: 8px;
 }
 
-.cg-contact-title strong { display: block; color: #fff; font-size: 17px; }
-.cg-contact-title span { display: block; color: #888; font-size: 12px; margin-top: 4px; }
+.cg-contact-title strong { display: block; color: #fff; font-size: 16px; }
+.cg-contact-title span { display: block; color: #888; font-size: 12px; margin-top: 3px; }
 
 .cg-contact-item {
     display: flex;
     align-items: center;
-    gap: 13px;
-    padding: 13px;
-    margin: 5px 0;
-    border-radius: 13px;
+    gap: 12px;
+    padding: 10px 12px;
+    margin: 4px 0;
+    border-radius: 12px;
     text-decoration: none;
-    transition: .25s ease;
+    transition: background .25s ease, transform .25s ease;
 }
 
 .cg-contact-item:hover {
@@ -1053,31 +1082,53 @@ footer {
 }
 
 .cg-contact-icon {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
+    border-radius: 10px;
     background: #FFD400;
     color: #000;
-    font-size: 19px;
+    font-size: 18px;
 }
 
 .cg-contact-item div:nth-child(2) { flex: 1; }
-.cg-contact-item strong { display: block; color: #fff; font-size: 14px; }
-.cg-contact-item span { display: block; color: #888; font-size: 11px; margin-top: 3px; }
+.cg-contact-item strong { display: block; color: #fff; font-size: 13px; }
+.cg-contact-item span { display: block; color: #888; font-size: 11px; margin-top: 2px; }
 
 .cg-contact-item .arrow {
     color: #666;
     font-size: 11px;
-    transition: .2s;
+    transition: color .2s ease, transform .2s ease;
 }
 
 .cg-contact-item:hover .arrow {
     color: #FFD400;
     transform: translateX(3px);
+}
+
+/* =========================================
+   PENYESUAIAN MOBILE (RESPONSIF)
+========================================= */
+@media (max-width: 480px) {
+    .cg-contact {
+        right: 15px;
+        bottom: 15px;
+    }
+
+    .cg-contact-button {
+        width: 54px;
+        height: 54px;
+        font-size: 18px;
+    }
+
+    .cg-contact-menu {
+        width: calc(100vw - 30px);
+        max-width: 300px;
+        bottom: 68px;
+    }
 }
 
 /* =========================================
@@ -3617,22 +3668,36 @@ footer {
 .btn-myfxbook {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 8px;
     background: #FFD400;
     color: #000000;
-    padding: 12px 24px;
+    padding: 10px 20px;
     border-radius: 6px;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 13px;
     text-decoration: none;
     transition: all 0.3s ease;
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 15px rgba(255, 212, 0, 0.25);
+    text-align: center;
 }
 
 .btn-myfxbook:hover {
     background: #d97706;
+    box-shadow: 0 0 18px rgba(255, 212, 0, 0.4);
 }
 
+/* Penyesuaian Khas Mobile */
+@media (max-width: 768px) {
+    .btn-myfxbook {
+        display: flex;
+        width: 100%;
+        max-width: 280px; /* Saiz lebih mesra mobile & tidak terlalu besar */
+        margin: 0 auto; /* Memposisikan butang tepat di tengah */
+        padding: 9px 16px;
+        font-size: 12px;
+    }
+}
 .icon-external {
     font-size: 12px;
 }
@@ -3729,7 +3794,7 @@ footer {
 
 
 /* =========================================
-   TERMS & RISK POLICY MODAL STYLES
+   TERMS & RISK POLICY MODAL STYLES (COMPACT & CENTERED)
 ========================================= */
 
 /* Latar Belakang Gelap Modal (Overlay) */
@@ -3745,7 +3810,7 @@ footer {
     z-index: 99999;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 10px;
 }
 
 /* Paparkan Modal Apabila Diberi Kelas .active */
@@ -3753,23 +3818,23 @@ footer {
     display: flex;
 }
 
-/* Kotak Utama Modal */
+/* Kotak Utama Modal (Saiz Diturunkan) */
 .terms-modal-content {
     background: #0f0f0f;
     border: 1px solid #222222;
-    border-radius: 12px;
+    border-radius: 10px;
     width: 100%;
-    max-width: 650px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    max-width: 500px; /* Dikecilkan dari 600px ke 500px */
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
     display: flex;
     flex-direction: column;
-    max-height: 85vh;
+    max-height: 75vh; /* Diturunkan dari 88vh ke 75vh */
     overflow: hidden;
 }
 
 /* Bahagian Atas Modal (Header) */
 .terms-modal-header {
-    padding: 20px 25px;
+    padding: 12px 16px;
     background: #141414;
     border-bottom: 1px solid #222222;
     display: flex;
@@ -3779,11 +3844,11 @@ footer {
 
 .terms-modal-header h3 {
     color: #ffffff;
-    font-size: 18px;
+    font-size: 15px;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 /* Ikon/Logo dalam Header */
@@ -3797,7 +3862,8 @@ footer {
     background: none;
     border: none;
     color: #888888;
-    font-size: 24px;
+    font-size: 20px;
+    line-height: 1;
     cursor: pointer;
     transition: color 0.3s;
 }
@@ -3808,71 +3874,86 @@ footer {
 
 /* Kotak Teks Terma Boleh Scroll */
 .terms-scroll-box {
-    padding: 25px;
+    padding: 14px 16px;
     overflow-y: auto;
     color: #cccccc;
-    font-size: 14px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.5;
     flex: 1;
     text-align: left;
-    white-space: pre-wrap; /* Memastikan format perenggan .txt kekal kemas */
+    white-space: pre-line;
 }
 
-/* Notis Pengesahan Akhir Fail */
+/* Notis Pengesahan Akhir Fail (Center Ditengah Tepat) */
 .terms-scroll-end {
-    margin-top: 25px;
-    padding: 12px;
+    margin-top: 15px;
+    padding: 8px 12px;
     background: rgba(255, 212, 0, 0.1);
     border: 1px solid rgba(255, 212, 0, 0.2);
     color: #ffd400;
-    text-align: center;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.terms-scroll-end i {
+    font-size: 14px;
 }
 
 /* Bahagian Bawah Modal (Footer) */
 .terms-modal-footer {
-    padding: 20px 25px;
+    padding: 14px 16px;
     background: #141414;
     border-top: 1px solid #222222;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
 }
 
 /* Tetapan Checkbox & Label */
 .terms-checkbox-label {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     color: #888888;
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
+    line-height: 1.4;
 }
 
 .terms-checkbox-label input[type="checkbox"] {
-    margin-top: 3px;
+    margin-top: 2px;
     accent-color: #ffd400;
     cursor: pointer;
 }
 
-/* Kumpulan Butang Tindakan */
+/* Kumpulan Butang Tindakan (Selari & Ditengah) */
 .terms-btn-group {
     display: flex;
-    justify-content: flex-end;
-    gap: 12px;
+    justify-content: center; /* Ditengah secara mendatar */
+    align-items: center;
+    gap: 10px;
+    width: 100%;
 }
 
 .btn-terms-cancel {
     background: #222222;
     color: #ffffff;
     border: none;
-    padding: 10px 20px;
+    padding: 9px 16px;
     border-radius: 6px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.3s, color 0.3s;
+    text-align: center;
+    flex: 1; /* Saiz butang seimbang */
+    max-width: 180px;
 }
 
 .btn-terms-cancel:hover {
@@ -3884,14 +3965,19 @@ footer {
 .btn-terms-download {
     background: #ffd400;
     color: #000000;
-    padding: 10px 20px;
+    padding: 9px 16px;
     border-radius: 6px;
+    font-size: 13px;
     font-weight: 700;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     transition: all 0.3s;
+    text-align: center;
+    flex: 1; /* Saiz butang seimbang */
+    max-width: 200px;
 }
 
 /* Keadaan Butang Terkunci (Disabled) */
@@ -3907,5 +3993,19 @@ footer {
 .btn-terms-download:not(.disabled):hover {
     background: #e6be00;
     color: #000000;
-    box-shadow: 0 0 15px rgba(255, 212, 0, 0.4);
+    box-shadow: 0 0 12px rgba(255, 212, 0, 0.35);
+}
+
+/* Responsif Mobile (Skrin Bawah 480px) */
+@media (max-width: 480px) {
+    .terms-btn-group {
+        justify-content: space-between;
+    }
+
+    .btn-terms-cancel,
+    .btn-terms-download {
+        max-width: 100%;
+        padding: 9px 10px;
+        font-size: 12px;
+    }
 }

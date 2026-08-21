@@ -34,16 +34,25 @@ faqItems.forEach((item) => {
 });
 
 // =========================================
-// 3. FLOATING CONTACT SUPPORT
+// 3. Support button
 // =========================================
-const cgContact = document.querySelector(".cg-contact");
-const cgContactButton = document.querySelector("#cgContactButton");
 
-if (cgContact && cgContactButton) {
-    cgContactButton.addEventListener("click", () => {
+    const cgContact = document.querySelector(".cg-contact");
+    const cgContactButton = document.querySelector("#cgContactButton");
+
+    if (cgContact && cgContactButton) {
+    cgContactButton.addEventListener("click", (e) => {
+        e.preventDefault();
         cgContact.classList.toggle("open");
     });
-}
+
+    // Petua Tambahan: Tutup widget jika pengguna menekan di luar butang/contact box
+    document.addEventListener("click", (e) => {
+        if (!cgContact.contains(e.target) && !cgContactButton.contains(e.target)) {
+            cgContact.classList.remove("open");
+        }
+    });
+    }
 
 // =========================================
 // 4. MOBILE NAVIGATION MENU TOGGLE
