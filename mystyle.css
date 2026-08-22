@@ -3074,6 +3074,34 @@ footer {
     color: #FFD400;
     position: relative;
     display: inline-block;
+    
+    /* Cipta gradient emas dengan kilauan putih di tengah */
+    background: linear-gradient(
+        110deg, 
+        #FFD400 0%, 
+        #FFD400 40%, 
+        #FFFFFF 50%, 
+        #FFD400 60%, 
+        #FFD400 100%
+    );
+    background-size: 200% 100%;
+    
+    /* Potong background supaya mengikut bentuk teks */
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    
+    /* Jalankan animasi berkilat */
+    animation: goldShine 4s infinite linear;
+}
+
+/* Animasi pergerakan cahaya putih lalu */
+@keyframes goldShine {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 .hero-description {
