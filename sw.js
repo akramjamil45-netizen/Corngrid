@@ -1,17 +1,42 @@
-const CACHE_NAME = 'corngrid-cache-v2';
+const CACHE_NAME = 'corngrid-cache-v2.3';
 
 // Senarai fail yang ingin disimpan dalam cache browser
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
-    '/style.css',
+    '/mystyle.css',
     '/script.js',
-    '/images/CornGrid logo 4k.png',
+    '/favicon.ico',
+    '/images/1.jpg',
+    '/images/2.jpg',
+    '/images/3.jpg',
+    '/images/akram.jfif',
+    '/images/azudin.jfif',
+    '/images/background2.jpg',
+    '/images/bg-algo-specs.jpg',
+    '/images/bg-faq.jpg',
+    '/images/bg-features.jpg',
+    '/images/bg-support.jpg',
+    '/images/bg-testimonial (2).jpg',
+    '/images/bg-testimonial.jpg',
+    '/images/CornGrid logo 4k.jpg',
     '/images/hero-image.png',
-    '/images/dashboard.jpg',
+    '/images/dashboard.jfif',
+    '/images/fahrul.jfif',
+    '/images/favicon.ico',
+    '/images/gmail.svg',
+    '/images/hfmarket.png',
+    '/images/Hfmarket.svg',
+    '/images/Litefinance.svg',
     '/images/myfxbook.png',
+    '/images/Nadiah.jfif',
+    '/images/Roboforex.svg',
+    '/images/suhaimi.jfif',
+    '/images/telegram.svg',
+    '/images/tiktok.svg',
+    '/images/whatsapp.svg',
     '/files/terms.txt',
-    '/video/background8.mp4'
+    '/video/background2.mp4'
 ];
 
 // 1. Install Event - Simpan fail semasa laman web mula diakses
