@@ -1,13 +1,31 @@
-// Daftarkan Service Worker untuk browser caching
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-                console.log('ServiceWorker successfully registered:', registration.scope);
-            })
-            .catch((error) => {
-                console.error('ServiceWorker registration failed:', error);
+        navigator.serviceWorker.register('/sw.js').then((registration) => {
+            // Semak sekiranya ada kemaskini baharu di latar belakang
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('[Service Worker] Versi baharu dijumpai! Memuat semula laman...');
+                            // Muat semula halaman secara automatik untuk menggunakan cache terbaharu
+                            window.location.reload();
+                        }
+                    });
+                }
             });
+        }).catch((error) => {
+            console.error('[Service Worker] Pendaftaran gagal:', error);
+        });
+    });
+
+    // Memastikan pemegangan kawalan dikemaskini tanpa perlu menutup tab
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+        }
     });
 }
 
