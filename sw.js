@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-cache-v3.3'; // Tukar versi ini setiap kali ada kemaskini
+const CACHE_NAME = 'corngrid-cache-v3.4'; // Tukar versi ini setiap kali ada kemaskini
 
 const ASSETS_TO_CACHE = [
     '/',
