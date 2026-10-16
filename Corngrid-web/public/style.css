@@ -1,0 +1,375 @@
+/* =========================================
+   CORNGRID INSTITUTIONAL LOGIN PAGE STYLES
+========================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: #080A0F;
+    color: #FFFFFF;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Outer Wrapper Grid */
+.login-wrapper {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* =========================================
+   LEFT PANEL (Showcase & Metrics)
+========================================= */
+.login-brand-panel {
+    flex: 1.2;
+    background: linear-gradient(135deg, #141822 0%, #080A0F 100%);
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 60px;
+}
+
+.brand-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(8, 10, 15, 0.95) 0%, rgba(13, 17, 23, 0.85) 100%);
+    backdrop-filter: blur(8px);
+    z-index: 1;
+}
+
+.brand-content {
+    position: relative;
+    z-index: 2;
+    max-width: 550px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.logo-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-logo {
+    height: 42px;
+    width: auto;
+}
+
+.brand-name {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #FFD400;
+}
+
+.brand-hero-text h2 {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #FFFFFF;
+    margin-bottom: 12px;
+}
+
+.brand-hero-text p {
+    color: #8A92A6;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.brand-metrics-card {
+    background: rgba(20, 24, 33, 0.7);
+    border: 1px solid rgba(255, 212, 0, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.metric-label {
+    font-size: 11px;
+    color: #8A92A6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FFFFFF;
+}
+
+.status-active {
+    color: #00FF87;
+}
+
+.brand-footer-text {
+    font-size: 12px;
+    color: #586072;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* =========================================
+   RIGHT PANEL (Login Controls)
+========================================= */
+.login-form-panel {
+    flex: 1;
+    background: #0D1117;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.form-container {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.form-header h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #FFFFFF;
+    margin-bottom: 6px;
+}
+
+.form-header p {
+    font-size: 13px;
+    color: #8A92A6;
+}
+
+/* Input Fields */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #C5CBD8;
+}
+
+.password-label-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.forgot-link {
+    font-size: 12px;
+    color: #FFD400;
+    text-decoration: none;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+.input-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 14px;
+    color: #586072;
+    font-size: 14px;
+}
+
+.input-field input {
+    width: 100%;
+    padding: 12px 14px 12px 40px;
+    background: #141822;
+    border: 1px solid #222735;
+    border-radius: 8px;
+    color: #FFFFFF;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.input-field input:focus {
+    border-color: #FFD400;
+    box-shadow: 0 0 0 2px rgba(255, 212, 0, 0.15);
+}
+
+.toggle-password {
+    position: absolute;
+    right: 14px;
+    color: #586072;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.toggle-password:hover {
+    color: #FFD400;
+}
+
+/* Checkbox & Options */
+.form-options {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8A92A6;
+    cursor: pointer;
+}
+
+.checkbox-container input {
+    accent-color: #FFD400;
+}
+
+/* Submit Button */
+.btn-login-submit {
+    width: 100%;
+    padding: 14px;
+    background: #FFD400;
+    color: #080A0F;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+}
+
+.btn-login-submit:hover {
+    background: #FFE033;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 212, 0, 0.2);
+}
+
+/* Form Footer */
+.form-footer {
+    text-align: center;
+    font-size: 13px;
+    color: #8A92A6;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-footer a {
+    color: #FFD400;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-mode-toggle {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: #FFD400;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.auth-mode-toggle:hover {
+    text-decoration: underline;
+}
+
+.disclaimer-note {
+    font-size: 11px;
+    color: #586072;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 10px;
+    border-radius: 6px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    text-align: left;
+    line-height: 1.4;
+}
+
+.disclaimer-note i {
+    color: #FFD400;
+    margin-top: 2px;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 900px) {
+    .login-brand-panel {
+        display: none; /* Hide showcase panel on smaller mobile devices */
+    }
+    
+    .login-form-panel {
+        flex: 1;
+        width: 100%;
+        padding: 20px;
+    }
+}
+
+
+/* Add this inside your new CSS for API notification messages */
+.alert-box {
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    display: none; /* Disembunyikan secara lalai, ditunjukkan oleh login.js */
+}
+
+/* Warna Alert khusus untuk tema gelap */
+.alert-error {
+    background: rgba(255, 77, 77, 0.15);
+    color: #FF6B6B;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.alert-success {
+    background: rgba(0, 255, 135, 0.15);
+    color: #00FF87;
+    border: 1px solid rgba(0, 255, 135, 0.3);
+}
+
+.alert-info {
+    background: rgba(255, 212, 0, 0.15);
+    color: #FFD400;
+    border: 1px solid rgba(255, 212, 0, 0.3);
+}

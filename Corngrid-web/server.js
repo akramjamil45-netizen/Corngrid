@@ -1,0 +1,530 @@
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+const path = require('path');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const registerMt5Api = require('./mt5-api');
+const createAdminAuth = require('./admin-auth');
+const registerAdminApi = require('./admin-api');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_FROM = process.env.SMTP_FROM;
+const mailTransport = SMTP_HOST && SMTP_FROM
+  ? nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      ...(process.env.SMTP_USER && process.env.SMTP_PASS
+        ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } }
+        : {})
+    })
+  : null;
+const SECRET_KEY = process.env.JWT_SECRET || (
+  process.env.NODE_ENV === 'production' ? '' : crypto.randomBytes(32).toString('hex')
+);
+
+if (!SECRET_KEY) {
+  throw new Error('JWT_SECRET must be set before starting the production server.');
+}
+if (!process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET is not set; session tokens will expire when the server restarts.');
+}
+if (process.env.NODE_ENV === 'production' && !mailTransport) {
+  throw new Error('SMTP_HOST and SMTP_FROM must be set for password recovery in production.');
+}
+if (SMTP_HOST && !SMTP_FROM) {
+  throw new Error('SMTP_FROM mesti ditetapkan apabila SMTP_HOST digunakan.');
+}
+const adminAuth = createAdminAuth({
+  email: process.env.ADMIN_EMAIL,
+  passwordHash: process.env.ADMIN_PASSWORD_HASH,
+  jwtSecret: SECRET_KEY
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '256kb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Connect to the SQLite database
+const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) => {
+  if (err) {
+    console.error('Failed to connect to SQLite:', err.message);
+  } else {
+    console.log('Connected to the CornGrid SQLite database.');
+  }
+});
+
+function rateLimit({ limit, windowMs }) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    if (buckets.size > 1000) {
+      for (const [key, bucket] of buckets) {
+        if (bucket.expiresAt <= now) buckets.delete(key);
+      }
+    }
+    const key = req.ip;
+    const current = buckets.get(key);
+    if (!current || current.expiresAt <= now) {
+      buckets.set(key, { count: 1, expiresAt: now + windowMs });
+      return next();
+    }
+    current.count += 1;
+    if (current.count > limit) {
+      res.set('Retry-After', String(Math.ceil((current.expiresAt - now) / 1000)));
+      return res.status(429).json({ error: 'Too many requests. Please wait before trying again.' });
+    }
+    return next();
+  };
+}
+
+const loginRateLimit = rateLimit({ limit: 10, windowMs: 15 * 60 * 1000 });
+const recoveryRateLimit = rateLimit({ limit: 5, windowMs: 15 * 60 * 1000 });
+const downloadRateLimit = rateLimit({ limit: 30, windowMs: 15 * 60 * 1000 });
+
+// Create the user table when needed
+db.run(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    email TEXT UNIQUE,
+    password TEXT,
+    bio TEXT DEFAULT 'CornGrid EA Terminal user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  )
+`);
+
+// JWT authentication middleware
+function verifyToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied. Authentication token is required.' });
+  }
+
+  jwt.verify(token, SECRET_KEY, (err, user) => {
+    if (err || !user || !Number.isSafeInteger(user.id) || user.id < 1) {
+      return res.status(403).json({ error: 'Token is invalid or has expired.' });
+    }
+    db.get('SELECT version FROM user_auth_versions WHERE user_id = ?', [user.id], (versionErr, record) => {
+      if (versionErr) {
+        console.error('Failed to verify the session version:', versionErr.message);
+        return res.status(500).json({ error: 'Unable to verify this session.' });
+      }
+      const currentVersion = record ? record.version : 0;
+      if ((user.authVersion || 0) !== currentVersion) {
+        return res.status(403).json({ error: 'This session is no longer valid. Please sign in again.' });
+      }
+      req.user = user;
+      next();
+    });
+  });
+}
+
+registerMt5Api(app, db, verifyToken);
+registerAdminApi(
+  app,
+  db,
+  adminAuth.verifyToken,
+  Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180
+);
+
+const downloadableResources = Object.freeze({
+  'setup-guide': {
+    file: 'Corngrid Setup Guide v1.1.pdf',
+    downloadName: 'CornGrid_Setup_Guide_v1.1.pdf'
+  },
+  'xauusd-v260': {
+    file: path.join('v2.0 set file', 'xauusd v2.60 set file.set'),
+    downloadName: 'CornGrid_XAUUSD_v2.60.set'
+  },
+  'xauusd-v25': {
+    file: path.join('v2.0 set file', 'xauusd v2.5 set file.set'),
+    downloadName: 'CornGrid_XAUUSD_v2.5.set'
+  },
+  'eurusd-m1-v200': {
+    file: path.join('v2.0 set file', 'eurusd m1 v2.00 set file.set'),
+    downloadName: 'CornGrid_EURUSD_M1_v2.00.set'
+  },
+  'gbpusd-m1-v200': {
+    file: path.join('v2.0 set file', 'gbpusd m1 v2.00 set file.set'),
+    downloadName: 'CornGrid_GBPUSD_M1_v2.00.set'
+  },
+  'usdjpy-m1-v200': {
+    file: path.join('v2.0 set file', 'usdjpy m1 v2.00 set file.set'),
+    downloadName: 'CornGrid_USDJPY_M1_v2.00.set'
+  }
+});
+
+app.get('/api/downloads/:resourceId', verifyToken, downloadRateLimit, (req, res) => {
+  if (!Object.hasOwn(downloadableResources, req.params.resourceId)) {
+    return res.status(404).json({ error: 'The requested download was not found.' });
+  }
+  const resource = downloadableResources[req.params.resourceId];
+  const filePath = path.join(__dirname, '..', 'files', resource.file);
+  res.download(filePath, resource.downloadName, (error) => {
+    if (!error) return;
+    if (res.headersSent) return;
+    if (error.code === 'ENOENT') {
+      console.error(`Download resource is missing: ${resource.file}`);
+      return res.status(404).json({ error: 'This download is temporarily unavailable.' });
+    }
+    console.error('Failed to serve a dashboard download:', error.message);
+    return res.status(500).json({ error: 'The download could not be completed.' });
+  });
+});
+
+// ------------------- ENDPOINTS LALUAN HALAMAN (ROUTING) -------------------
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/portfolios', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'public-portfolios.html'));
+});
+
+app.get('/portfolio/:shareId', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'public-portfolio.html'));
+});
+
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ------------------- ENDPOINTS API -------------------
+
+// 1. API Pendaftaran Pengguna
+app.post('/api/register', loginRateLimit, async (req, res) => {
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const { password } = req.body;
+
+  if (!username || !email || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Please fill in all fields.' });
+  }
+  if (adminAuth.matchesEmail(email)) {
+    return res.status(400).json({ error: 'This email address is reserved.' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'The password must be at least 8 characters long.' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) return res.status(400).json({ error: 'The password must not exceed 72 UTF-8 bytes.' });
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const query = `INSERT INTO users (username, email, password) VALUES (?, ?, ?)`;
+
+    db.run(query, [username, email, hashedPassword], function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username or email has already been taken.' });
+        }
+        console.error('Failed to register user:', err.message);
+        return res.status(500).json({ error: 'Server error during registration.' });
+      }
+      if (this.changes !== 1) {
+        console.error('User registration did not add a record.');
+        return res.status(500).json({ error: 'Server error during registration.' });
+      }
+      res.json({ message: 'Registration successful! Please log in.' });
+    });
+  } catch (error) {
+    console.error('Failed to prepare registration:', error.message);
+    res.status(500).json({ error: 'Server error during registration.' });
+  }
+});
+
+// 2. Login API
+app.post('/api/login', loginRateLimit, async (req, res) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+  const { password } = req.body;
+
+  if (!email || typeof password !== 'string' || !password) {
+    return res.status(400).json({ error: 'Please enter your email and password.' });
+  }
+
+  if (adminAuth.matchesEmail(email)) {
+    try {
+      const token = await adminAuth.authenticate(email, password);
+      if (!token) return res.status(400).json({ error: 'Email or password is incorrect.' });
+      return res.json({
+        message: 'Login successful!',
+        token,
+        user: { role: 'admin', username: 'Administrator' }
+      });
+    } catch (error) {
+      console.error('Failed to verify administrator credentials:', error.message);
+      return res.status(500).json({ error: 'Error occurred while verifying credentials.' });
+    }
+  }
+
+  const query = `SELECT * FROM users WHERE email = ? COLLATE NOCASE`;
+  db.get(query, [email], async (err, user) => {
+    if (err) {
+      console.error('Failed to search for account:', err.message);
+      return res.status(500).json({ error: 'Server error during login.' });
+    }
+    if (!user) {
+      return res.status(400).json({ error: 'Email or password is incorrect.' });
+    }
+
+    try {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Email or password is incorrect.' });
+      }
+      if (Buffer.byteLength(password, 'utf8') > 72) {
+        return res.status(400).json({ error: 'Email or password is incorrect.' });
+      }
+
+      const authVersion = await new Promise((resolve, reject) => {
+        db.get('SELECT version FROM user_auth_versions WHERE user_id = ?', [user.id], (versionErr, record) => {
+          if (versionErr) reject(versionErr);
+          else resolve(record ? record.version : 0);
+        });
+      });
+      const token = jwt.sign(
+        { id: user.id, email: user.email, username: user.username, authVersion },
+        SECRET_KEY,
+        { expiresIn: '2h' }
+      );
+
+      res.json({
+        message: 'Login successful!',
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          bio: user.bio
+        }
+      });
+    } catch (bcryptErr) {
+      res.status(500).json({ error: 'Error occurred while verifying password.' });
+    }
+  });
+});
+
+// 3. API Dapatkan Profil Pengguna
+app.get('/api/user/profile', verifyToken, (req, res) => {
+  const query = `SELECT id, username, email, bio, created_at FROM users WHERE id = ?`;
+  db.get(query, [req.user.id], (err, user) => {
+    if (err || !user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    res.json(user);
+  });
+});
+
+// 4. API Kemas Kini Data Pengguna
+app.put('/api/user/profile', verifyToken, (req, res) => {
+  const { username, bio } = req.body;
+
+  if (typeof username !== 'string' || !username.trim() || username.trim().length > 60) {
+    return res.status(400).json({ error: 'Username cannot be empty.' });
+  }
+  if (bio !== undefined && (typeof bio !== 'string' || bio.length > 500)) {
+    return res.status(400).json({ error: 'Bio must be text and no longer than 500 characters.' });
+  }
+
+  const query = `UPDATE users SET username = ?, bio = ? WHERE id = ?`;
+  db.run(query, [username.trim(), typeof bio === 'string' ? bio : '', req.user.id], function (err) {
+    if (err) {
+      if (err.message.includes('UNIQUE constraint failed')) {
+        return res.status(400).json({ error: 'This username is already taken.' });
+      }
+      return res.status(500).json({ error: 'Failed to update profile.' });
+    }
+    res.json({ message: 'Profile updated successfully!' });
+  });
+});
+
+// 5. Forgot Password API
+app.post('/api/forgot-password', recoveryRateLimit, (req, res) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+  const responseMessage = 'If your email is registered, a recovery link will be sent. In development mode without SMTP, check the server terminal.';
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+
+  const query = `SELECT id, email FROM users WHERE email = ? COLLATE NOCASE`;
+  db.get(query, [email], (err, user) => {
+    if (err) {
+      console.error('Failed to find the account for password recovery:', err.message);
+      return res.status(500).json({ error: 'Error occurred while requesting password recovery.' });
+    }
+    if (!user) {
+      return res.json({ message: responseMessage });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    db.run('DELETE FROM password_reset_tokens WHERE user_id = ?', [user.id], (deleteErr) => {
+      if (deleteErr) {
+        console.error('Failed to replace the previous recovery token:', deleteErr.message);
+        return res.status(500).json({ error: 'Error occurred while requesting password recovery.' });
+      }
+
+      db.run(
+        'INSERT INTO password_reset_tokens (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)',
+        [tokenHash, user.id, expiresAt, Date.now()],
+        (insertErr) => {
+          if (insertErr) {
+            console.error('Failed to save the recovery token:', insertErr.message);
+            return res.status(500).json({ error: 'Error occurred while requesting password recovery.' });
+          }
+
+          const baseUrl = (process.env.APP_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
+          const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
+
+          if (!mailTransport) {
+            console.log(`[PASSWORD RESET LINK]: ${resetUrl}`);
+            return res.json({ message: responseMessage });
+          }
+
+          mailTransport.sendMail({
+            from: SMTP_FROM,
+            to: user.email,
+            subject: 'Reset Your CornGrid Password',
+            text: `We have received a request to reset the password for your CornGrid account. Please click the link below to reset your password within 15 minutes: ${resetUrl}\n\nIf you did not request this change, please ignore this email.`,
+            html: `<p>We have received a request to reset the password for your CornGrid account.</p><p><a href="${resetUrl}">Reset Your Password</a></p><p>This link will expire in 15 minutes. If you did not request this change, please ignore this email.</p>`
+          }, (mailErr) => {
+            if (mailErr) {
+              console.error('Failed to send the recovery email:', mailErr.message);
+              return db.run(
+                'DELETE FROM password_reset_tokens WHERE token_hash = ?',
+                [tokenHash],
+                (cleanupErr) => {
+                  if (cleanupErr) console.error('Failed to remove the unsent recovery token:', cleanupErr.message);
+                  res.status(503).json({ error: 'The recovery email cannot be sent right now. Please try again later.' });
+                }
+              );
+            }
+            return res.json({ message: responseMessage });
+          });
+        }
+      );
+    });
+  });
+});
+
+// 6. Reset Password API
+app.post('/api/reset-password', recoveryRateLimit, async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (typeof token !== 'string' || !/^[a-f\d]{64}$/i.test(token) || typeof newPassword !== 'string') {
+    return res.status(400).json({ error: 'A reset token and new password are required.' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'The new password must be at least 8 characters long.' });
+  }
+  if (Buffer.byteLength(newPassword, 'utf8') > 72) return res.status(400).json({ error: 'The new password must not exceed 72 UTF-8 bytes.' });
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  db.get('SELECT user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = ?', [tokenHash], (lookupErr, resetRecord) => {
+    if (lookupErr) {
+      console.error('Failed to read the password recovery token:', lookupErr.message);
+      return res.status(500).json({ error: 'A server error occurred while resetting the password.' });
+    }
+    if (!resetRecord || resetRecord.used_at || resetRecord.expires_at <= Date.now()) {
+      return res.status(400).json({ error: 'The reset link is invalid, has already been used, or has expired.' });
+    }
+
+    bcrypt.hash(newPassword, 10).then((hashedPassword) => {
+      const now = Date.now();
+      db.run(
+        'UPDATE password_reset_tokens SET used_at = ? WHERE token_hash = ? AND expires_at > ? AND used_at IS NULL',
+        [now, tokenHash, now],
+        function (tokenErr) {
+          if (tokenErr) {
+            console.error('Failed to validate the password recovery token:', tokenErr.message);
+            return res.status(500).json({ error: 'A server error occurred while resetting the password.' });
+          }
+          if (this.changes !== 1) {
+            return res.status(400).json({ error: 'The reset link is invalid, has already been used, or has expired.' });
+          }
+
+          db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, resetRecord.user_id], function (updateErr) {
+            if (updateErr) {
+              console.error('Failed to save the new password:', updateErr.message);
+              return res.status(500).json({ error: 'Failed to update the password.' });
+            }
+            if (this.changes !== 1) {
+              return res.status(400).json({ error: 'The account for this reset link could not be found.' });
+            }
+
+            db.run(`
+              INSERT INTO user_auth_versions (user_id, version) VALUES (?, 1)
+              ON CONFLICT(user_id) DO UPDATE SET version = version + 1
+            `, [resetRecord.user_id], (versionErr) => {
+              if (versionErr) {
+                console.error('Failed to invalidate sessions after password reset:', versionErr.message);
+                return res.status(500).json({ error: 'Password was updated, but active sessions could not be invalidated.' });
+              }
+              db.run('DELETE FROM password_reset_tokens WHERE user_id = ?', [resetRecord.user_id], (deleteErr) => {
+                if (deleteErr) console.error('Failed to remove used password recovery tokens:', deleteErr.message);
+                return res.json({ message: 'Password updated successfully. Please sign in again.' });
+              });
+            });
+          });
+        }
+      );
+    }).catch((hashErr) => {
+      console.error('Failed to hash the new password:', hashErr.message);
+      return res.status(500).json({ error: 'A server error occurred while resetting the password.' });
+    });
+  });
+});
+
+// ------------------- FALLBACK HANDLER & SERVER LISTEN -------------------
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request payload is too large.' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body contains invalid JSON.' });
+  console.error('Unhandled request error:', err.message);
+  return res.status(500).json({ error: 'An internal server error occurred.' });
+});
+
+// Fallback 404 handler (must appear after all API and page routes)
+app.use((req, res) => {
+  res.status(404).json({ error: 'Page not found.' });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`CornGrid backend is running at http://localhost:${PORT}`);
+});

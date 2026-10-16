@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080a0f">
+  <meta name="description" content="Explore CornGrid trading portfolios that their owners have chosen to share publicly.">
+  <title>Public Portfolios | CornGrid</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body class="public-page">
+  <header class="public-topbar">
+    <a class="brand" href="/" aria-label="CornGrid home">
+      <img src="/images/Corngrid logo 4k.jpg" alt="" class="brand-mark">
+      <span>CORNGRID<small>PUBLIC PORTFOLIOS</small></span>
+    </a>
+    <nav class="public-topbar-links" aria-label="Public navigation">
+      <a href="/portfolios" aria-current="page">Portfolios</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </header>
+  <main class="public-main">
+    <section class="public-heading">
+      <p class="eyebrow">COMMUNITY PERFORMANCE</p>
+      <h1>Public portfolios</h1>
+      <p class="muted">Explore portfolios that CornGrid users have explicitly chosen to share. Only their published portfolio data is shown.</p>
+    </section>
+    <div class="notice notice-warning public-data-note"><span class="notice-icon">!</span><span>Trading involves risk. Public performance is historical, reported by the connected MT5 account, and does not guarantee future results.</span></div>
+    <section id="public-portfolios" class="public-directory-grid" aria-live="polite">
+      <div class="panel empty-state public-empty"><span class="empty-icon">◈</span><h2>Loading public portfolios</h2><p>Fetching portfolios that are currently shared publicly.</p></div>
+    </section>
+  </main>
+  <script src="/public-portfolios.js"></script>
+</body>
+</html>

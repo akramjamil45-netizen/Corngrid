@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080a0f">
+  <title>CornGrid | Trading Dashboard</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="dashboard.html" aria-label="CornGrid dashboard home">
+        <img src="images/Corngrid logo 4k.jpg" alt="" class="brand-mark">
+        <span>CORNGRID<small>TRADING TERMINAL</small></span>
+      </a>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-item is-active" data-page="overview"><span class="nav-icon">▦</span>Overview</button>
+        <button class="nav-item" data-page="accounts"><span class="nav-icon">▣</span>MT5 Accounts</button>
+        <button class="nav-item" data-page="positions"><span class="nav-icon">➚</span>Open Positions</button>
+        <button class="nav-item" data-page="history"><span class="nav-icon">◷</span>Trade History</button>
+        <button class="nav-item" data-page="monitoring"><span class="nav-icon">⌁</span>EA Monitoring</button>
+        <button class="nav-item" data-page="downloads"><span class="nav-icon">↓</span>Downloads</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-status"><span class="status-dot status-dot-muted"></span><span id="sidebar-connection">No EA data yet</span></div>
+        <button class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</button>
+        <button class="nav-item nav-logout" id="logout-btn"><span class="nav-icon">⤷</span>Sign out</button>
+        <div class="sidebar-footnote">Trading involves risk. Past performance does not guarantee future results.</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="page-title">Overview</strong></div>
+        <div class="topbar-actions">
+          <span class="live-indicator" id="live-indicator"><i></i> <span id="live-label">NO LIVE FEED</span></span>
+          <button class="icon-button" id="theme-toggle" title="Toggle light and dark theme" aria-label="Toggle theme">◐</button>
+          <div class="user-chip"><span class="avatar" id="user-avatar">C</span><span id="user-name">Account</span></div>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section class="page is-visible" id="page-overview">
+          <div class="page-heading">
+            <div><p class="eyebrow">YOUR ACCOUNT, AT A GLANCE</p><h1>Trading overview</h1><p class="muted">Monitor verified account data and portfolio performance.</p></div>
+            <div class="heading-actions">
+              <label class="period-select-label" for="period-select">PERIOD</label>
+              <select id="period-select" class="select-control">
+                <option value="today">Today</option><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All time</option><option value="custom">Custom range</option>
+              </select>
+              <input id="period-from" class="input-control period-date" type="date" aria-label="Period start date" hidden>
+              <input id="period-to" class="input-control period-date" type="date" aria-label="Period end date" hidden>
+              <button class="button button-secondary" id="refresh-button">↻ <span>Refresh</span></button>
+            </div>
+          </div>
+          <div class="notice notice-info" id="data-notice"><span class="notice-icon">i</span><span>Only data received from a linked CornGrid EA is shown. No demo or estimated trading figures are used.</span></div>
+          <div class="stat-grid">
+            <article class="stat-card"><div class="stat-top"><span>Total balance</span><span class="stat-icon">◈</span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Latest account balance</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Current equity</span><span class="stat-icon">◇</span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Balance plus unrealized P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Unrealized across linked accounts</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Net profit</span><span class="stat-icon">↗</span></div><strong class="stat-value" data-stat="netProfit">N/A</strong><small class="stat-period">Closed deals · 30 days</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Daily P/L</span><span class="stat-icon">◷</span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed deals today · UTC</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Monthly P/L</span><span class="stat-icon">▤</span></div><strong class="stat-value" data-stat="monthlyProfit">N/A</strong><small>Closed deals this month · UTC</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Closed deals</span><span class="stat-icon">▥</span></div><strong class="stat-value" data-stat="closedTrades">N/A</strong><small>Imported deal records</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon">◎</span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small>Requires verified closed-deal data</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Profit factor</span><span class="stat-icon">⤢</span></div><strong class="stat-value" data-stat="profitFactor">N/A</strong><small>Gross profit ÷ gross loss</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Maximum drawdown</span><span class="stat-icon">⌄</span></div><strong class="stat-value" data-stat="maxDrawdown">N/A</strong><small>Requires a complete equity history</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Current drawdown</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="currentDrawdown">N/A</strong><small>Compared with recorded equity peak</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Active MT5 accounts</span><span class="stat-icon">▣</span></div><strong class="stat-value" data-stat="activeAccounts">0</strong><small>Online heartbeat within timeout</small></article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel chart-panel">
+              <div class="panel-header"><div><p class="eyebrow">PORTFOLIO PERFORMANCE</p><h2>Balance &amp; equity</h2></div><div class="chart-legend"><span><i class="legend-equity"></i>Equity</span><span><i class="legend-balance"></i>Balance</span></div></div>
+              <div class="chart-area" id="equity-chart">
+                <div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>Waiting for account history</strong><span>Historical chart data will appear after a linked EA sends account snapshots.</span></div>
+              </div>
+              <div class="chart-foot"><span>Historical values are reported by the connected MT5 account.</span><span id="last-update">Last update: N/A</span></div>
+            </section>
+            <section class="panel connection-panel">
+              <div class="panel-header"><div><p class="eyebrow">CONNECTIVITY</p><h2>EA status</h2></div><span class="pill pill-muted" id="ea-status">No data</span></div>
+              <div class="connection-empty" id="connection-summary"><div class="connection-symbol">⌁</div><strong>No EA connected</strong><p>Link an MT5 account to start securely receiving monitoring data.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button></div>
+              <div class="connection-details" id="connection-details" hidden></div>
+            </section>
+          </div>
+          <section class="panel analytics-panel">
+            <div class="panel-header"><div><p class="eyebrow">PERFORMANCE ANALYTICS</p><h2>Trading statistics</h2></div><span class="muted small">Based on imported closed-deal records</span></div>
+            <div class="analytics-grid">
+              <div class="analytics-item"><span>Gross profit</span><strong data-stat="grossProfit">N/A</strong></div>
+              <div class="analytics-item"><span>Gross loss</span><strong data-stat="grossLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Average winning deal</span><strong data-stat="avgWin">N/A</strong></div>
+              <div class="analytics-item"><span>Average losing deal</span><strong data-stat="avgLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Largest winning deal</span><strong data-stat="largestWin">N/A</strong></div>
+              <div class="analytics-item"><span>Largest losing deal</span><strong data-stat="largestLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Recovery factor</span><strong data-stat="recoveryFactor">N/A</strong></div>
+              <div class="analytics-item"><span>Avg. deal duration</span><strong data-stat="avgDuration">N/A</strong></div>
+            </div>
+            <p class="method-note">Method: gross profit/loss uses imported deal profit before costs. Net P/L includes profit, commission, and swap; net metrics are unavailable if either cost is missing. Partial exits are separate MT5 deal records.</p>
+          </section>
+          <section class="panel table-panel">
+            <div class="panel-header"><div><p class="eyebrow">LIVE ACCOUNT DATA</p><h2>Open positions</h2></div><button class="text-button" data-go="positions">View all positions →</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Symbol</th><th>Direction</th><th>Volume</th><th>Entry price</th><th>Current price</th><th>Floating P/L</th><th>Opened</th></tr></thead><tbody id="overview-positions"><tr><td colspan="7" class="table-empty">No position data received yet.</td></tr></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="page" id="page-accounts">
+          <div class="page-heading"><div><p class="eyebrow">ACCOUNT MANAGEMENT</p><h1>MT5 accounts</h1><p class="muted">Link multiple authorized trading accounts by generating a new pairing code for each MT5 account. Your MT5 trading password is never requested.</p></div><div class="heading-actions"><button class="button button-secondary" id="refresh-accounts">↻ Refresh view</button><button class="button button-primary" id="create-pairing">＋ Generate pairing code</button></div></div>
+          <div class="notice notice-warning"><span class="notice-icon">!</span><span>Pairing codes expire after 10 minutes and can only be used once. Enter the code in an authorized CornGrid EA installation.</span></div>
+          <div class="pairing-card" id="pairing-card" hidden><div><span class="eyebrow">ONE-TIME PAIRING CODE</span><p>Enter this code in your CornGrid EA. It will only be shown here once.</p></div><code id="pairing-code"></code><div class="pairing-expiry" id="pairing-expiry"></div></div>
+          <div class="account-grid" id="account-list"><div class="panel empty-state"><span class="empty-icon">▣</span><h2>No MT5 accounts linked</h2><p>Generate a pairing code, then enter it in the CornGrid EA on your trading terminal. Account data will appear here after the first heartbeat.</p><button class="button button-primary" data-create-pairing>Generate pairing code</button></div></div>
+        </section>
+
+        <section class="page" id="page-positions">
+          <div class="page-heading"><div><p class="eyebrow">LIVE TRADE MONITORING</p><h1>Open positions</h1><p class="muted">Positions reported by your linked MT5 accounts.</p></div><button class="button button-secondary" id="refresh-positions">↻ Refresh data</button></div>
+          <div class="table-toolbar"><input id="position-search" class="input-control" type="search" placeholder="Search symbol or ticket"><select id="position-direction" class="select-control"><option value="">All directions</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select><select id="position-sort" class="select-control" aria-label="Sort positions"><option value="opened-desc">Newest first</option><option value="profit-desc">Floating P/L: high to low</option><option value="profit-asc">Floating P/L: low to high</option><option value="symbol-asc">Symbol A–Z</option></select></div>
+          <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Symbol</th><th>Type</th><th>Ticket</th><th>Volume</th><th>Entry</th><th>Current</th><th>Stop loss</th><th>Take profit</th><th>Floating P/L</th><th>Swap</th><th>Commission</th><th>Opened</th></tr></thead><tbody id="positions-body"><tr><td colspan="12" class="table-empty">Loading verified position data…</td></tr></tbody></table></div><div class="pagination"><span id="positions-count">—</span><div><button class="button button-small" id="positions-prev" disabled>Previous</button><button class="button button-small" id="positions-next" disabled>Next</button></div></div></section>
+        </section>
+
+        <section class="page" id="page-history">
+          <div class="page-heading"><div><p class="eyebrow">PERFORMANCE RECORD</p><h1>Trade history</h1><p class="muted">Imported MT5 deal records. Partial exits may appear as separate records.</p></div><button class="button button-secondary" id="export-trades">↓ Export CSV</button></div>
+          <div class="table-toolbar"><input id="trade-search" class="input-control" type="search" placeholder="Search symbol or deal ID"><select id="trade-symbol" aria-label="Filter by symbol"><option value="">All symbols</option></select><select id="trade-result"><option value="">All results</option><option value="win">Winners</option><option value="loss">Losers</option></select><select id="trade-sort" class="select-control" aria-label="Sort trade history"><option value="closed-desc">Newest first</option><option value="net-desc">Net P/L: high to low</option><option value="net-asc">Net P/L: low to high</option><option value="symbol-asc">Symbol A–Z</option></select><input id="trade-from" class="input-control" type="date" aria-label="From date"><input id="trade-to" class="input-control" type="date" aria-label="To date"></div>
+          <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Close time</th><th>Symbol</th><th>Direction</th><th>Volume</th><th>Entry</th><th>Exit</th><th>Stop loss</th><th>Take profit</th><th>Gross P/L</th><th>Commission</th><th>Swap</th><th>Net P/L</th><th>Duration</th><th>Magic number</th><th>EA version</th><th>Deal ID</th></tr></thead><tbody id="trades-body"><tr><td colspan="16" class="table-empty">Loading verified trade data…</td></tr></tbody></table></div><div class="pagination"><span id="trades-count">—</span><div><button class="button button-small" id="trades-prev" disabled>Previous</button><button class="button button-small" id="trades-next" disabled>Next</button></div></div></section>
+        </section>
+
+        <section class="page" id="page-monitoring">
+          <div class="page-heading"><div><p class="eyebrow">SYSTEM HEALTH</p><h1>EA monitoring</h1><p class="muted">Connection and synchronization status for linked installations.</p></div><button class="button button-secondary" data-refresh>↻ Refresh status</button></div>
+          <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon">⌁</span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
+          <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div></section>
+        </section>
+
+        <section class="page" id="page-downloads">
+          <div class="page-heading"><div><p class="eyebrow">USER RESOURCES</p><h1>Downloads</h1><p class="muted">Get CornGrid instrument presets and the installation guide.</p></div></div>
+          <div class="notice notice-warning download-notice"><span class="notice-icon">!</span><span>Preset files contain trading parameters. Choose a preset matching the instrument and EA build, review its settings, and test on a demo account before using it on a live account.</span></div>
+          <section class="panel download-section">
+            <div class="panel-header"><div><p class="eyebrow">MT5 CONFIGURATION</p><h2>Strategy presets</h2></div></div>
+            <div class="resource-grid">
+              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.60</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v260" data-download-name="CornGrid_XAUUSD_v2.60.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.5</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v25" data-download-name="CornGrid_XAUUSD_v2.5.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">€</div><div class="resource-copy"><p class="eyebrow">EURO · EURUSD M1</p><h3>EURUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="eurusd-m1-v200" data-download-name="CornGrid_EURUSD_M1_v2.00.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">£</div><div class="resource-copy"><p class="eyebrow">POUND · GBPUSD M1</p><h3>GBPUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="gbpusd-m1-v200" data-download-name="CornGrid_GBPUSD_M1_v2.00.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">¥</div><div class="resource-copy"><p class="eyebrow">YEN · USDJPY M1</p><h3>USDJPY M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="usdjpy-m1-v200" data-download-name="CornGrid_USDJPY_M1_v2.00.set">↓ Download .SET</button></article>
+            </div>
+          </section>
+          <section class="panel download-section">
+            <div class="panel-header"><div><p class="eyebrow">INSTALLATION</p><h2>Setup guide</h2></div></div>
+            <article class="resource-card guide-resource"><div class="resource-icon resource-icon-guide">PDF</div><div class="resource-copy"><h3>CornGrid Setup Guide v1.1</h3><p class="muted">Step-by-step installation guide in PDF format.</p></div><button class="button button-primary" type="button" data-download-id="setup-guide" data-download-name="CornGrid_Setup_Guide_v1.1.pdf">↓ Download guide</button></article>
+          </section>
+        </section>
+
+        <section class="page" id="page-settings">
+          <div class="page-heading"><div><p class="eyebrow">PREFERENCES &amp; PROFILE</p><h1>Settings</h1><p class="muted">Manage profile and dashboard display preferences.</p></div></div>
+          <div class="settings-layout"><nav class="settings-tabs" aria-label="Settings sections"><button class="settings-tab is-active" data-setting="profile">Profile</button><button class="settings-tab" data-setting="security">Security</button><button class="settings-tab" data-setting="appearance">Appearance</button><button class="settings-tab" data-setting="notifications">Notifications</button><button class="settings-tab" data-setting="privacy">Privacy</button></nav>
+            <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form></section>
+            <section class="panel settings-panel" id="setting-security" hidden><div class="panel-header"><div><p class="eyebrow">ACCOUNT PROTECTION</p><h2>Security</h2></div></div><form id="password-form" class="settings-form"><label>Current password<input id="current-password" class="input-control" type="password" autocomplete="current-password" required></label><label>New password<input id="new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm new password<input id="confirm-new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><p class="muted small">Changing your password revokes existing dashboard sessions. You will need to sign in again.</p><button class="button button-primary" type="submit">Change password</button></form><div class="privacy-copy"><h3>Password recovery</h3><p>Use the existing secure password-reset link from the login page if you cannot sign in. Passwords are stored as hashes and are never displayed.</p></div></section>
+            <section class="panel settings-panel" id="setting-appearance" hidden><div class="panel-header"><div><p class="eyebrow">DISPLAY PREFERENCES</p><h2>Appearance</h2></div></div><form id="preferences-form" class="settings-form"><label>Theme<select id="pref-theme" class="select-control"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select></label><label>Display currency<select id="pref-currency" class="select-control"><option value="account">Account currency</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><label>Date format<select id="pref-date-format" class="select-control"><option value="locale">Browser default</option><option value="en-US">MM/DD/YYYY</option><option value="en-GB">DD/MM/YYYY</option><option value="iso">ISO 8601</option></select></label><label>Time zone<input id="pref-timezone" class="input-control" type="text" maxlength="64" value="UTC" placeholder="UTC"></label><p class="notice notice-info"><span class="notice-icon">i</span><span>Currency is a display preference only. Values are not converted and remain in the MT5 account currency. Use an IANA time-zone name such as UTC or Asia/Kuala_Lumpur.</span></p><button class="button button-primary" type="submit">Save preferences</button></form></section>
+            <section class="panel settings-panel" id="setting-notifications" hidden><div class="panel-header"><div><p class="eyebrow">ALERT PREFERENCES</p><h2>Notifications</h2></div></div><div class="empty-settings"><span class="empty-icon">♧</span><h3>Email notifications are not configured</h3><p>This installation does not currently provide a notification delivery service. No inactive controls are shown.</p></div></section>
+            <section class="panel settings-panel" id="setting-privacy" hidden><div class="panel-header"><div><p class="eyebrow">DATA &amp; PRIVACY</p><h2>Privacy</h2></div></div><div class="privacy-copy"><h3>Portfolio visibility</h3><p>Choose which linked trading accounts appear on your public portfolio. Only selected accounts and their portfolio data are shown publicly. You can keep everything private or revoke public access at any time.</p><div class="portfolio-sharing-controls"><label for="portfolio-visibility">Portfolio visibility<select id="portfolio-visibility" class="select-control"><option value="private">Private — only me</option><option value="public">Public — listed for everyone</option></select></label><button class="button button-primary" id="save-portfolio-visibility" type="button">Save sharing settings</button></div><p class="portfolio-sharing-status" id="portfolio-sharing-status" aria-live="polite">Loading portfolio sharing settings…</p><div class="public-account-selection"><div class="public-account-selection-heading"><h3>Trading accounts to include</h3><span id="public-account-selection-count" class="muted small">Loading accounts…</span></div><div id="public-account-selection-list" class="public-account-selection-list"><div class="empty-settings"><p>Loading linked MT5 accounts…</p></div></div></div><div class="portfolio-share-link" id="portfolio-share-link" hidden><label for="portfolio-share-url">Public portfolio link</label><div><input id="portfolio-share-url" class="input-control" type="url" readonly><button class="button button-secondary" id="copy-portfolio-link" type="button">Copy link</button></div></div><h3>Public data shown</h3><p>For each selected account, public pages show its masked account identifier, account summary, open positions and recent trade details. They never show your email, broker server, full account number, ticket or deal identifiers, or trading credentials. Accounts you do not select remain private.</p><h3>Data collected</h3><p>When you link an EA, CornGrid can store the MT5 account identifier, broker/server, account currency, balance and equity snapshots, open positions, imported trade deals, EA version, and heartbeat timestamps sent by that installation.</p><h3>How data is used</h3><p>This information is used to display account monitoring and portfolio analytics to the authenticated owner of the linked account. No MT5 trading password is requested or stored.</p><h3>Retention and export</h3><p>Linked account data remains stored until the account is unlinked or the applicable account-retention process removes it. Contact support for a personal data export or deletion request.</p></div></section>
+          </div>
+        </section>
+        <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+      </div>
+    </main>
+  </div>
+  <div class="overlay" id="overlay" hidden></div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

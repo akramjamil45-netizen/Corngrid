@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/favicon.ico">
+    <title>CornGrid EA | Login Terminal</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="login-wrapper">
+        <!-- LEFT PANEL: Visual Technology & Analytics Showcase -->
+        <div class="login-brand-panel">
+            <div class="brand-overlay"></div>
+            <div class="brand-content">
+                <div class="logo-box">
+                    <img src="images/Corngrid logo 4k.jpg" alt="CornGrid Logo" class="brand-logo">
+                    <span class="brand-name">CORNGRID</span>
+                </div>
+                
+                <div class="brand-hero-text">
+                    <h2>Mastering Risk, Executing Vision</h2>
+                    <p>"In the realm of uncertainty, clarity is the ultimate leverage and discipline is the key to mastery."</p>
+                </div>
+
+                <div class="brand-metrics-card">
+                    <div class="metric-item">
+                        <span class="metric-label"><i class="fas fa-shield-alt"></i> Protection Status</span>
+                        <span class="metric-value status-active"><i class="fas fa-circle-check"></i> Active</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label"><i class="fas fa-bolt"></i> Latency</span>
+                        <span class="metric-value">&lt; 5.0 ms</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label"><i class="fas fa-microchip"></i> System Version</span>
+                        <span class="metric-value">v2.60</span>
+                    </div>
+                </div>
+
+                <div class="brand-footer-text">
+                    <span><i class="fas fa-lock"></i> 64-Bit SSL Encrypted Connection</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Authentication Form Control -->
+        <div class="login-form-panel">
+            <div class="form-container">
+                <div class="form-header">
+                    <h3>Account Login</h3>
+                    <p>Enter your credentials to access the CornGrid Terminal Portal.</p>
+                </div>
+
+                <!-- ALERT MESSAGE CONTAINER (Untuk Papar Mesej Ralat/Berjaya) -->
+                <div id="alertBox" class="alert-box" style="display: none; padding: 10px 14px; margin-bottom: 15px; border-radius: 6px; font-size: 14px;"></div>
+
+                <form id="loginForm" class="auth-form">
+                    <div class="form-group" id="usernameGroup" hidden>
+                        <label for="userUsername">Username</label>
+                        <div class="input-field">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" id="userUsername" placeholder="Username" autocomplete="username">
+                        </div>
+                    </div>
+                    
+                    <!-- Email Input -->
+                    <div class="form-group">
+                        <label for="userEmail">Account Email</label>
+                        <div class="input-field">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" id="userEmail" placeholder="name@domain.com" required autocomplete="email">
+                        </div>
+                    </div>
+
+                    <!-- Password Input -->
+                    <div class="form-group">
+                        <div class="password-label-wrapper">
+                            <label for="userPassword">Password</label>
+                            <a href="#" id="forgotPasswordBtn" class="forgot-link">Forgot?</a>
+                        </div>
+                        <div class="input-field">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="userPassword" placeholder="••••••••••••" required>
+                            <i class="fas fa-eye toggle-password" id="togglePassword" style="cursor: pointer;"></i>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn-login-submit" id="btnLogin">
+                        <span>Sign In to Terminal</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+
+                </form>
+
+                <!-- Alternative Action Footer -->
+                <div class="form-footer">
+                    <p><button type="button" id="toggleAuthMode" class="auth-mode-toggle">Don't have an account yet? Sign up</button></p>
+                    <p>Need a license or practice account? <a href="https://corngrid.com" target="_blank">Get Free Demo EA</a></p>
+                    <div class="disclaimer-note">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        <span>Trading involves substantial risk. Ensure your risk parameters are tested via MT5 prior to deployment.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TUKAR KE SKRIP FRONTEND JAVASCRIPT -->
+    <script src="login.js"></script>
+</body>
+</html>

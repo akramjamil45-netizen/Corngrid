@@ -1,0 +1,20 @@
+.admin-user-label { color: var(--muted); font-size: 11px; }
+.admin-stat-grid { margin-top: 0; }
+.admin-privacy-note { margin-bottom: 16px; }
+.admin-profile-panel { padding: 0; }
+.admin-profile-panel > .panel-header { padding: 18px 18px 13px; }
+.admin-toolbar { margin: 0; padding: 0 18px 14px; }
+.admin-toolbar .input-control { min-width: min(260px, 100%); }
+.admin-nav-link { text-decoration: none; }
+.admin-nav-link.is-active { cursor: default; }
+.admin-profile-name { color: var(--text); font-weight: 600; }
+.admin-profile-id { display: block; margin-top: 2px; color: var(--subtle); font-size: 9px; }
+.admin-status { white-space: nowrap; }
+.admin-error { color: var(--red); }
+
+@media (max-width: 600px) {
+  .admin-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-toolbar { align-items: stretch; }
+  .admin-toolbar .input-control, .admin-toolbar .select-control { width: 100%; }
+  .admin-user-label { display: none; }
+}

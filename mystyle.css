@@ -1036,6 +1036,24 @@ header.header-scrolled .logo-text {
     box-shadow: 0 5px 15px rgba(255, 212, 0, 0.4);
 }
 
+.nav-login-btn {
+    border: 1px solid rgba(255, 212, 0, 0.65);
+    border-radius: 6px;
+    color: #FFD400 !important;
+    font-weight: 700 !important;
+    padding: 7px 18px !important;
+    transition: all 0.3s ease !important;
+}
+
+.nav-login-btn::after {
+    display: none !important;
+}
+
+.nav-login-btn:hover {
+    background: #FFD400;
+    color: #000000 !important;
+}
+
 /* =========================================
    MOBILE NAVIGATION MENU STYLES
 ========================================= */
@@ -1107,7 +1125,8 @@ header.header-scrolled .logo-text {
         text-align: center;
     }
 
-    .nav-cta-btn {
+    .nav-cta-btn,
+    .nav-login-btn {
         margin-top: 15px;
         width: 100%;
         padding: 12px 20px !important;
