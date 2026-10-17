@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { isSameOriginRequest, readAuthCredential } = require('./session-cookie');
 
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
@@ -39,9 +40,16 @@ function createAdminAuth({ email, passwordHash, jwtSecret }) {
       );
     },
     verifyToken(req, res, next) {
-      const authorization = req.headers.authorization || '';
-      const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+      const credential = readAuthCredential(req);
+      const token = credential && credential.token;
       if (!token) return res.status(401).json({ error: 'Administrator authentication is required.' });
+      if (
+        credential.source === 'cookie' &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+        !isSameOriginRequest(req)
+      ) {
+        return res.status(403).json({ error: 'This request must come from the same site.' });
+      }
 
       jwt.verify(token, jwtSecret, (error, claims) => {
         if (

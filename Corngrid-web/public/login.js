@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameGroup = document.getElementById('usernameGroup');
     const userUsername = document.getElementById('userUsername');
     const toggleAuthMode = document.getElementById('toggleAuthMode');
+    const submitButton = document.getElementById('btnLogin');
     const submitLabel = document.querySelector('#btnLogin span');
     const formTitle = document.querySelector('.form-header h3');
     const formDescription = document.querySelector('.form-header p');
@@ -28,23 +29,40 @@ document.addEventListener('DOMContentLoaded', () => {
         alertBox.hidden = true;
     });
 
-    // 1. Function Toggle Buka/Tutup Password Eye Icon
-    togglePassword.addEventListener('click', () => {
+    function togglePasswordVisibility() {
         const type = userPassword.getAttribute('type') === 'password' ? 'text' : 'password';
         userPassword.setAttribute('type', type);
         togglePassword.classList.toggle('fa-eye');
         togglePassword.classList.toggle('fa-eye-slash');
+        togglePassword.setAttribute('aria-pressed', String(type === 'text'));
+        togglePassword.setAttribute('aria-label', type === 'text' ? 'Hide password' : 'Show password');
+    }
+
+    togglePassword.setAttribute('role', 'button');
+    togglePassword.setAttribute('tabindex', '0');
+    togglePassword.setAttribute('aria-label', 'Show password');
+    togglePassword.addEventListener('click', togglePasswordVisibility);
+    togglePassword.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            togglePasswordVisibility();
+        }
     });
 
     // 2. Handling Login Submit via Fetch API
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (submitButton.disabled) return;
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-busy', 'true');
+        let redirecting = false;
         
         showAlert('Authenticating with CornGrid Server...', 'info');
 
         try {
             const response = await fetch(isRegister ? '/api/register' : '/api/login', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -74,19 +92,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Save the existing JWT token for either a user or administrator session.
-            localStorage.setItem('corngrid_token', data.token);
-            localStorage.setItem('corngrid_user', JSON.stringify(data.user));
-
             showAlert('Login Successful! Redirecting to Terminal...', 'success');
 
             const destination = data.user?.role === 'admin' ? '/admin.html' : '/dashboard.html';
+            redirecting = true;
             setTimeout(() => {
                 window.location.href = destination;
             }, 1200);
 
         } catch (error) {
             showAlert(error.message, 'error');
+        } finally {
+            if (!redirecting) {
+                submitButton.disabled = false;
+                submitButton.removeAttribute('aria-busy');
+            }
         }
     });
 

@@ -9,10 +9,18 @@ const nodemailer = require('nodemailer');
 const registerMt5Api = require('./mt5-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
+const createUserAuth = require('./user-auth');
+const {
+  clearAuthCookie,
+  isSameOriginRequest,
+  readAuthCredential,
+  setAuthCookie
+} = require('./session-cookie');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DATABASE_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'database.sqlite');
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_FROM = process.env.SMTP_FROM;
 const mailTransport = SMTP_HOST && SMTP_FROM
@@ -51,12 +59,21 @@ const adminAuth = createAdminAuth({
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith('/api/') ||
+    ['/admin', '/admin.html', '/dashboard', '/dashboard.html', '/index.html', '/login', '/login.html', '/reset-password.html'].includes(req.path)
+  ) {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
 
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Connect to the SQLite database
-const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) => {
+const db = new sqlite3.Database(DATABASE_PATH, (err) => {
   if (err) {
     console.error('Failed to connect to SQLite:', err.message);
   } else {
@@ -114,33 +131,7 @@ db.run(`
   )
 `);
 
-// JWT authentication middleware
-function verifyToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access denied. Authentication token is required.' });
-  }
-
-  jwt.verify(token, SECRET_KEY, (err, user) => {
-    if (err || !user || !Number.isSafeInteger(user.id) || user.id < 1) {
-      return res.status(403).json({ error: 'Token is invalid or has expired.' });
-    }
-    db.get('SELECT version FROM user_auth_versions WHERE user_id = ?', [user.id], (versionErr, record) => {
-      if (versionErr) {
-        console.error('Failed to verify the session version:', versionErr.message);
-        return res.status(500).json({ error: 'Unable to verify this session.' });
-      }
-      const currentVersion = record ? record.version : 0;
-      if ((user.authVersion || 0) !== currentVersion) {
-        return res.status(403).json({ error: 'This session is no longer valid. Please sign in again.' });
-      }
-      req.user = user;
-      next();
-    });
-  });
-}
+const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
 registerMt5Api(app, db, verifyToken);
 registerAdminApi(
@@ -221,6 +212,11 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, '..', 'sw.js'));
+});
+
 // ------------------- ENDPOINTS API -------------------
 
 // 1. API Pendaftaran Pengguna
@@ -277,6 +273,7 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
     try {
       const token = await adminAuth.authenticate(email, password);
       if (!token) return res.status(400).json({ error: 'Email or password is incorrect.' });
+      if (isSameOriginRequest(req)) setAuthCookie(res, token, req);
       return res.json({
         message: 'Login successful!',
         token,
@@ -319,6 +316,7 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
         { expiresIn: '2h' }
       );
 
+      if (isSameOriginRequest(req)) setAuthCookie(res, token, req);
       res.json({
         message: 'Login successful!',
         token,
@@ -333,6 +331,15 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
       res.status(500).json({ error: 'Error occurred while verifying password.' });
     }
   });
+});
+
+app.post('/api/logout', (req, res) => {
+  const credential = readAuthCredential(req);
+  if (credential?.source === 'cookie' && !isSameOriginRequest(req)) {
+    return res.status(403).json({ error: 'This request must come from the same site.' });
+  }
+  clearAuthCookie(res, req);
+  res.json({ message: 'Signed out successfully.' });
 });
 
 // 3. API Dapatkan Profil Pengguna

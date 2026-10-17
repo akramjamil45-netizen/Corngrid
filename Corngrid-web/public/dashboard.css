@@ -19,7 +19,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+body { min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 .app-shell { min-height: 100vh; }
@@ -31,7 +31,7 @@ button { color: inherit; }
 .workspace-label, .eyebrow { margin: 0; color: var(--subtle); font-size: 10px; font-weight: 700; letter-spacing: 1.35px; }
 .workspace-label { padding: 0 12px 10px; }
 .main-nav { display: grid; gap: 4px; }
-.nav-item { display: flex; width: 100%; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); text-align: left; cursor: pointer; transition: .16s ease; }
+.nav-item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); text-align: left; cursor: pointer; transition: .16s ease; }
 .nav-item:hover { background: var(--surface-raised); color: var(--text); }
 .nav-item.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .nav-icon { display: inline-grid; width: 19px; place-items: center; font-size: 17px; }
@@ -51,7 +51,7 @@ button { color: inherit; }
 .topbar-actions { display: flex; align-items: center; gap: 20px; }
 .live-indicator { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 1px; }
 .live-indicator i { width: 6px; height: 6px; }
-.icon-button, .mobile-menu { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.icon-button, .mobile-menu { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
 .user-chip { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .avatar { display: grid; width: 29px; height: 29px; place-items: center; border: 1px solid rgba(255, 212, 0, .3); border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .mobile-menu { display: none; }

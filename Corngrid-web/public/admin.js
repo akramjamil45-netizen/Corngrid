@@ -1,25 +1,8 @@
 (() => {
-  const token = localStorage.getItem('corngrid_token') || sessionStorage.getItem('corngrid_token');
   let page = 1;
   let totalPages = 0;
   let searchTimer;
   const $ = selector => document.querySelector(selector);
-
-  if (!token) {
-    window.location.replace('/login');
-    return;
-  }
-
-  try {
-    const user = JSON.parse(localStorage.getItem('corngrid_user') || '{}');
-    if (user.role !== 'admin') {
-      window.location.replace('/dashboard.html');
-      return;
-    }
-  } catch {
-    window.location.replace('/login');
-    return;
-  }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -33,11 +16,28 @@
     return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleDateString();
   }
 
-  function expireSession() {
-    localStorage.removeItem('corngrid_token');
-    sessionStorage.removeItem('corngrid_token');
-    localStorage.removeItem('corngrid_user');
+  async function expireSession() {
+    try {
+      const response = await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) throw new Error(`Session cleanup failed (${response.status}).`);
+    } catch (error) {
+      console.error('Unable to clear the CornGrid administrator session:', error);
+    }
     window.location.replace('/login');
+  }
+
+  async function signOut() {
+    const button = $('#admin-logout');
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('The server could not end this session.');
+      window.location.replace('/login');
+    } catch (error) {
+      console.error('Unable to sign out of the administrator session:', error);
+      window.alert(error.message || 'Unable to sign out. Please try again.');
+      button.disabled = false;
+    }
   }
 
   async function loadOverview() {
@@ -52,7 +52,7 @@
 
     try {
       const response = await fetch(`/api/admin/overview?${query}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'same-origin'
       });
       const data = await response.json().catch(() => ({}));
       if (response.status === 401 || response.status === 403) {
@@ -123,6 +123,6 @@
       loadOverview();
     }, 250);
   });
-  $('#admin-logout').addEventListener('click', expireSession);
+  $('#admin-logout').addEventListener('click', signOut);
   loadOverview();
 })();

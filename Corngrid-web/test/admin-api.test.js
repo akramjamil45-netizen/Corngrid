@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const createAdminAuth = require('../admin-auth');
 const registerAdminApi = require('../admin-api');
+const { AUTH_COOKIE_NAME } = require('../session-cookie');
 
 function execute(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -79,6 +80,7 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
 
   const app = express();
   registerAdminApi(app, db, adminAuth.verifyToken.bind(adminAuth), 180);
+  app.post('/admin-cookie-check', adminAuth.verifyToken, (_req, res) => res.json({ ok: true }));
   const server = await new Promise(resolve => {
     const instance = app.listen(0, () => resolve(instance));
   });
@@ -107,7 +109,8 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
       const instance = rotatedApp.listen(0, () => resolve(instance));
     });
     try {
-      const rotatedResponse = await fetch(`http://127.0.0.1:${rotatedServer.address().port}/admin-check`, {
+      const rotatedOrigin = `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://127.0.0.1:${rotatedServer.address().port}`;
+      const rotatedResponse = await fetch(`${rotatedOrigin}/admin-check`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       assert.equal(rotatedResponse.status, 403);
@@ -141,6 +144,30 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
 
     const searched = await (await request('/api/admin/overview?search=charlie', token)).json();
     assert.deepEqual(searched.profiles.map(profile => profile.username), ['Charlie']);
+
+    const cookieOrigin = `http://127.0.0.1:${server.address().port}`;
+    const cookieResponse = await fetch(`${cookieOrigin}/api/admin/overview`, {
+      headers: { Cookie: `${AUTH_COOKIE_NAME}=${token}` }
+    });
+    assert.equal(cookieResponse.status, 200);
+
+    const csrfResponse = await fetch(`${cookieOrigin}/admin-cookie-check`, {
+      method: 'POST',
+      headers: {
+        Cookie: `${AUTH_COOKIE_NAME}=${token}`,
+        Origin: 'https://attacker.example'
+      }
+    });
+    assert.equal(csrfResponse.status, 403);
+
+    const sameOriginResponse = await fetch(`${cookieOrigin}/admin-cookie-check`, {
+      method: 'POST',
+      headers: {
+        Cookie: `${AUTH_COOKIE_NAME}=${token}`,
+        Origin: cookieOrigin
+      }
+    });
+    assert.equal(sameOriginResponse.status, 200);
   } finally {
     await new Promise(resolve => server.close(resolve));
     await new Promise(resolve => db.close(resolve));

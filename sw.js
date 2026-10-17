@@ -1,100 +1,101 @@
-const CACHE_NAME = 'corngrid-cache-v3.6'; // Tukar versi ini setiap kali ada kemaskini
+const CACHE_NAME = 'corngrid-static-v1';
+const OFFLINE_PAGE = '/offline.html';
 
-const ASSETS_TO_CACHE = [
-    '/',
-    '/mystyle.css',
-    '/script.js',
-    '/favicon.ico',
-    '/images/1.jpg',
-    '/images/2.jpg',
-    '/images/3.jpg',
-    '/images/akram.jfif',
-    '/images/azudin.jfif',
-    '/images/background2.jpg',
-    '/images/bg-algo-specs.jpg',
-    '/images/bg-faq.jpg',
-    '/images/bg-features.jpg',
-    '/images/bg-support.jpg',
-    '/images/bg-testimonial (2).jpg',
-    '/images/bg-testimonial.jpg',
-    '/images/CornGrid logo 4k.jpg',
-    '/images/hero-image.png',
-    '/images/dashboard.jfif',
-    '/images/fahrul.jfif',
-    '/images/favicon.ico',
-    '/images/gmail.svg',
-    '/images/hfmarket.png',
-    '/images/Hfmarket.svg',
-    '/images/Litefinance.svg',
-    '/images/myfxbook.png',
-    '/images/Nadiah.jfif',
-    '/images/Roboforex.svg',
-    '/images/suhaimi.jfif',
-    '/images/telegram.svg',
-    '/images/tiktok.svg',
-    '/images/whatsapp.svg',
-    '/files/terms.txt',
-    '/video/background2.mp4'
+const CORE_ASSETS = [
+  '/manifest.webmanifest',
+  '/offline.html',
+  '/pwa.css',
+  '/pwa.js',
+  '/favicon.ico',
+  '/images/pwa-192.png',
+  '/images/pwa-512.png',
+  '/style.css',
+  '/login.js',
+  '/dashboard.css',
+  '/dashboard.js',
+  '/admin.css',
+  '/admin.js',
+  '/public-portfolios.js',
+  '/public-portfolio.js',
+  '/reset-password.js'
 ];
 
-// 1. Install Event - Simpan fail dalam cache baharu
-self.addEventListener('install', (event) => {
-    self.skipWaiting(); // Paksa Service Worker baharu mengambil alih serta-merta
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('[Service Worker] Caching all new assets');
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
-    );
+const STATIC_ASSETS = new Set([
+  ...CORE_ASSETS,
+  '/mystyle.css',
+  '/script.js',
+  '/images/Corngrid%20logo%204k.jpg',
+  '/images/bg-algo-specs.jpg',
+  '/images/bg-faq.jpg',
+  '/images/bg-features.jpg',
+  '/images/bg-support.jpg',
+  '/images/bg-testimonial.jpg',
+  '/images/bg-testimonial%20(2).jpg',
+  '/images/background2.jpg',
+  '/images/hero-image.png',
+  '/images/1.jpg',
+  '/images/2.jpg',
+  '/images/3.jpg',
+  '/images/gmail.svg',
+  '/images/hfmarket.png',
+  '/images/Hfmarket.svg',
+  '/images/Litefinance.svg',
+  '/images/myfxbook.png',
+  '/images/Roboforex.svg',
+  '/images/telegram.svg',
+  '/images/tiktok.svg',
+  '/images/whatsapp.svg'
+]);
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll(CORE_ASSETS.map(url => new Request(url, { cache: 'reload' })))
+    )
+  );
 });
 
-// 2. Activate Event - Padam cache lama
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cache) => {
-                    if (cache !== CACHE_NAME) {
-                        console.log('[Service Worker] Deleting old cache:', cache);
-                        return caches.delete(cache);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim()) // Ambil kawalan ke atas semua tab serta-merta
-    );
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames =>
+      Promise.all(cacheNames
+        .filter(name => name.startsWith('corngrid-cache-') || (name.startsWith('corngrid-static-') && name !== CACHE_NAME))
+        .map(name => caches.delete(name)))
+    ).then(() => self.clients.claim())
+  );
 });
 
-// 3. Fetch Event - Network-First untuk HTML/Navigasi, Cache-First untuk Asset Statik
-self.addEventListener('fetch', (event) => {
-    if (event.request.method !== 'GET') return;
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
-    const isHTMLPage = event.request.mode === 'navigate' || 
-                       event.request.headers.get('accept').includes('text/html');
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
 
-    if (isHTMLPage) {
-        // STRATEGI NETWORK-FIRST (Utamakan Server untuk HTML)
-        event.respondWith(
-            fetch(event.request).then((networkResponse) => {
-                return caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(event.request, networkResponse.clone());
-                    return networkResponse;
-                });
-            }).catch(() => {
-                // Gunakan cache jika tiada sambungan internet (offline)
-                return caches.match(event.request);
-            })
-        );
-    } else {
-        // STRATEGI CACHE-FIRST (Utamakan Cache untuk Gambar, CSS, JS)
-        event.respondWith(
-            caches.match(event.request).then((cachedResponse) => {
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                return fetch(event.request).then((networkResponse) => {
-                    return networkResponse;
-                });
-            })
-        );
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(async () => {
+        const offlinePage = await caches.match(OFFLINE_PAGE);
+        return offlinePage || Response.error();
+      })
+    );
+    return;
+  }
+
+  if (!STATIC_ASSETS.has(url.pathname)) return;
+  event.respondWith((async () => {
+    const cachedResponse = await caches.match(url.pathname, { ignoreSearch: true });
+    if (cachedResponse) return cachedResponse;
+
+    const response = await fetch(request);
+    if (response.ok && response.type === 'basic') {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(url.pathname, response.clone());
     }
+    return response;
+  })());
 });

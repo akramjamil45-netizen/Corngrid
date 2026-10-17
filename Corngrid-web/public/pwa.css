@@ -1,0 +1,43 @@
+.pwa-notice {
+  position: fixed;
+  z-index: 10000;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  left: max(16px, env(safe-area-inset-left));
+  display: flex;
+  width: min(420px, calc(100vw - 32px));
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  padding: 16px;
+  border: 1px solid rgba(216, 170, 50, .3);
+  border-radius: 14px;
+  background: #111720;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .38);
+  color: #f4f5f7;
+}
+
+.pwa-notice[hidden] { display: none; }
+.pwa-notice-copy { flex: 1; min-width: 0; }
+.pwa-notice-copy strong { display: block; margin-bottom: 3px; font-size: 14px; }
+.pwa-notice-copy span { display: block; color: #aab1bf; font-size: 12px; line-height: 1.45; }
+.pwa-notice button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #d8aa32;
+  border-radius: 9px;
+  background: #d8aa32;
+  color: #11151d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pwa-notice button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.pwa-notice .pwa-dismiss { min-width: 44px; padding: 0; border-color: #303846; background: transparent; color: #d5d9e1; font-size: 20px; }
+
+@media (max-width: 420px) {
+  .pwa-notice { gap: 9px; padding: 12px; }
+  .pwa-notice button { padding: 0 10px; }
+}

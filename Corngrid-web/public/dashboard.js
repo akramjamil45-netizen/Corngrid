@@ -1,13 +1,7 @@
 (() => {
   const API = '/api';
-  const token = localStorage.getItem('corngrid_token') || sessionStorage.getItem('corngrid_token');
   const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', downloads: 'Downloads', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null };
-
-  if (!token) {
-    window.location.replace('index.html');
-    return;
-  }
 
   function renderOverviewAccountSelector() {
     const select = $('#overview-account-select');
@@ -43,16 +37,14 @@
   async function request(path, options = {}) {
     const response = await fetch(`${API}${path}`, {
       ...options,
+      credentials: 'same-origin',
       signal: options.signal || AbortSignal.timeout(15000),
-      headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
+      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     let data = {};
     try { data = await response.json(); } catch { if (response.ok) throw new Error('The server returned an invalid response.'); }
     if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem('corngrid_token');
-      sessionStorage.removeItem('corngrid_token');
-      localStorage.removeItem('corngrid_user');
-      window.location.replace('index.html');
+      void expireSession();
       throw new Error('Your session has expired. Please sign in again.');
     }
     if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
@@ -65,16 +57,13 @@
     button.textContent = 'Downloading…';
     try {
       const response = await fetch(`${API}/downloads/${encodeURIComponent(button.dataset.downloadId)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'same-origin'
       });
       if (!response.ok) {
         let data = {};
         try { data = await response.json(); } catch {}
         if (response.status === 401 || response.status === 403) {
-          localStorage.removeItem('corngrid_token');
-          sessionStorage.removeItem('corngrid_token');
-          localStorage.removeItem('corngrid_user');
-          window.location.replace('index.html');
+          void expireSession();
           throw new Error('Your session has expired. Please sign in again.');
         }
         throw new Error(data.error || 'The download could not be completed.');
@@ -102,6 +91,29 @@
     item.textContent = message;
     $('#toast-region').append(item);
     window.setTimeout(() => item.remove(), 4500);
+  }
+
+  async function expireSession() {
+    try {
+      const response = await fetch(`${API}/logout`, { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) throw new Error(`Session cleanup failed (${response.status}).`);
+    } catch (error) {
+      console.error('Unable to clear the expired CornGrid session:', error);
+    }
+    window.location.replace('/login');
+  }
+
+  async function signOut() {
+    const button = $('#logout-btn');
+    button.disabled = true;
+    try {
+      const response = await fetch(`${API}/logout`, { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('The server could not end this session.');
+      window.location.replace('/login');
+    } catch (error) {
+      toast(error.message || 'Unable to sign out. Please try again.', 'error');
+      button.disabled = false;
+    }
   }
 
   function escapeHtml(value) {
@@ -152,13 +164,22 @@
     $$('.page').forEach(page => page.classList.toggle('is-visible', page.id === `page-${name}`));
     $$('.nav-item[data-page]').forEach(item => item.classList.toggle('is-active', item.dataset.page === name));
     $('#page-title').textContent = pageNames[name];
-    $('#sidebar').classList.remove('is-open');
-    $('#mobile-menu').setAttribute('aria-expanded', 'false');
-    $('#overlay').hidden = true;
+    setSidebarOpen(false);
     if (name === 'accounts') loadAccounts(true);
     if (name === 'positions') loadPositions();
     if (name === 'history') loadTrades();
     if (name === 'monitoring') loadMonitoring();
+  }
+
+  function setSidebarOpen(open) {
+    const sidebar = $('#sidebar');
+    const mobile = window.matchMedia('(max-width: 850px)').matches;
+    sidebar.classList.toggle('is-open', open);
+    sidebar.inert = mobile && !open;
+    sidebar.setAttribute('aria-hidden', String(mobile && !open));
+    $('#mobile-menu').setAttribute('aria-expanded', String(open));
+    $('#mobile-menu').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    $('#overlay').hidden = !open;
   }
 
   function periodLabel(period) {
@@ -650,15 +671,21 @@
 
   $$('.nav-item[data-page]').forEach(item => item.addEventListener('click', () => showPage(item.dataset.page)));
   $('#mobile-menu').addEventListener('click', () => {
-    const open = $('#sidebar').classList.toggle('is-open');
-    $('#mobile-menu').setAttribute('aria-expanded', String(open));
-    $('#overlay').hidden = !open;
+    const open = !$('#sidebar').classList.contains('is-open');
+    setSidebarOpen(open);
   });
   $('#overlay').addEventListener('click', () => {
-    $('#sidebar').classList.remove('is-open');
-    $('#mobile-menu').setAttribute('aria-expanded', 'false');
-    $('#overlay').hidden = true;
+    setSidebarOpen(false);
+    $('#mobile-menu').focus();
   });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && $('#sidebar').classList.contains('is-open')) {
+      setSidebarOpen(false);
+      $('#mobile-menu').focus();
+    }
+  });
+  window.matchMedia('(max-width: 850px)').addEventListener('change', () => setSidebarOpen(false));
+  setSidebarOpen(false);
   $('#theme-toggle').addEventListener('click', () => {
     const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
     $('#pref-theme').value = next;
@@ -759,10 +786,12 @@
         body: JSON.stringify({ currentPassword: $('#current-password').value, newPassword })
       });
       toast(result.message || 'Password changed. Please sign in again.', 'success');
-      localStorage.removeItem('corngrid_token');
-      sessionStorage.removeItem('corngrid_token');
-      localStorage.removeItem('corngrid_user');
-      window.setTimeout(() => window.location.replace('index.html'), 900);
+      try {
+        await fetch(`${API}/logout`, { method: 'POST', credentials: 'same-origin' });
+      } catch (error) {
+        console.error('Unable to clear the session after changing the password:', error);
+      }
+      window.setTimeout(() => window.location.replace('/login'), 900);
     } catch (error) { toast(error.message, 'error'); }
   });
   $('#preferences-form').addEventListener('submit', async event => {
@@ -775,12 +804,7 @@
       if (state.page === 'overview') loadOverview();
     } catch (error) { toast(error.message, 'error'); }
   });
-  $('#logout-btn').addEventListener('click', () => {
-    localStorage.removeItem('corngrid_token');
-    sessionStorage.removeItem('corngrid_token');
-    localStorage.removeItem('corngrid_user');
-    window.location.replace('index.html');
-  });
+  $('#logout-btn').addEventListener('click', signOut);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && state.page === 'overview') loadOverview();
     if (!document.hidden && state.page === 'accounts') loadAccounts();

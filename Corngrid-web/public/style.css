@@ -210,7 +210,7 @@ body {
 
 .input-field input {
     width: 100%;
-    padding: 12px 14px 12px 40px;
+    padding: 12px 54px 12px 40px;
     background: #141822;
     border: 1px solid #222735;
     border-radius: 8px;
@@ -227,15 +227,24 @@ body {
 
 .toggle-password {
     position: absolute;
-    right: 14px;
+    top: 50%;
+    right: 3px;
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border-radius: 8px;
     color: #586072;
     cursor: pointer;
     font-size: 14px;
+    line-height: 1;
+    transform: translateY(-50%);
 }
 
-.toggle-password:hover {
+.toggle-password:hover, .toggle-password:focus-visible {
     color: #FFD400;
 }
+.toggle-password:focus-visible { outline: 2px solid #FFD400; outline-offset: 2px; }
 
 /* Checkbox & Options */
 .form-options {
@@ -484,10 +493,12 @@ body { font-size: 15px; line-height: 1.55; }
 .form-header p { font-size: 14px; }
 .form-group label { font-size: 13px; }
 .input-field input { min-height: 50px; border-color: #252b36; border-radius: 9px; background: #11151d; font-size: 15px; }
+.input-field input { font-size: 16px; }
 .input-field input:focus { border-color: #ffd400; box-shadow: 0 0 0 3px rgba(255, 212, 0, .12); }
 .input-icon, .toggle-password { font-size: 15px; }
 .forgot-link, .auth-mode-toggle { font-size: 13px; }
 .btn-login-submit { min-height: 50px; border-radius: 9px; font-size: 15px; }
+.btn-login-submit:disabled { cursor: wait; opacity: .72; }
 .form-footer { font-size: 14px; }
 .disclaimer-note { border-color: #252b36; border-radius: 9px; background: #11151d; color: #a0a6b4; font-size: 12px; }
 .alert-box { display: block; padding: 12px 14px; margin-bottom: 18px; border: 1px solid transparent; border-radius: 9px; font-size: 13px; line-height: 1.55; }
@@ -519,4 +530,10 @@ body.reset-page .login-form-panel { min-height: calc(100vh - 70px); min-height: 
     .auth-topbar nav a { font-size: 12px; }
     body.reset-page .login-wrapper { padding-top: 62px; }
     body.reset-page .login-form-panel { min-height: calc(100vh - 62px); min-height: calc(100svh - 62px); }
+}
+
+@supports (height: 100dvh) {
+    body { min-height: 100dvh; }
+    .login-wrapper, .login-form-panel { min-height: 100dvh; }
+    body.reset-page .login-wrapper { min-height: 100dvh; }
 }

@@ -6,6 +6,8 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const registerMt5Api = require('../mt5-api');
+const createUserAuth = require('../user-auth');
+const { AUTH_COOKIE_NAME } = require('../session-cookie');
 
 test('MT5 pairing, ingestion, ownership, preferences, and password revocation', async () => {
   const db = new sqlite3.Database(':memory:');
@@ -31,19 +33,7 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     error => error ? reject(error) : resolve()
   ));
 
-  const verifyToken = (req, res, next) => {
-    const supplied = (req.headers.authorization || '').replace(/^Bearer /, '');
-    if (!supplied) return res.status(401).json({ error: 'Authentication token is required.' });
-    jwt.verify(supplied, jwtSecret, (error, user) => {
-      if (error || !Number.isSafeInteger(user?.id)) return res.status(403).json({ error: 'Unauthorized.' });
-      db.get('SELECT version FROM user_auth_versions WHERE user_id = ?', [user.id], (lookupError, row) => {
-        if (lookupError) return res.status(500).json({ error: 'Session verification failed.' });
-        if ((user.authVersion || 0) !== (row ? row.version : 0)) return res.status(403).json({ error: 'Session expired.' });
-        req.user = user;
-        return next();
-      });
-    });
-  };
+  const verifyToken = createUserAuth({ db, jwtSecret });
   registerMt5Api(app, db, verifyToken);
   await new Promise((resolve, reject) => db.get('SELECT 1', error => error ? reject(error) : resolve()));
 
@@ -67,6 +57,34 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     let response = await request('/api/portfolio', aliceToken);
     assert.equal(response.status, 200);
     assert.equal((await response.json()).balanceAvailable, false);
+
+    const cookieOrigin = `http://127.0.0.1:${server.address().port}`;
+    response = await fetch(`${cookieOrigin}/api/portfolio`, {
+      headers: { Cookie: `${AUTH_COOKIE_NAME}=${aliceToken}` }
+    });
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${cookieOrigin}/api/user/preferences`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: `${AUTH_COOKIE_NAME}=${aliceToken}`,
+        Origin: 'https://attacker.example',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ theme: 'light' })
+    });
+    assert.equal(response.status, 403);
+
+    response = await fetch(`${cookieOrigin}/api/user/preferences`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: `${AUTH_COOKIE_NAME}=${aliceToken}`,
+        Origin: cookieOrigin,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ theme: 'light' })
+    });
+    assert.equal(response.status, 200);
 
     response = await request('/api/mt5/pairing-code', aliceToken, { method: 'POST', body: '{}' });
     assert.equal(response.status, 201);
@@ -353,8 +371,16 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     });
     assert.equal(response.status, 200);
     assert.equal((await request('/api/me', aliceToken)).status, 403);
+    response = await fetch(`${cookieOrigin}/api/me`, {
+      headers: { Cookie: `${AUTH_COOKIE_NAME}=${aliceToken}` }
+    });
+    assert.equal(response.status, 403);
     const renewedToken = jwt.sign({ id: 1, authVersion: 1 }, jwtSecret);
     assert.equal((await request('/api/me', renewedToken)).status, 200);
+    response = await fetch(`${cookieOrigin}/api/me`, {
+      headers: { Cookie: `${AUTH_COOKIE_NAME}=${renewedToken}` }
+    });
+    assert.equal(response.status, 200);
   } finally {
     await new Promise(resolve => server.close(resolve));
     await new Promise(resolve => db.close(resolve));

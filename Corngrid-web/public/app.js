@@ -10,27 +10,6 @@ async function parseResponse(res) {
   }
 }
 
-// Helper Function: Save / Remove Token
-function saveToken(token, remember = false) {
-  if (remember) {
-    localStorage.setItem('corngrid_token', token);
-    sessionStorage.removeItem('corngrid_token');
-  } else {
-    sessionStorage.setItem('corngrid_token', token);
-    localStorage.removeItem('corngrid_token');
-  }
-}
-
-function getToken() {
-  return localStorage.getItem('corngrid_token') || sessionStorage.getItem('corngrid_token');
-}
-
-function removeToken() {
-  localStorage.removeItem('corngrid_token');
-  sessionStorage.removeItem('corngrid_token');
-  localStorage.removeItem('token'); // Fallback for the legacy key
-}
-
 // ==========================================================================
 // 1. Login / Registration Page Logic (index.html, login.html, OR '/')
 // ==========================================================================
@@ -47,7 +26,6 @@ if (
   const alertBox = document.getElementById('alertBox') || document.getElementById('message');
   const togglePassword = document.getElementById('togglePassword');
   const forgotPasswordBtn = document.getElementById('forgotPasswordBtn') || document.querySelector('.forgot-link');
-  const rememberMeCheckbox = document.getElementById('rememberMe');
 
   // B. Toggle the password visibility icon (if present)
   if (togglePassword && userPasswordInput) {
@@ -67,7 +45,6 @@ if (
       const email = userEmailInput ? userEmailInput.value.trim() : '';
       const password = userPasswordInput ? userPasswordInput.value : '';
       const username = usernameInput ? usernameInput.value.trim() : '';
-      const remember = rememberMeCheckbox ? rememberMeCheckbox.checked : false;
 
       // Detect the mode (register if the 'auth-form' username field is visible; otherwise default to login)
       const isRegister = usernameInput && usernameInput.offsetParent !== null;
@@ -91,14 +68,10 @@ if (
 
         if (!isRegister) {
           // Login successful
-          saveToken(data.token, remember);
-          if (data.user) {
-            localStorage.setItem('corngrid_user', JSON.stringify(data.user));
-          }
           showAlert('Login successful! Redirecting to the dashboard...', 'success');
 
           setTimeout(() => {
-            window.location.href = 'dashboard.html';
+            window.location.href = data.user?.role === 'admin' ? '/admin.html' : '/dashboard.html';
           }, 1000);
         } else {
           // Registration successful
@@ -150,13 +123,6 @@ if (
 // 2. Dashboard Page Logic (dashboard.html)
 // ==========================================================================
 if (window.location.pathname.endsWith('dashboard.html')) {
-  const token = getToken();
-
-  // Check whether a token exists; if not, redirect to the login page
-  if (!token) {
-    window.location.href = 'login.html';
-  }
-
   const profileForm = document.getElementById('profile-form');
   const emailInput = document.getElementById('dash-email');
   const usernameInput = document.getElementById('dash-username');
@@ -167,9 +133,7 @@ if (window.location.pathname.endsWith('dashboard.html')) {
   // A. Load User Profile Data
   async function loadProfile() {
     try {
-      const res = await fetch(API_URL + '/user/profile', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch(API_URL + '/user/profile', { credentials: 'same-origin' });
 
       const data = await parseResponse(res);
 
@@ -181,8 +145,7 @@ if (window.location.pathname.endsWith('dashboard.html')) {
       if (usernameInput) usernameInput.value = data.username || '';
       if (bioInput) bioInput.value = data.bio || '';
     } catch (err) {
-      removeToken();
-      window.location.href = 'login.html';
+      window.location.replace('/login');
     }
   }
 
@@ -195,9 +158,9 @@ if (window.location.pathname.endsWith('dashboard.html')) {
         const res = await fetch(API_URL + '/user/profile', {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           },
+          credentials: 'same-origin',
           body: JSON.stringify({
             username: usernameInput.value.trim(),
             bio: bioInput.value.trim()
@@ -216,9 +179,14 @@ if (window.location.pathname.endsWith('dashboard.html')) {
 
   // C. Log Out
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      removeToken();
-      window.location.href = 'login.html';
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const response = await fetch(API_URL + '/logout', { method: 'POST', credentials: 'same-origin' });
+        if (!response.ok) throw new Error('The server could not end this session.');
+        window.location.replace('/login');
+      } catch (error) {
+        showDashMessage(error.message || 'Unable to sign out. Please try again.', 'error');
+      }
     });
   }
 

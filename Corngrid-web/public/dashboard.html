@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#080a0f">
+  <link rel="manifest" href="/manifest.webmanifest">
   <title>CornGrid | Trading Dashboard</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/images/pwa-192.png">
+  <link rel="stylesheet" href="/pwa.css">
+  <script src="/pwa.js" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -38,7 +41,7 @@
 
     <main class="main-content">
       <header class="topbar">
-        <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
         <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="page-title">Overview</strong></div>
         <div class="topbar-actions">
           <span class="live-indicator" id="live-indicator"><i></i> <span id="live-label">NO LIVE FEED</span></span>
@@ -154,6 +157,7 @@
 
         <section class="page" id="page-settings">
           <div class="page-heading"><div><p class="eyebrow">PREFERENCES &amp; PROFILE</p><h1>Settings</h1><p class="muted">Manage profile and dashboard display preferences.</p></div></div>
+          <p class="notice notice-info"><span class="notice-icon">i</span><span><strong>Install CornGrid on Android.</strong> Open corngrid.com in Chrome, then choose <em>Install app</em> or <em>Add to Home screen</em> from the browser menu. An install button also appears when your browser supports it. Current trading and account data still requires an internet connection.</span></p>
           <div class="settings-layout"><nav class="settings-tabs" aria-label="Settings sections"><button class="settings-tab is-active" data-setting="profile">Profile</button><button class="settings-tab" data-setting="security">Security</button><button class="settings-tab" data-setting="appearance">Appearance</button><button class="settings-tab" data-setting="notifications">Notifications</button><button class="settings-tab" data-setting="privacy">Privacy</button></nav>
             <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form></section>
             <section class="panel settings-panel" id="setting-security" hidden><div class="panel-header"><div><p class="eyebrow">ACCOUNT PROTECTION</p><h2>Security</h2></div></div><form id="password-form" class="settings-form"><label>Current password<input id="current-password" class="input-control" type="password" autocomplete="current-password" required></label><label>New password<input id="new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm new password<input id="confirm-new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><p class="muted small">Changing your password revokes existing dashboard sessions. You will need to sign in again.</p><button class="button button-primary" type="submit">Change password</button></form><div class="privacy-copy"><h3>Password recovery</h3><p>Use the existing secure password-reset link from the login page if you cannot sign in. Passwords are stored as hashes and are never displayed.</p></div></section>
