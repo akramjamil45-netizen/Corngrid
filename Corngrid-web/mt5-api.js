@@ -175,6 +175,42 @@ function formatTimestamp(value) {
   return value == null ? null : new Date(value).toISOString();
 }
 
+function dateKeyInTimeZone(value, timeZone) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value)).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function dateStartInTimeZone(dateKey, timeZone) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const target = Date.UTC(year, month - 1, day);
+  let guess = target;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess))
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, Number(part.value)]));
+    const localAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    const adjustment = target - localAsUtc;
+    guess += adjustment;
+    if (adjustment === 0) break;
+  }
+  return guess;
+}
+
 function pageParams(req) {
   const page = Math.max(1, Math.min(1000000, Number.parseInt(req.query.page, 10) || 1));
   const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, Number.parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE));
@@ -207,6 +243,23 @@ function rateLimiter({ limit, windowMs, key }) {
 
 function ownerId(req) {
   return req.user.id;
+}
+
+async function overviewAccountScope(db, req) {
+  if (req.query.accountId === undefined) return { account: null };
+  if (typeof req.query.accountId !== 'string' || !/^[1-9]\d*$/.test(req.query.accountId)) {
+    return { error: { status: 400, message: 'Account ID must be a positive integer.' } };
+  }
+  const accountId = Number(req.query.accountId);
+  if (!Number.isSafeInteger(accountId)) {
+    return { error: { status: 400, message: 'Account ID must be a positive integer.' } };
+  }
+  const account = await get(db, `
+    SELECT id, currency FROM mt5_accounts WHERE id = ? AND user_id = ?
+  `, [accountId, ownerId(req)]);
+  return account
+    ? { account }
+    : { error: { status: 404, message: 'MT5 account not found.' } };
 }
 
 function registerMt5Api(app, db, verifyToken) {
@@ -364,10 +417,12 @@ function registerMt5Api(app, db, verifyToken) {
     const accountNumber = typeof body.accountNumber === 'string' ? body.accountNumber.trim() : '';
     const brokerServer = typeof body.brokerServer === 'string' ? body.brokerServer.trim() : '';
     const currency = typeof body.currency === 'string' ? body.currency.trim().toUpperCase() : '';
+    const eaVersion = body.eaVersion === undefined ? null : body.eaVersion;
     if (!/^[A-F0-9]{8}$/.test(code)) return res.status(400).json({ error: 'A valid 8-character pairing code is required.' });
     if (!/^[0-9]{1,32}$/.test(accountNumber)) return res.status(400).json({ error: 'A valid MT5 account identifier is required.' });
     if (!validText(brokerServer, 100)) return res.status(400).json({ error: 'A valid broker/server name is required.' });
     if (!/^[A-Z]{3,8}$/.test(currency)) return res.status(400).json({ error: 'A valid account currency is required.' });
+    if (eaVersion !== null && !validText(eaVersion, 40)) return res.status(400).json({ error: 'EA version must be between 1 and 40 characters.' });
 
     const now = Date.now();
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
@@ -383,9 +438,9 @@ function registerMt5Api(app, db, verifyToken) {
       try {
         account = await run(
           db,
-          `INSERT INTO mt5_accounts (user_id, account_number, broker_server, currency, linked_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [pairing.user_id, accountNumber, brokerServer, currency, now]
+          `INSERT INTO mt5_accounts (user_id, account_number, broker_server, currency, ea_version, linked_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [pairing.user_id, accountNumber, brokerServer, currency, eaVersion, now]
         );
         await run(db, 'INSERT INTO mt5_installations (account_id, secret_hash, created_at) VALUES (?, ?, ?)', [account.lastID, secretHash, now]);
       } catch (insertError) {
@@ -732,10 +787,14 @@ function registerMt5Api(app, db, verifyToken) {
 
   app.get('/api/portfolio', authenticated, async (req, res) => {
     try {
+      const scope = await overviewAccountScope(db, req);
+      if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
+      const accountFilter = scope.account ? 'AND id = ?' : '';
+      const accountParams = scope.account ? [scope.account.id] : [];
       const accounts = await all(db, `
         SELECT id, currency, balance, equity, floating_profit, last_heartbeat, last_sync
-        FROM mt5_accounts WHERE user_id = ?
-      `, [ownerId(req)]);
+        FROM mt5_accounts WHERE user_id = ? ${accountFilter}
+      `, [ownerId(req), ...accountParams]);
       const currencies = [...new Set(accounts.map(account => account.currency))];
       const singleCurrency = currencies.length === 1;
       const complete = accounts.length > 0 && accounts.every(account => account.balance !== null && account.equity !== null && account.floating_profit !== null);
@@ -754,6 +813,7 @@ function registerMt5Api(app, db, verifyToken) {
         currency: singleCurrency ? currencies[0] : null,
         activeAccounts: online.length,
         accountCount: accounts.length,
+        selectedAccountId: scope.account?.id ?? null,
         accounts: (await getAccountSummaries(db, ownerId(req))).map(account => {
           const lastHeartbeat = account.lastHeartbeat ? new Date(account.lastHeartbeat).getTime() : null;
           account.status = account.authErrorAt && (!lastHeartbeat || new Date(account.authErrorAt).getTime() > lastHeartbeat)
@@ -773,12 +833,27 @@ function registerMt5Api(app, db, verifyToken) {
 
   app.get('/api/portfolio/performance', authenticated, async (req, res) => {
     const period = ['today', '7d', '30d', '90d', 'all', 'custom'].includes(req.query.period) ? req.query.period : '30d';
+    let timeZone = 'UTC';
+    try {
+      const preferencesRow = await get(db, 'SELECT preferences_json FROM user_preferences WHERE user_id = ?', [ownerId(req)]);
+      const preferences = preferencesRow ? JSON.parse(preferencesRow.preferences_json) : {};
+      if (preferences.timezone) {
+        new Intl.DateTimeFormat('en', { timeZone: preferences.timezone });
+        timeZone = preferences.timezone;
+      }
+    } catch (preferenceError) {
+      console.error('Failed to resolve performance time zone:', preferenceError.message);
+      return res.status(500).json({ error: 'Unable to load the performance time zone.' });
+    }
     const now = Date.now();
+    const todayDateKey = dateKeyInTimeZone(now, timeZone);
+    const monthDateKey = `${todayDateKey.slice(0, 7)}-01`;
+    const todayStart = dateStartInTimeZone(todayDateKey, timeZone);
+    const monthStart = dateStartInTimeZone(monthDateKey, timeZone);
     let since = 0;
     let until = now + 1;
     if (period === 'today') {
-      const today = new Date();
-      since = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+      since = todayStart;
     } else if (period === 'custom') {
       const from = timestamp(req.query.from, null);
       const to = timestamp(req.query.to, null);
@@ -789,27 +864,30 @@ function registerMt5Api(app, db, verifyToken) {
       const days = Number.parseInt(period, 10);
       since = now - days * 24 * 60 * 60 * 1000;
     }
-    const today = new Date();
-    const todayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-    const monthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
     try {
-      const currencies = await all(db, 'SELECT DISTINCT currency FROM mt5_accounts WHERE user_id = ?', [ownerId(req)]);
-      const accountCount = await get(db, 'SELECT COUNT(*) AS count FROM mt5_accounts WHERE user_id = ?', [ownerId(req)]);
+      const scope = await overviewAccountScope(db, req);
+      if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
+      const accountFilter = scope.account ? 'AND id = ?' : '';
+      const accountParams = scope.account ? [scope.account.id] : [];
+      const currencies = await all(db, `SELECT DISTINCT currency FROM mt5_accounts WHERE user_id = ? ${accountFilter}`, [ownerId(req), ...accountParams]);
+      const accountCount = await get(db, `SELECT COUNT(*) AS count FROM mt5_accounts WHERE user_id = ? ${accountFilter}`, [ownerId(req), ...accountParams]);
       const sameCurrency = currencies.length === 1;
-      const singleAccount = accountCount.count === 1;
+      const singleAccount = scope.account ? true : accountCount.count === 1;
+      const dealAccountFilter = scope.account ? 'AND a.id = ?' : '';
+      const dealParams = scope.account ? [scope.account.id] : [];
       const deals = await all(db, `
         SELECT d.profit, d.commission, d.swap, d.closed_at, d.duration_seconds
         FROM mt5_deals d JOIN mt5_accounts a ON a.id = d.account_id
-        WHERE a.user_id = ? AND d.closed_at >= ? AND d.closed_at < ? ORDER BY d.closed_at ASC
-      `, [ownerId(req), since, until]);
+        WHERE a.user_id = ? ${dealAccountFilter} AND d.closed_at >= ? AND d.closed_at < ? ORDER BY d.closed_at ASC
+      `, [ownerId(req), ...dealParams, since, until]);
       const dailyDeals = await all(db, `
         SELECT d.profit, d.commission, d.swap FROM mt5_deals d
-        JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ? AND d.closed_at >= ?
-      `, [ownerId(req), todayStart]);
+        JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ? ${dealAccountFilter} AND d.closed_at >= ? AND d.closed_at < ?
+      `, [ownerId(req), ...dealParams, todayStart, now + 1]);
       const monthlyDeals = await all(db, `
         SELECT d.profit, d.commission, d.swap FROM mt5_deals d
-        JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ? AND d.closed_at >= ?
-      `, [ownerId(req), monthStart]);
+        JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ? ${dealAccountFilter} AND d.closed_at >= ? AND d.closed_at < ?
+      `, [ownerId(req), ...dealParams, monthStart, now + 1]);
       const snapshots = singleAccount ? await all(db, `
         WITH ordered_snapshots AS (
           SELECT s.captured_at, s.balance, s.equity,
@@ -817,14 +895,14 @@ function registerMt5Api(app, db, verifyToken) {
                  COUNT(*) OVER () AS row_count
           FROM mt5_snapshots s
           JOIN mt5_accounts a ON a.id = s.account_id
-          WHERE a.user_id = ? AND s.captured_at >= ? AND s.captured_at < ?
+          WHERE a.user_id = ? ${dealAccountFilter} AND s.captured_at >= ? AND s.captured_at < ?
         )
         SELECT captured_at, balance, equity
         FROM ordered_snapshots
         WHERE row_number = 1 OR row_number = row_count
           OR row_number % MAX(1, CAST((row_count + 499) / 500 AS INTEGER)) = 0
         ORDER BY captured_at ASC
-      `, [ownerId(req), since, until]) : [];
+      `, [ownerId(req), ...dealParams, since, until]) : [];
 
       const value = deal => deal.profit + deal.commission + deal.swap;
       const costsComplete = deals.every(deal => deal.commission !== null && deal.swap !== null);
@@ -846,6 +924,7 @@ function registerMt5Api(app, db, verifyToken) {
       const moneyAvailable = sameCurrency && deals.length > 0 && costsComplete;
       return res.json({
         period,
+        selectedAccountId: scope.account?.id ?? null,
         currency: sameCurrency ? currencies[0].currency : null,
         closedDeals: deals.length,
         closedDealsAvailable: deals.length > 0,
@@ -899,6 +978,17 @@ function registerMt5Api(app, db, verifyToken) {
     const { page, limit, offset } = pageParams(req);
     const filters = ['a.user_id = ?'];
     const params = [ownerId(req)];
+    try {
+      const scope = await overviewAccountScope(db, req);
+      if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
+      if (scope.account) {
+        filters.push('a.id = ?');
+        params.push(scope.account.id);
+      }
+    } catch (databaseError) {
+      console.error('Failed to validate selected account for open positions:', databaseError.message);
+      return res.status(500).json({ error: 'Unable to validate the selected MT5 account.' });
+    }
     if (req.query.search !== undefined) {
       if (typeof req.query.search !== 'string' || req.query.search.length > 64) return res.status(400).json({ error: 'Position search must be 64 characters or fewer.' });
       const search = `%${req.query.search.trim()}%`;

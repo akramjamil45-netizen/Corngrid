@@ -7,7 +7,10 @@
   <title>CornGrid | Trading Dashboard</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="dashboard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css?v=20261017-6">
 </head>
 <body>
   <div class="app-shell">
@@ -49,38 +52,35 @@
           <div class="page-heading">
             <div><p class="eyebrow">YOUR ACCOUNT, AT A GLANCE</p><h1>Trading overview</h1><p class="muted">Monitor verified account data and portfolio performance.</p></div>
             <div class="heading-actions">
-              <label class="period-select-label" for="period-select">PERIOD</label>
-              <select id="period-select" class="select-control">
+              <label class="overview-control"><span>Trading account</span><select id="overview-account-select" class="select-control" aria-label="Choose an MT5 account for the overview">
+                <option value="">Loading your MT5 accounts…</option>
+              </select><small id="overview-account-help" aria-live="polite">Choose the account to view.</small></label>
+              <label class="overview-control overview-period"><span>Performance period</span><select id="period-select" class="select-control">
                 <option value="today">Today</option><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All time</option><option value="custom">Custom range</option>
-              </select>
+              </select></label>
               <input id="period-from" class="input-control period-date" type="date" aria-label="Period start date" hidden>
               <input id="period-to" class="input-control period-date" type="date" aria-label="Period end date" hidden>
               <button class="button button-secondary" id="refresh-button">↻ <span>Refresh</span></button>
+              <button class="button button-small" id="retry-overview-accounts" type="button" hidden>Retry account list</button>
             </div>
           </div>
-          <div class="notice notice-info" id="data-notice"><span class="notice-icon">i</span><span>Only data received from a linked CornGrid EA is shown. No demo or estimated trading figures are used.</span></div>
+          <div class="notice notice-warning" id="data-notice" hidden></div>
           <div class="stat-grid">
-            <article class="stat-card"><div class="stat-top"><span>Total balance</span><span class="stat-icon">◈</span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Latest account balance</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Current equity</span><span class="stat-icon">◇</span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Balance plus unrealized P/L</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Unrealized across linked accounts</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Balance</span><span class="stat-icon">◈</span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Account funds</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Equity</span><span class="stat-icon">◇</span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Including floating P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Open trades</small></article>
             <article class="stat-card"><div class="stat-top"><span>Net profit</span><span class="stat-icon">↗</span></div><strong class="stat-value" data-stat="netProfit">N/A</strong><small class="stat-period">Closed deals · 30 days</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Daily P/L</span><span class="stat-icon">◷</span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed deals today · UTC</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Monthly P/L</span><span class="stat-icon">▤</span></div><strong class="stat-value" data-stat="monthlyProfit">N/A</strong><small>Closed deals this month · UTC</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Closed deals</span><span class="stat-icon">▥</span></div><strong class="stat-value" data-stat="closedTrades">N/A</strong><small>Imported deal records</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon">◎</span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small>Requires verified closed-deal data</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Profit factor</span><span class="stat-icon">⤢</span></div><strong class="stat-value" data-stat="profitFactor">N/A</strong><small>Gross profit ÷ gross loss</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Maximum drawdown</span><span class="stat-icon">⌄</span></div><strong class="stat-value" data-stat="maxDrawdown">N/A</strong><small>Requires a complete equity history</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Current drawdown</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="currentDrawdown">N/A</strong><small>Compared with recorded equity peak</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Active MT5 accounts</span><span class="stat-icon">▣</span></div><strong class="stat-value" data-stat="activeAccounts">0</strong><small>Online heartbeat within timeout</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Today</span><span class="stat-icon">◷</span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed trade P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon">◎</span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small data-stat-deals>Closed deals · N/A</small></article>
           </div>
 
           <div class="content-grid">
             <section class="panel chart-panel">
-              <div class="panel-header"><div><p class="eyebrow">PORTFOLIO PERFORMANCE</p><h2>Balance &amp; equity</h2></div><div class="chart-legend"><span><i class="legend-equity"></i>Equity</span><span><i class="legend-balance"></i>Balance</span></div></div>
+              <div class="panel-header"><div><p class="eyebrow">SELECTED ACCOUNT PERFORMANCE</p><h2>Balance &amp; equity</h2></div><div class="chart-legend"><span><i class="legend-equity"></i>Equity</span><span><i class="legend-balance"></i>Balance</span></div></div>
               <div class="chart-area" id="equity-chart">
                 <div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>Waiting for account history</strong><span>Historical chart data will appear after a linked EA sends account snapshots.</span></div>
               </div>
-              <div class="chart-foot"><span>Historical values are reported by the connected MT5 account.</span><span id="last-update">Last update: N/A</span></div>
+              <div class="chart-foot"><span>Historical values are reported by the selected MT5 account.</span><span id="last-update">Last update: N/A</span></div>
             </section>
             <section class="panel connection-panel">
               <div class="panel-header"><div><p class="eyebrow">CONNECTIVITY</p><h2>EA status</h2></div><span class="pill pill-muted" id="ea-status">No data</span></div>
@@ -88,8 +88,8 @@
               <div class="connection-details" id="connection-details" hidden></div>
             </section>
           </div>
-          <section class="panel analytics-panel">
-            <div class="panel-header"><div><p class="eyebrow">PERFORMANCE ANALYTICS</p><h2>Trading statistics</h2></div><span class="muted small">Based on imported closed-deal records</span></div>
+          <details class="panel analytics-panel">
+            <summary class="analytics-summary"><span><span class="eyebrow">MORE INSIGHTS</span><strong>Trading statistics</strong></span><span class="muted small">View details <span aria-hidden="true">＋</span></span></summary>
             <div class="analytics-grid">
               <div class="analytics-item"><span>Gross profit</span><strong data-stat="grossProfit">N/A</strong></div>
               <div class="analytics-item"><span>Gross loss</span><strong data-stat="grossLoss">N/A</strong></div>
@@ -101,7 +101,7 @@
               <div class="analytics-item"><span>Avg. deal duration</span><strong data-stat="avgDuration">N/A</strong></div>
             </div>
             <p class="method-note">Method: gross profit/loss uses imported deal profit before costs. Net P/L includes profit, commission, and swap; net metrics are unavailable if either cost is missing. Partial exits are separate MT5 deal records.</p>
-          </section>
+          </details>
           <section class="panel table-panel">
             <div class="panel-header"><div><p class="eyebrow">LIVE ACCOUNT DATA</p><h2>Open positions</h2></div><button class="text-button" data-go="positions">View all positions →</button></div>
             <div class="table-scroll"><table><thead><tr><th>Symbol</th><th>Direction</th><th>Volume</th><th>Entry price</th><th>Current price</th><th>Floating P/L</th><th>Opened</th></tr></thead><tbody id="overview-positions"><tr><td colspan="7" class="table-empty">No position data received yet.</td></tr></tbody></table></div>
@@ -112,7 +112,7 @@
           <div class="page-heading"><div><p class="eyebrow">ACCOUNT MANAGEMENT</p><h1>MT5 accounts</h1><p class="muted">Link multiple authorized trading accounts by generating a new pairing code for each MT5 account. Your MT5 trading password is never requested.</p></div><div class="heading-actions"><button class="button button-secondary" id="refresh-accounts">↻ Refresh view</button><button class="button button-primary" id="create-pairing">＋ Generate pairing code</button></div></div>
           <div class="notice notice-warning"><span class="notice-icon">!</span><span>Pairing codes expire after 10 minutes and can only be used once. Enter the code in an authorized CornGrid EA installation.</span></div>
           <div class="pairing-card" id="pairing-card" hidden><div><span class="eyebrow">ONE-TIME PAIRING CODE</span><p>Enter this code in your CornGrid EA. It will only be shown here once.</p></div><code id="pairing-code"></code><div class="pairing-expiry" id="pairing-expiry"></div></div>
-          <div class="account-grid" id="account-list"><div class="panel empty-state"><span class="empty-icon">▣</span><h2>No MT5 accounts linked</h2><p>Generate a pairing code, then enter it in the CornGrid EA on your trading terminal. Account data will appear here after the first heartbeat.</p><button class="button button-primary" data-create-pairing>Generate pairing code</button></div></div>
+          <div class="account-grid" id="account-list"><div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div></div>
         </section>
 
         <section class="page" id="page-positions">
@@ -167,6 +167,6 @@
     </main>
   </div>
   <div class="overlay" id="overlay" hidden></div>
-  <script src="dashboard.js"></script>
+  <script src="dashboard.js?v=20261017-5"></script>
 </body>
 </html>

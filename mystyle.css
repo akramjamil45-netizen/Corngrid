@@ -1015,27 +1015,6 @@ header.header-scrolled .logo-text {
     width: 100%;
 }
 
-/* Butang 'Get Full Version' tambahan pada Header (Gaya Big Firm) */
-.nav-cta-btn {
-    background: #FFD400;
-    color: #000000 !important;
-    font-weight: 700 !important;
-    padding: 8px 20px !important;
-    border-radius: 6px;
-    transition: all 0.3s ease !important;
-}
-
-.nav-cta-btn::after {
-    display: none !important; /* Buang garisan bawah untuk butang */
-}
-
-.nav-cta-btn:hover {
-    background: #FFFFFF !important;
-    color: #000000 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(255, 212, 0, 0.4);
-}
-
 .nav-login-btn {
     border: 1px solid rgba(255, 212, 0, 0.65);
     border-radius: 6px;
@@ -1125,7 +1104,6 @@ header.header-scrolled .logo-text {
         text-align: center;
     }
 
-    .nav-cta-btn,
     .nav-login-btn {
         margin-top: 15px;
         width: 100%;
@@ -3794,5 +3772,71 @@ footer {
     }
     .lang-btn {
         font-size: 14px;
+    }
+}
+
+/* Main site header spacing */
+#mainHeader {
+    padding: 14px 0;
+}
+
+#mainHeader .container {
+    width: min(92%, 1280px);
+}
+
+#mainHeader nav {
+    min-height: 44px;
+    gap: 24px;
+}
+
+#mainHeader .logo-container {
+    flex: 0 0 auto;
+}
+
+#mainHeader .menu {
+    gap: clamp(18px, 2.2vw, 32px);
+}
+
+#mainHeader .menu a {
+    margin-left: 0;
+}
+
+#mainHeader .lang-switch-box {
+    flex: 0 0 auto;
+    margin-left: 0;
+}
+
+#mainHeader .nav-login-btn {
+    padding: 8px 20px !important;
+}
+
+#mainHeader.header-scrolled {
+    padding: 10px 0;
+}
+
+@media (max-width: 768px) {
+    #mainHeader {
+        padding: 12px 0;
+    }
+
+    #mainHeader .container {
+        width: calc(100% - 36px);
+    }
+
+    #mainHeader nav {
+        min-height: 42px;
+    }
+
+    #mainHeader .menu {
+        gap: 22px;
+    }
+
+    #mainHeader .menu .nav-login-btn {
+        width: min(100%, 260px);
+        margin-top: 0;
+    }
+
+    #mainHeader .lang-switch-box {
+        margin-top: 0;
     }
 }

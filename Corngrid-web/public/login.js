@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleAuthMode.textContent = isRegister
             ? 'Already have an account? Sign in'
             : "Don't have an account yet? Sign up";
-        alertBox.style.display = 'none';
+        alertBox.hidden = true;
     });
 
     // 1. Function Toggle Buka/Tutup Password Eye Icon
@@ -127,21 +127,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper Function untuk Papar Mesej Status
     function showAlert(message, type) {
-        alertBox.style.display = 'block';
+        alertBox.hidden = false;
         alertBox.textContent = message;
-
-        if (type === 'error') {
-            alertBox.style.backgroundColor = '#f8d7da';
-            alertBox.style.color = '#721c24';
-            alertBox.style.border = '1px solid #f5c6cb';
-        } else if (type === 'success') {
-            alertBox.style.backgroundColor = '#d4edda';
-            alertBox.style.color = '#155724';
-            alertBox.style.border = '1px solid #c3e6cb';
-        } else {
-            alertBox.style.backgroundColor = '#cce5ff';
-            alertBox.style.color = '#004085';
-            alertBox.style.border = '1px solid #b8daff';
-        }
+        alertBox.classList.remove('alert-error', 'alert-success', 'alert-info');
+        alertBox.classList.add(`alert-${type}`);
     }
 });

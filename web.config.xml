@@ -1,30 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+  <location path="sw.js">
     <system.webServer>
-        
-        <!-- 1. Menghalang IIS daripada menyimpan cache pada fail sw.js -->
-        <location path="sw.js">
-            <system.webServer>
-                <httpProtocol>
-                    <customHeaders>
-                        <add name="Cache-Control" value="no-cache, no-store, must-revalidate" />
-                        <add name="Pragma" value="no-cache" />
-                        <add name="Expires" value="0" />
-                    </customHeaders>
-                </httpProtocol>
-            </system.webServer>
-        </location>
-
-        <!-- 2. Menghalang cache pada fail HTML utama -->
-        <location path="index.html">
-            <system.webServer>
-                <httpProtocol>
-                    <customHeaders>
-                        <add name="Cache-Control" value="no-cache, no-store, must-revalidate" />
-                    </customHeaders>
-                </httpProtocol>
-            </system.webServer>
-        </location>
-
+      <httpProtocol>
+        <customHeaders>
+          <add name="Cache-Control" value="no-cache, no-store, must-revalidate" />
+          <add name="Pragma" value="no-cache" />
+          <add name="Expires" value="0" />
+        </customHeaders>
+      </httpProtocol>
     </system.webServer>
+  </location>
+
+  <location path="index.html">
+    <system.webServer>
+      <httpProtocol>
+        <customHeaders>
+          <add name="Cache-Control" value="no-cache, no-store, must-revalidate" />
+        </customHeaders>
+      </httpProtocol>
+    </system.webServer>
+  </location>
+
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <rule name="CornGrid Node backend" stopProcessing="true">
+          <match url="^(api/.*|login/?|login\.html|admin/?|admin\.html|admin\.css|admin\.js|dashboard\.html|dashboard\.css|dashboard\.js|portfolios/?|portfolio/.*|public-portfolios(?:\.html|\.js)?|public-portfolio(?:\.html|\.js)?|reset-password(?:\.html|\.js)?|style\.css|login\.js|images/.*|favicon\.ico)$" />
+          <action type="Rewrite" url="http://127.0.0.1:3000/{R:0}" />
+        </rule>
+      </rules>
+    </rewrite>
+  </system.webServer>
 </configuration>

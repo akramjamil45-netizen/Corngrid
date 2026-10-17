@@ -2,11 +2,39 @@
   const API = '/api';
   const token = localStorage.getItem('corngrid_token') || sessionStorage.getItem('corngrid_token');
   const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', downloads: 'Downloads', settings: 'Settings' };
-  const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null };
+  const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null };
 
   if (!token) {
     window.location.replace('index.html');
     return;
+  }
+
+  function renderOverviewAccountSelector() {
+    const select = $('#overview-account-select');
+    select.replaceChildren();
+    if (!state.accounts.length) {
+      select.add(new Option('No linked MT5 accounts — link one in MT5 Accounts', ''));
+      select.disabled = true;
+      state.overviewAccountId = '';
+      localStorage.removeItem('corngrid_overview_account_id');
+      $('#overview-account-help').textContent = 'Link an account from the MT5 Accounts page to see its performance.';
+      $('#retry-overview-accounts').hidden = true;
+      return;
+    }
+    state.accounts.forEach(account => {
+      const identity = account.maskedAccount || `Account ${account.id}`;
+      const name = account.accountName || 'CornGrid EA';
+      const currency = account.currency || 'N/A';
+      select.add(new Option(`${name} · ${identity} · ${currency} · ${account.status}`, String(account.id)));
+    });
+    select.disabled = false;
+    $('#overview-account-help').textContent = `${state.accounts.length} linked ${state.accounts.length === 1 ? 'account' : 'accounts'} · Summary shows one account at a time.`;
+    $('#retry-overview-accounts').hidden = true;
+    if (!state.accounts.some(account => String(account.id) === state.overviewAccountId)) {
+      state.overviewAccountId = String(state.accounts[0].id);
+      localStorage.setItem('corngrid_overview_account_id', state.overviewAccountId);
+    }
+    select.value = state.overviewAccountId;
   }
 
   const $ = (selector, parent = document) => parent.querySelector(selector);
@@ -15,6 +43,7 @@
   async function request(path, options = {}) {
     const response = await fetch(`${API}${path}`, {
       ...options,
+      signal: options.signal || AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     let data = {};
@@ -126,7 +155,7 @@
     $('#sidebar').classList.remove('is-open');
     $('#mobile-menu').setAttribute('aria-expanded', 'false');
     $('#overlay').hidden = true;
-    if (name === 'accounts') loadAccounts();
+    if (name === 'accounts') loadAccounts(true);
     if (name === 'positions') loadPositions();
     if (name === 'history') loadTrades();
     if (name === 'monitoring') loadMonitoring();
@@ -138,9 +167,30 @@
   }
 
   async function loadOverview() {
+    let accountsLoaded = false;
     $$('.stat-value').forEach(element => element.classList.add('is-loading'));
     try {
+      const accountList = await request('/mt5/accounts');
+      state.accounts = accountList.accounts || [];
+      accountsLoaded = true;
+      renderOverviewAccountSelector();
+      if (!state.accounts.length) {
+        $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+        $('#data-notice').hidden = true;
+        $('#connection-summary').hidden = false;
+        $('#connection-summary').innerHTML = '<div class="connection-symbol">▣</div><strong>No MT5 account linked</strong><p>Link an account to see balance, performance and trade activity here.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button>';
+        $('#connection-details').hidden = true;
+        $('#ea-status').textContent = 'No account';
+        $('#ea-status').className = 'pill pill-muted';
+        $('#overview-positions').innerHTML = '<tr><td colspan="7" class="table-empty">Link an MT5 account to view positions.</td></tr>';
+        return;
+      }
       const performanceParams = new URLSearchParams({ period: state.period });
+      const accountParams = new URLSearchParams();
+      if (state.overviewAccountId) {
+        performanceParams.set('accountId', state.overviewAccountId);
+        accountParams.set('accountId', state.overviewAccountId);
+      }
       if (state.period === 'custom') {
         const from = $('#period-from').value;
         const to = $('#period-to').value;
@@ -148,16 +198,22 @@
           $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
           return;
         }
-        if (from > to) return toast('The custom start date must be on or before the end date.', 'error');
+        if (from > to) {
+          $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+          return toast('The custom start date must be on or before the end date.', 'error');
+        }
         performanceParams.set('from', from);
         performanceParams.set('to', to);
       }
       const [portfolio, performance, positions] = await Promise.all([
-        request('/portfolio'),
+        request(`/portfolio${accountParams.size ? `?${accountParams}` : ''}`),
         request(`/portfolio/performance?${performanceParams}`),
-        request('/portfolio/positions?page=1&limit=5')
+        request(`/portfolio/positions?page=1&limit=5${accountParams.size ? `&${accountParams}` : ''}`)
       ]);
       $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+      const selectedAccount = state.overviewAccountId
+        ? (portfolio.accounts || []).find(account => String(account.id) === state.overviewAccountId)
+        : null;
       const currency = portfolio.currency || '';
       setStat('balance', portfolio.balanceAvailable ? money(portfolio.balance, currency) : 'N/A');
       setStat('equity', portfolio.equityAvailable ? money(portfolio.equity, currency) : 'N/A');
@@ -170,7 +226,7 @@
       setStat('profitFactor', performance.profitFactorAvailable ? Number(performance.profitFactor).toFixed(2) : 'N/A');
       setStat('maxDrawdown', performance.maxDrawdownAvailable ? `${money(performance.maxDrawdown, currency)}${performance.maxDrawdownPercentAvailable ? ` (${Number(performance.maxDrawdownPercent).toFixed(2)}%)` : ''}` : 'N/A');
       setStat('currentDrawdown', performance.currentDrawdownAvailable ? `${money(performance.currentDrawdown, currency)}${performance.currentDrawdownPercentAvailable ? ` (${Number(performance.currentDrawdownPercent).toFixed(2)}%)` : ''}` : 'N/A');
-      setStat('activeAccounts', Number(portfolio.activeAccounts || 0).toLocaleString());
+      setStat('activeAccounts', selectedAccount?.status || 'No account', selectedAccount?.status === 'Online' ? 'positive' : selectedAccount?.status === 'Offline' || selectedAccount?.status === 'Authentication error' ? 'negative' : '');
       setStat('grossProfit', performance.grossProfitAvailable ? money(performance.grossProfit, currency) : 'N/A', performance.grossProfitAvailable ? 'positive' : '');
       setStat('grossLoss', performance.grossLossAvailable ? money(performance.grossLoss, currency) : 'N/A', performance.grossLossAvailable ? 'negative' : '');
       setStat('avgWin', performance.averageWinAvailable ? money(performance.averageWin, currency) : 'N/A');
@@ -180,18 +236,19 @@
       setStat('recoveryFactor', performance.recoveryFactorAvailable ? Number(performance.recoveryFactor).toFixed(2) : 'N/A');
       setStat('avgDuration', performance.averageDurationAvailable ? formatDuration(performance.averageDurationSeconds) : 'N/A');
       $$('.stat-period').forEach(item => { item.textContent = `Closed deals · ${periodLabel(state.period)}`; });
+      $('[data-stat-deals]').textContent = `${performance.closedDealsAvailable ? performance.closedDeals.toLocaleString() : 'N/A'} closed deals`;
       renderChart(performance.snapshots || [], currency, performance.snapshotUnavailableReason);
       renderOverviewPositions(positions.items || []);
-      state.accounts = portfolio.accounts || [];
-      renderConnection(state.accounts);
+      renderConnection(selectedAccount ? [selectedAccount] : []);
       const update = portfolio.lastUpdate ? dateTime(portfolio.lastUpdate) : 'N/A';
       $('#last-update').textContent = `Last update: ${update}`;
-      $('#sidebar-connection').textContent = portfolio.activeAccounts ? `${portfolio.activeAccounts} EA online` : 'No EA data yet';
-      $('.sidebar-status .status-dot').classList.toggle('status-dot-muted', !portfolio.activeAccounts);
-      $('#live-label').textContent = portfolio.activeAccounts ? 'LIVE MONITORING' : 'NO LIVE FEED';
-      $('#live-indicator').classList.toggle('is-live', Boolean(portfolio.activeAccounts));
+      $('#sidebar-connection').textContent = selectedAccount?.status === 'Online' ? 'Selected EA online' : selectedAccount?.status || 'No selected account';
+      $('.sidebar-status .status-dot').classList.toggle('status-dot-muted', selectedAccount?.status !== 'Online');
+      $('#live-label').textContent = selectedAccount?.status === 'Online' ? 'LIVE MONITORING' : 'NO LIVE FEED';
+      $('#live-indicator').classList.toggle('is-live', selectedAccount?.status === 'Online');
       $('#data-notice').className = 'notice notice-info';
-      $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Only data received from a linked CornGrid EA is shown. No demo or estimated trading figures are used.</span>';
+      $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Overview metrics, chart, EA status, and open positions are scoped to the selected MT5 account. No demo or estimated trading figures are used.</span>';
+      $('#data-notice').hidden = true;
     } catch (error) {
       $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
       $$('[data-stat]').forEach(element => {
@@ -199,6 +256,13 @@
         element.classList.remove('positive', 'negative');
       });
       $('#last-update').textContent = 'Last update: unavailable';
+      if (!accountsLoaded) {
+        const accountSelect = $('#overview-account-select');
+        accountSelect.replaceChildren(new Option('Could not load accounts — retry', ''));
+        accountSelect.disabled = true;
+        $('#overview-account-help').textContent = error.message;
+        $('#retry-overview-accounts').hidden = false;
+      }
       $('#equity-chart').innerHTML = `<div class="chart-empty"><span class="empty-chart-icon">!</span><strong>Unable to load account history</strong><span>${escapeHtml(error.message)}</span></div>`;
       $('#ea-status').textContent = 'Unknown';
       $('#ea-status').className = 'pill pill-muted';
@@ -207,6 +271,7 @@
       $('#connection-details').hidden = true;
       $('#data-notice').className = 'notice notice-warning';
       $('#data-notice').innerHTML = `<span class="notice-icon">!</span><span>${escapeHtml(error.message)} Account metrics could not be refreshed.</span>`;
+      $('#data-notice').hidden = false;
       $('#live-label').textContent = 'STATUS UNKNOWN';
       $('#live-indicator').classList.remove('is-live');
       $('#sidebar-connection').textContent = 'Status unavailable';
@@ -230,7 +295,7 @@
   function renderChart(snapshots, currency, unavailableReason) {
     const chart = $('#equity-chart');
     if (!snapshots.length) {
-      chart.innerHTML = `<div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>No combined equity curve available</strong><span>${escapeHtml(unavailableReason || 'Historical chart data will appear after a linked EA sends account snapshots.')}</span></div>`;
+      chart.innerHTML = `<div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>No equity history available</strong><span>${escapeHtml(unavailableReason || 'Historical chart data will appear after the selected EA sends account snapshots.')}</span></div>`;
       return;
     }
     const width = 800, height = 220, pad = 28;
@@ -264,8 +329,8 @@
     pill.className = `pill ${online.length ? 'pill-online' : accounts.some(account => account.status === 'Offline') ? 'pill-offline' : 'pill-muted'}`;
     const account = accounts[0];
     details.innerHTML = [
-      ['Connected accounts', accounts.length],
-      ['Online now', online.length],
+      ['Selected MT5 account', `${account.maskedAccount || `Account ${account.id}`} · ${account.accountName || 'CornGrid EA'}`],
+      ['Account status', account.status],
       ['EA version', account.eaVersion || 'N/A'],
       ['Last heartbeat', dateTime(account.lastHeartbeat)],
       ['Last synchronization', dateTime(account.lastSync)]
@@ -275,21 +340,29 @@
   function renderOverviewPositions(items) {
     const body = $('#overview-positions');
     if (!items.length) {
-      body.innerHTML = '<tr><td colspan="7" class="table-empty">No open positions reported by linked accounts.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="table-empty">No open positions reported by the selected account.</td></tr>';
       return;
     }
     body.innerHTML = items.map(item => `<tr><td><strong>${escapeHtml(item.symbol)}</strong></td><td>${escapeHtml(item.direction)}</td><td>${escapeHtml(item.volume)}</td><td>${escapeHtml(item.entryPrice ?? 'N/A')}</td><td>${escapeHtml(item.currentPrice ?? 'N/A')}</td><td class="${tone(item.profit)}">${escapeHtml(money(item.profit, item.currency))}</td><td>${escapeHtml(dateTime(item.openedAt))}</td></tr>`).join('');
   }
 
-  async function loadAccounts() {
+  async function loadAccounts(showLoading = false) {
+    const host = $('#account-list');
+    if (state.page === 'accounts' && (showLoading || host.dataset.loaded !== 'true')) {
+      host.innerHTML = '<div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div>';
+    }
     try {
       const result = await request('/mt5/accounts');
       state.accounts = result.accounts || [];
+      renderOverviewAccountSelector();
       renderAccounts(state.accounts);
       await loadPortfolioSharing();
       return true;
     } catch (error) {
-      if (state.page === 'accounts') $('#account-list').innerHTML = `<div class="panel empty-state"><span class="empty-icon">!</span><h2>Unable to load MT5 accounts</h2><p>${escapeHtml(error.message)}</p></div>`;
+      if (state.page === 'accounts') {
+        host.dataset.loaded = 'false';
+        host.innerHTML = `<div class="panel empty-state" role="alert"><span class="empty-icon">!</span><h2>Unable to load MT5 accounts</h2><p>${escapeHtml(error.message)}</p><button class="button button-primary" type="button" data-retry-accounts>Try again</button></div>`;
+      }
       if (state.page === 'monitoring') $('#monitor-summary').innerHTML = `<div class="panel empty-state"><span class="empty-icon">!</span><h2>Unable to load monitoring data</h2><p>${escapeHtml(error.message)}</p></div>`;
       toast(error.message, 'error');
       return false;
@@ -298,6 +371,7 @@
 
   function renderAccounts(accounts) {
     const host = $('#account-list');
+    host.dataset.loaded = 'true';
     if (!accounts.length) {
       host.innerHTML = '<div class="panel empty-state"><span class="empty-icon">▣</span><h2>No MT5 accounts linked</h2><p>Generate a pairing code, then enter it in the CornGrid EA on your trading terminal. Account data will appear here after the first heartbeat.</p><button class="button button-primary" data-create-pairing>Generate pairing code</button></div>';
       return;
@@ -575,37 +649,54 @@
   }
 
   $$('.nav-item[data-page]').forEach(item => item.addEventListener('click', () => showPage(item.dataset.page)));
-  $$('[data-go]').forEach(item => item.addEventListener('click', () => showPage(item.dataset.go)));
   $('#mobile-menu').addEventListener('click', () => {
     const open = $('#sidebar').classList.toggle('is-open');
     $('#mobile-menu').setAttribute('aria-expanded', String(open));
     $('#overlay').hidden = !open;
   });
-  $('#overlay').addEventListener('click', () => { $('#sidebar').classList.remove('is-open'); $('#overlay').hidden = true; });
+  $('#overlay').addEventListener('click', () => {
+    $('#sidebar').classList.remove('is-open');
+    $('#mobile-menu').setAttribute('aria-expanded', 'false');
+    $('#overlay').hidden = true;
+  });
   $('#theme-toggle').addEventListener('click', () => {
     const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
     $('#pref-theme').value = next;
     applyPreferences({ theme: next });
     request('/user/preferences', { method: 'PATCH', body: JSON.stringify({ theme: next }) }).catch(error => toast(error.message, 'error'));
   });
-  $('#period-select').addEventListener('change', event => { state.period = event.target.value; loadOverview(); });
   $('#period-select').addEventListener('change', event => {
     const custom = event.target.value === 'custom';
+    state.period = event.target.value;
     $('#period-from').hidden = !custom;
     $('#period-to').hidden = !custom;
     if (custom) $('#period-from').focus();
+    loadOverview();
+  });
+  $('#overview-account-select').addEventListener('change', event => {
+    state.overviewAccountId = event.target.value;
+    if (state.overviewAccountId) localStorage.setItem('corngrid_overview_account_id', state.overviewAccountId);
+    else localStorage.removeItem('corngrid_overview_account_id');
+    loadOverview();
   });
   $('#period-from').addEventListener('change', loadOverview);
   $('#period-to').addEventListener('change', loadOverview);
   $('#refresh-button').addEventListener('click', loadOverview);
+  $('#retry-overview-accounts').addEventListener('click', () => loadOverview());
   $('#refresh-positions').addEventListener('click', loadPositions);
   $('[data-refresh]').addEventListener('click', loadMonitoring);
   $('#create-pairing').addEventListener('click', createPairingCode);
   $('#refresh-accounts').addEventListener('click', loadAccounts);
   document.addEventListener('click', event => {
+    const pageLink = event.target.closest('[data-go]');
+    if (pageLink) showPage(pageLink.dataset.go);
     const downloadButton = event.target.closest('[data-download-id]');
     if (downloadButton) downloadResource(downloadButton);
     if (event.target.closest('[data-create-pairing]')) createPairingCode();
+    if (event.target.closest('[data-retry-accounts]')) {
+      $('#account-list').dataset.loaded = 'false';
+      loadAccounts();
+    }
     const unlink = event.target.closest('.unlink-account');
     if (unlink) unlinkAccount(unlink.dataset.id);
     const rename = event.target.closest('.rename-account');
@@ -705,7 +796,7 @@
     }
   }, 30000);
 
+  loadOverview();
   loadProfile();
   loadPortfolioSharing();
-  loadOverview();
 })();

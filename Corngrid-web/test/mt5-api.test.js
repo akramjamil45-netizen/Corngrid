@@ -73,10 +73,12 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     const { code } = await response.json();
     response = await request('/api/mt5/pair', null, {
       method: 'POST',
-      body: JSON.stringify({ code, accountNumber: '12345678', brokerServer: 'TestBroker-Live', currency: 'USD' })
+      body: JSON.stringify({ code, accountNumber: '12345678', brokerServer: 'TestBroker-Live', currency: 'USD', eaVersion: '2.60' })
     });
     assert.equal(response.status, 201);
     const { installationSecret } = await response.json();
+    const pairedAccount = await (await request('/api/mt5/accounts', aliceToken)).json();
+    assert.equal(pairedAccount.accounts[0].eaVersion, '2.60', 'EA version is recorded when the installation first pairs');
     assert.equal((await request('/api/mt5/pair', null, {
       method: 'POST',
       body: JSON.stringify({ code, accountNumber: '87654321', brokerServer: 'Other', currency: 'USD' })
@@ -218,6 +220,31 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     const aliceAccounts = await (await request('/api/mt5/accounts', aliceToken)).json();
     assert.equal(aliceAccounts.accounts.length, 2, 'users can link multiple MT5 accounts');
     const aliceSecondAccountId = aliceAccounts.accounts.find(account => account.id !== accountList.accounts[0].id).id;
+    const firstAccountOverview = await (await request(`/api/portfolio?accountId=${accountList.accounts[0].id}`, aliceToken)).json();
+    const secondAccountOverview = await (await request(`/api/portfolio?accountId=${aliceSecondAccountId}`, aliceToken)).json();
+    assert.equal(firstAccountOverview.balance, 1000);
+    assert.equal(secondAccountOverview.balance, 2000);
+    assert.equal(firstAccountOverview.accountCount, 1);
+    assert.equal(secondAccountOverview.accountCount, 1);
+    assert.equal(firstAccountOverview.activeAccounts, 1);
+    assert.equal(secondAccountOverview.activeAccounts, 1);
+    assert.equal((await request(`/api/portfolio?accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
+    assert.equal((await request('/api/portfolio?accountId=not-an-id', aliceToken)).status, 400);
+
+    const firstAccountPerformance = await (await request(`/api/portfolio/performance?period=all&accountId=${accountList.accounts[0].id}`, aliceToken)).json();
+    const secondAccountPerformance = await (await request(`/api/portfolio/performance?period=all&accountId=${aliceSecondAccountId}`, aliceToken)).json();
+    assert.equal(firstAccountPerformance.closedDeals, 2);
+    assert.equal(secondAccountPerformance.closedDeals, 1);
+    assert.equal(firstAccountPerformance.snapshots.length, 2);
+    assert.equal(secondAccountPerformance.snapshots.length, 1);
+    assert.equal((await request(`/api/portfolio/performance?period=all&accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
+
+    const firstAccountPositions = await (await request(`/api/portfolio/positions?accountId=${accountList.accounts[0].id}`, aliceToken)).json();
+    const secondAccountPositions = await (await request(`/api/portfolio/positions?accountId=${aliceSecondAccountId}`, aliceToken)).json();
+    assert.equal(firstAccountPositions.total, 1);
+    assert.equal(secondAccountPositions.total, 1);
+    assert.equal(secondAccountPositions.items[0].symbol, 'XAUUSD');
+    assert.equal((await request(`/api/portfolio/positions?accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
 
     assert.equal((await request('/api/user/portfolio-sharing', aliceToken, {
       method: 'PATCH',
@@ -285,7 +312,6 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     assert.equal(incompleteCosts.netProfitAvailable, false);
     assert.equal(incompleteCosts.winRateAvailable, false);
     assert.equal(incompleteCosts.grossProfitAvailable, true);
-
     response = await request('/api/user/preferences', aliceToken, {
       method: 'PATCH',
       body: JSON.stringify({ theme: 'light', currency: 'USD', timezone: 'UTC' })

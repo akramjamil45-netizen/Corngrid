@@ -95,14 +95,18 @@ const navLinks = document.querySelectorAll(".nav-link");
 
 if (menuToggle && navMenu) {
     menuToggle.addEventListener("click", () => {
-        menuToggle.classList.toggle("active");
-        navMenu.classList.toggle("active");
+        const isOpen = menuToggle.classList.toggle("active");
+        navMenu.classList.toggle("active", isOpen);
+        menuToggle.setAttribute("aria-expanded", String(isOpen));
+        menuToggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
     });
 
     navLinks.forEach((link) => {
         link.addEventListener("click", () => {
             menuToggle.classList.remove("active");
             navMenu.classList.remove("active");
+            menuToggle.setAttribute("aria-expanded", "false");
+            menuToggle.setAttribute("aria-label", "Open navigation");
         });
     });
 
@@ -110,6 +114,8 @@ if (menuToggle && navMenu) {
         if (!navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
             menuToggle.classList.remove("active");
             navMenu.classList.remove("active");
+            menuToggle.setAttribute("aria-expanded", "false");
+            menuToggle.setAttribute("aria-label", "Open navigation");
         }
     });
 }
@@ -241,7 +247,6 @@ const translations = {
         nav_presets: "Preset Files",
         nav_support: "Support",
         nav_portfolios: "Portfolios",
-        nav_full_version: "Get Full Version",
         nav_login: "Login",
 
         // --- Hero Section ---
@@ -451,7 +456,6 @@ const translations = {
         nav_presets: "Fail Preset",
         nav_support: "Bantuan",
         nav_portfolios: "Portfolio",
-        nav_full_version: "Dapatkan Versi Penuh",
         nav_login: "Log Masuk",
 
         // --- Hero Section ---

@@ -4,7 +4,7 @@ The dashboard extends the existing Express, SQLite, and JWT application. It keep
 
 ## Current implementation
 
-- Responsive overview, MT5 accounts, open positions, trade history, EA monitoring, and profile/settings views.
+- Responsive overview, MT5 accounts, open positions, trade history, EA monitoring, and profile/settings views. The overview selector scopes its summary, performance analytics, equity chart, EA status, and preview positions to one owner-verified MT5 account at a time; the selection is saved in the current browser. Daily and monthly totals use the owner's saved time zone.
 - Financial values are shown only when supported by stored MT5 snapshots or imported deal data. Missing or mixed-currency aggregate values are shown as `N/A`.
 - MT5 pairing codes are single-use, expire after ten minutes, and are stored as hashes.
 - Pairing issues a random installation credential once. The database stores only its hash; authenticated EA requests use it as a bearer credential.
@@ -33,13 +33,14 @@ The dashboard extends the existing Express, SQLite, and JWT application. It keep
 All browser endpoints below require the existing `Authorization: Bearer <JWT>` token:
 
 - `GET /api/me`
-- `GET /api/portfolio`
-- `GET /api/portfolio/performance?period=today|7d|30d|90d|all`
-- `GET /api/portfolio/performance?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/portfolio/positions?page=1&limit=20&search=EURUSD&direction=BUY&sort=profit-desc`
+- `GET /api/portfolio?accountId=123` (optional owner-verified account filter)
+- `GET /api/portfolio/performance?period=today|7d|30d|90d|all&accountId=123`
+- `GET /api/portfolio/performance?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD&accountId=123`
+- `GET /api/portfolio/positions?page=1&limit=20&search=EURUSD&direction=BUY&sort=profit-desc&accountId=123`
 - `GET /api/portfolio/trades?page=1&limit=20&from=YYYY-MM-DD&to=YYYY-MM-DD&symbol=EURUSD&result=win&sort=closed-desc`
 - `GET /api/mt5/accounts`
 - `POST /api/mt5/pairing-code`
+- `POST /api/mt5/pair` with `{ "code": "...", "accountNumber": "...", "brokerServer": "...", "currency": "...", "eaVersion": "2.60" }` (`eaVersion` is optional for older EA builds)
 - `PATCH /api/mt5/accounts/:id` with `{ "accountName": "..." }`
 - `DELETE /api/mt5/accounts/:id`
 - `PUT /api/user/profile`
@@ -61,6 +62,8 @@ Public portfolio routes do not require authentication:
 - `/portfolios` serves the public directory; `/portfolio/:shareId` serves the public portfolio page.
 
 Private is the default. Users can link multiple MT5 accounts by generating and using a separate one-time pairing code for each account. In Dashboard → Settings → Privacy, owners choose which of their linked accounts to include and whether the selected accounts are private or public. Publishing requires at least one selected account. The server rejects selected account IDs not owned by the authenticated user; account selection is persisted separately and applied to every public summary, chart, position, and trade query. Owners can change the selection or revoke public access at any time. Public pages show only selected accounts, masked account identifiers, account names, open positions, and recent deals; they omit email, broker/server, full account numbers, position/deal ticket IDs, magic numbers, and credentials. Values across multiple currencies are not combined, and combined equity curves/drawdown are withheld unless there is one selected account.
+
+The private dashboard overview selects one linked MT5 account at a time and applies its account ID to the balance/equity summary, period performance statistics, equity history, EA status, and overview positions. The server checks account ownership for each filtered request and returns `404` for an account not linked to the authenticated user. The selected overview account is remembered in that browser; it does not change which accounts are selected for public sharing.
 
 The one-time website pairing code is exchanged by an EA installation at `POST /api/mt5/pair` with `{ "code": "...", "accountNumber": "...", "brokerServer": "...", "currency": "USD" }`. The response contains `installationSecret` once. Keep this secret in the EA installation's protected local configuration, never in browser code, logs, or a shared configuration file.
 
