@@ -482,6 +482,16 @@ test('MT5 accounts can be unlinked while the EA is offline and linked data is re
     const accountId = accounts[0].id;
     assert.equal(accounts[0].status, 'Online');
 
+    await new Promise((resolve, reject) => db.run(`
+      INSERT INTO mt5_accounts (user_id, account_number, broker_server, currency, linked_at, last_heartbeat)
+      VALUES (1, 'ONLINE-UNLINK-1', 'DemoServer', 'USD', ?, ?)
+    `, [Date.now(), Date.now()], error => error ? reject(error) : resolve()));
+    const onlineAccounts = (await (await request('/api/mt5/accounts', ownerToken)).json()).accounts;
+    const onlineAccount = onlineAccounts.find(account => account.id !== accountId);
+    assert.equal(onlineAccount.status, 'Online', 'precondition: the second EA is online');
+    assert.equal((await request(`/api/mt5/accounts/${onlineAccount.id}`, ownerToken, { method: 'DELETE' })).status, 200,
+      'the owner can unlink an online EA account');
+
     // Make the EA stale so the account reports Offline: the state users report as blocking unlink.
     await new Promise((resolve, reject) => db.run(
       'UPDATE mt5_accounts SET last_heartbeat = ? WHERE id = ?',
@@ -501,6 +511,24 @@ test('MT5 accounts can be unlinked while the EA is offline and linked data is re
 
     assert.equal((await request(`/api/mt5/accounts/${accountId}`, strangerToken, { method: 'DELETE' })).status, 404,
       'a different user cannot unlink the account');
+
+    await new Promise((resolve, reject) => db.exec(`
+      CREATE TABLE mt5_account_references (
+        account_id INTEGER NOT NULL REFERENCES mt5_accounts(id)
+      );
+      INSERT INTO mt5_account_references (account_id) VALUES (${accountId});
+    `, error => error ? reject(error) : resolve()));
+    response = await request(`/api/mt5/accounts/${accountId}`, ownerToken, { method: 'DELETE' });
+    assert.equal(response.status, 500, 'an unresolved foreign-key reference must prevent unlinking');
+    assert.equal(await counts('mt5_positions'), 1, 'failed unlink rolls back earlier child deletions');
+    assert.equal(await counts('mt5_deals'), 1, 'failed unlink leaves imported deals intact');
+    assert.equal((await (await request('/api/mt5/accounts', ownerToken)).json()).accounts.length, 1,
+      'failed unlink leaves the account intact');
+    await new Promise((resolve, reject) => db.run(
+      'DELETE FROM mt5_account_references WHERE account_id = ?',
+      [accountId],
+      error => error ? reject(error) : resolve()
+    ));
 
     // Simulate a database where foreign-key cascades are unavailable (legacy schema):
     // unlinking must still remove the account and every linked row explicitly.
@@ -560,4 +588,3 @@ test('data retention cleanup prunes old snapshots and expired pairing codes', as
 
   await new Promise(resolve => db.close(resolve));
 });
-

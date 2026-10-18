@@ -650,16 +650,23 @@ function registerMt5Api(app, db, verifyToken) {
     try {
       const owned = await get(db, 'SELECT id FROM mt5_accounts WHERE id = ? AND user_id = ?', [accountId, ownerId(req)]);
       if (!owned) return res.status(404).json({ error: 'MT5 account not found.' });
-      // Remove linked rows explicitly instead of relying only on foreign-key
-      // cascades, so unlinking works regardless of EA status (online or offline)
-      // and for databases created before the cascade clauses existed.
-      await run(db, 'DELETE FROM public_portfolio_accounts WHERE account_id = ?', [accountId]);
-      await run(db, 'DELETE FROM mt5_installations WHERE account_id = ?', [accountId]);
-      await run(db, 'DELETE FROM mt5_snapshots WHERE account_id = ?', [accountId]);
-      await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [accountId]);
-      await run(db, 'DELETE FROM mt5_deals WHERE account_id = ?', [accountId]);
-      const result = await run(db, 'DELETE FROM mt5_accounts WHERE id = ? AND user_id = ?', [accountId, ownerId(req)]);
-      if (result.changes !== 1) return res.status(404).json({ error: 'MT5 account not found.' });
+      const unlinkTransaction = `
+        BEGIN IMMEDIATE;
+        DELETE FROM public_portfolio_accounts WHERE account_id = ${accountId};
+        DELETE FROM mt5_installations WHERE account_id = ${accountId};
+        DELETE FROM mt5_snapshots WHERE account_id = ${accountId};
+        DELETE FROM mt5_positions WHERE account_id = ${accountId};
+        DELETE FROM mt5_deals WHERE account_id = ${accountId};
+        DELETE FROM mt5_accounts WHERE id = ${accountId};
+        COMMIT;
+      `;
+      await new Promise((resolve, reject) => db.exec(unlinkTransaction, error => {
+        if (!error) return resolve();
+        db.exec('ROLLBACK;', rollbackError => {
+          if (rollbackError) console.error('Failed to roll back MT5 account unlink:', rollbackError.message);
+          reject(error);
+        });
+      }));
       return res.json({ message: 'MT5 account unlinked.' });
     } catch (databaseError) {
       console.error('Failed to unlink MT5 account:', databaseError.message);

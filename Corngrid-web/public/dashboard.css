@@ -577,9 +577,20 @@ td { font-size: 13px; }
   left: 22px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 12px;
+  display: grid;
+  place-items: center;
   color: var(--muted);
   pointer-events: none;
+}
+.chat-search-icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
 }
 
 .chat-subtabs {
