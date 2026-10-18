@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#080a0f">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>CornGrid | Trading Dashboard</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/images/pwa-192.png">
+  <link rel="stylesheet" href="/pwa.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css?v=20261018-7">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="dashboard.html" aria-label="CornGrid dashboard home">
+        <img src="images/Corngrid logo 4k.jpg" alt="" class="brand-mark">
+        <span>CORNGRID<small>TRADING TERMINAL</small></span>
+      </a>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-item is-active" data-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
+        <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
+        <button class="nav-item" data-page="positions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17 9 12l4 3 7-8"/><path d="M14 7h6v6"/></svg></span>Open Positions</button>
+        <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
+        <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
+        <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
+        <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-status"><span class="status-dot status-dot-muted"></span><span id="sidebar-connection">No EA data yet</span></div>
+        <button class="nav-item" data-page="settings"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.58 4.58l2.12 2.12m10.6 10.6 2.12 2.12m0-14.84L17.3 6.7M6.7 17.3l-2.12 2.12"/></svg></span>Settings</button>
+        <button class="nav-item nav-logout" id="logout-btn"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 16l4-4-4-4m4 4H9"/></svg></span>Sign out</button>
+        <div class="sidebar-footnote">Trading involves risk. Past performance does not guarantee future results.</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="page-title">Overview</strong></div>
+        <div class="topbar-actions">
+          <span class="live-indicator" id="live-indicator"><i></i> <span id="live-label">NO LIVE FEED</span></span>
+          <button class="icon-button" id="theme-toggle" title="Toggle light and dark theme" aria-label="Toggle theme">◐</button>
+          <div class="user-chip"><span class="avatar" id="user-avatar">C</span><span id="user-name">Account</span></div>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section class="page is-visible" id="page-overview">
+          <div class="page-heading">
+            <div><p class="eyebrow">YOUR ACCOUNT, AT A GLANCE</p><h1>Trading overview</h1><p class="muted">Monitor verified account data and portfolio performance.</p></div>
+            <div class="heading-actions">
+              <label class="overview-control"><span>Trading account</span><select id="overview-account-select" class="select-control" aria-label="Choose an MT5 account for the overview">
+                <option value="">Loading your MT5 accounts…</option>
+              </select><small id="overview-account-help" aria-live="polite">Choose the account to view.</small></label>
+              <label class="overview-control overview-period"><span>Performance period</span><select id="period-select" class="select-control">
+                <option value="today">Today</option><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All time</option><option value="custom">Custom range</option>
+              </select></label>
+              <input id="period-from" class="input-control period-date" type="date" aria-label="Period start date" hidden>
+              <input id="period-to" class="input-control period-date" type="date" aria-label="Period end date" hidden>
+              <button class="button button-secondary" id="refresh-button">↻ <span>Refresh</span></button>
+              <button class="button button-small" id="retry-overview-accounts" type="button" hidden>Retry account list</button>
+            </div>
+          </div>
+          <div class="notice notice-warning" id="data-notice" hidden></div>
+          <div class="stat-grid">
+            <article class="stat-card"><div class="stat-top"><span>Balance</span><span class="stat-icon">◈</span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Account funds</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Equity</span><span class="stat-icon">◇</span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Including floating P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Open trades</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Net profit</span><span class="stat-icon">↗</span></div><strong class="stat-value" data-stat="netProfit">N/A</strong><small class="stat-period">Closed deals · 30 days</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Today</span><span class="stat-icon">◷</span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed trade P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon">◎</span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small data-stat-deals>Closed deals · N/A</small></article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel chart-panel">
+              <div class="panel-header"><div><p class="eyebrow">SELECTED ACCOUNT PERFORMANCE</p><h2>Balance &amp; equity</h2></div><div class="chart-legend"><span><i class="legend-equity"></i>Equity</span><span><i class="legend-balance"></i>Balance</span></div></div>
+              <div class="chart-area" id="equity-chart">
+                <div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>Waiting for account history</strong><span>Historical chart data will appear after a linked EA sends account snapshots.</span></div>
+              </div>
+              <div class="chart-foot"><span>Historical values are reported by the selected MT5 account.</span><span id="last-update">Last update: N/A</span></div>
+            </section>
+            <section class="panel connection-panel">
+              <div class="panel-header"><div><p class="eyebrow">CONNECTIVITY</p><h2>EA status</h2></div><span class="pill pill-muted" id="ea-status">No data</span></div>
+              <div class="connection-empty" id="connection-summary"><div class="connection-symbol">⌁</div><strong>No EA connected</strong><p>Link an MT5 account to start securely receiving monitoring data.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button></div>
+              <div class="connection-details" id="connection-details" hidden></div>
+            </section>
+          </div>
+          <details class="panel analytics-panel">
+            <summary class="analytics-summary"><span><span class="eyebrow">MORE INSIGHTS</span><strong>Trading statistics</strong></span><span class="muted small">View details <span aria-hidden="true">＋</span></span></summary>
+            <div class="analytics-grid">
+              <div class="analytics-item"><span>Gross profit</span><strong data-stat="grossProfit">N/A</strong></div>
+              <div class="analytics-item"><span>Gross loss</span><strong data-stat="grossLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Average winning deal</span><strong data-stat="avgWin">N/A</strong></div>
+              <div class="analytics-item"><span>Average losing deal</span><strong data-stat="avgLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Largest winning deal</span><strong data-stat="largestWin">N/A</strong></div>
+              <div class="analytics-item"><span>Largest losing deal</span><strong data-stat="largestLoss">N/A</strong></div>
+              <div class="analytics-item"><span>Recovery factor</span><strong data-stat="recoveryFactor">N/A</strong></div>
+              <div class="analytics-item"><span>Avg. deal duration</span><strong data-stat="avgDuration">N/A</strong></div>
+            </div>
+            <p class="method-note">Method: gross profit/loss uses imported deal profit before costs. Net P/L includes profit, commission, and swap; net metrics are unavailable if either cost is missing. Partial exits are separate MT5 deal records.</p>
+          </details>
+          <section class="panel table-panel">
+            <div class="panel-header"><div><p class="eyebrow">LIVE ACCOUNT DATA</p><h2>Open positions</h2></div><button class="text-button" data-go="positions">View all positions →</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Symbol</th><th>Direction</th><th>Volume</th><th>Entry price</th><th>Current price</th><th>Floating P/L</th><th>Opened</th></tr></thead><tbody id="overview-positions"><tr><td colspan="7" class="table-empty">No position data received yet.</td></tr></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="page" id="page-accounts">
+          <div class="page-heading"><div><p class="eyebrow">ACCOUNT MANAGEMENT</p><h1>MT5 accounts</h1><p class="muted">Link multiple authorized trading accounts by generating a new pairing code for each MT5 account. Your MT5 trading password is never requested.</p></div><div class="heading-actions"><button class="button button-secondary" id="refresh-accounts">↻ Refresh view</button><button class="button button-primary" id="create-pairing">＋ Generate pairing code</button></div></div>
+          <div class="notice notice-warning"><span class="notice-icon">!</span><span>Pairing codes expire after 10 minutes and can only be used once. Enter the code in an authorized CornGrid EA installation.</span></div>
+          <div class="pairing-card" id="pairing-card" hidden><div><span class="eyebrow">ONE-TIME PAIRING CODE</span><p>Enter this code in your CornGrid EA. It will only be shown here once.</p></div><code id="pairing-code"></code><div class="pairing-expiry" id="pairing-expiry"></div></div>
+          <div class="account-grid" id="account-list"><div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div></div>
+          <div class="panel setup-guide-panel" style="margin-top: 18px; border-left: 3px solid var(--accent);">
+            <div class="panel-header" style="margin-bottom: 8px;">
+              <div>
+                <p class="eyebrow">MT5 SETUP &amp; TROUBLESHOOTING</p>
+                <h2>WebRequest Configuration Guide</h2>
+              </div>
+            </div>
+            <p class="muted small" style="margin-bottom: 12px;">
+              To enable your MT5 Expert Advisor to link and synchronize trading data with this dashboard, allow WebRequest in MetaTrader 5:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 14px;">
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">1. Enable WebRequest in MT5</strong>
+                <span class="muted small">Open MT5 &rarr; <strong>Tools</strong> &rarr; <strong>Options</strong> (Ctrl+O) &rarr; <strong>Expert Advisors</strong> &rarr; Check <em>"Allow WebRequest for listed URL"</em>.</span>
+              </div>
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">2. Add Dashboard URL</strong>
+                <span class="muted small">Add this exact URL: <code style="color: var(--accent); user-select: all;">https://corngrid.com</code></span>
+              </div>
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">3. Enter Pairing Code</strong>
+                <span class="muted small">Generate a code above and paste it into the <code>InpDashboardPairingCode</code> EA input parameter.</span>
+              </div>
+            </div>
+            <details style="font-size: 12px; color: var(--muted); cursor: pointer;">
+              <summary style="font-weight: 600; color: var(--text);">Common MT5 Error Codes &amp; Solutions (Ralat Lazim)</summary>
+              <ul style="margin: 8px 0 0 18px; padding: 0; line-height: 1.6;">
+                <li><strong>MT5 Error 4014 (ERR_WEBREQUEST_NOT_ALLOWED)</strong>: <code>https://corngrid.com</code> is missing from MT5's Allowed URLs list. Add it under Tools &rarr; Options &rarr; Expert Advisors.</li>
+                <li><strong>HTTP Error 400</strong>: The pairing code has expired (codes expire after 10 minutes) or has already been used. Click "Generate pairing code" above for a new code.</li>
+                <li><strong>HTTP Error 409</strong>: This MT5 account number and broker server is already linked to your profile.</li>
+                <li><strong>Status Stays Offline</strong>: Ensure the <em>"Algo Trading"</em> button is active (green) in MT5 and your terminal remains connected to your broker.</li>
+              </ul>
+            </details>
+          </div>
+        </section>
+
+        <section class="page" id="page-positions">
+          <div class="page-heading"><div><p class="eyebrow">LIVE TRADE MONITORING</p><h1>Open positions</h1><p class="muted">Positions reported by your linked MT5 accounts.</p></div><button class="button button-secondary" id="refresh-positions">↻ Refresh data</button></div>
+          <div class="table-toolbar"><input id="position-search" class="input-control" type="search" placeholder="Search symbol or ticket"><select id="position-direction" class="select-control"><option value="">All directions</option><option value="BUY">Buy</option><option value="SELL">Sell</option></select><select id="position-sort" class="select-control" aria-label="Sort positions"><option value="opened-desc">Newest first</option><option value="profit-desc">Floating P/L: high to low</option><option value="profit-asc">Floating P/L: low to high</option><option value="symbol-asc">Symbol A–Z</option></select></div>
+          <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Symbol</th><th>Type</th><th>Ticket</th><th>Volume</th><th>Entry</th><th>Current</th><th>Stop loss</th><th>Take profit</th><th>Floating P/L</th><th>Swap</th><th>Commission</th><th>Opened</th></tr></thead><tbody id="positions-body"><tr><td colspan="12" class="table-empty">Loading verified position data…</td></tr></tbody></table></div><div class="pagination"><span id="positions-count">—</span><div><button class="button button-small" id="positions-prev" disabled>Previous</button><button class="button button-small" id="positions-next" disabled>Next</button></div></div></section>
+        </section>
+
+        <section class="page" id="page-history">
+          <div class="page-heading"><div><p class="eyebrow">PERFORMANCE RECORD</p><h1>Trade history</h1><p class="muted">Imported MT5 deal records. Partial exits may appear as separate records.</p></div><button class="button button-secondary" id="export-trades">↓ Export CSV</button></div>
+          <div class="table-toolbar"><input id="trade-search" class="input-control" type="search" placeholder="Search symbol or deal ID"><select id="trade-symbol" aria-label="Filter by symbol"><option value="">All symbols</option></select><select id="trade-result"><option value="">All results</option><option value="win">Winners</option><option value="loss">Losers</option></select><select id="trade-sort" class="select-control" aria-label="Sort trade history"><option value="closed-desc">Newest first</option><option value="net-desc">Net P/L: high to low</option><option value="net-asc">Net P/L: low to high</option><option value="symbol-asc">Symbol A–Z</option></select><input id="trade-from" class="input-control" type="date" aria-label="From date"><input id="trade-to" class="input-control" type="date" aria-label="To date"></div>
+          <section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Close time</th><th>Symbol</th><th>Direction</th><th>Volume</th><th>Entry</th><th>Exit</th><th>Stop loss</th><th>Take profit</th><th>Gross P/L</th><th>Commission</th><th>Swap</th><th>Net P/L</th><th>Duration</th><th>Magic number</th><th>EA version</th><th>Deal ID</th></tr></thead><tbody id="trades-body"><tr><td colspan="16" class="table-empty">Loading verified trade data…</td></tr></tbody></table></div><div class="pagination"><span id="trades-count">—</span><div><button class="button button-small" id="trades-prev" disabled>Previous</button><button class="button button-small" id="trades-next" disabled>Next</button></div></div></section>
+        </section>
+
+        <section class="page" id="page-monitoring">
+          <div class="page-heading"><div><p class="eyebrow">SYSTEM HEALTH</p><h1>EA monitoring</h1><p class="muted">Connection and synchronization status for linked installations.</p></div><button class="button button-secondary" data-refresh>↻ Refresh status</button></div>
+          <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon">⌁</span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
+          <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div><p class="muted small" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">Having trouble keeping your EA connected? Ensure <code>https://corngrid.com</code> is added to MT5's Allowed URLs under <em>Tools &rarr; Options &rarr; Expert Advisors</em> and the terminal's <em>Algo Trading</em> button is enabled.</p></section>
+        </section>
+
+        <section class="page" id="page-downloads">
+          <div class="page-heading"><div><p class="eyebrow">USER RESOURCES</p><h1>Downloads</h1><p class="muted">Get CornGrid instrument presets and the installation guide.</p></div></div>
+          <div class="notice notice-warning download-notice"><span class="notice-icon">!</span><span>Preset files contain trading parameters. Choose a preset matching the instrument and EA build, review its settings, and test on a demo account before using it on a live account.</span></div>
+          <section class="panel download-section">
+            <div class="panel-header"><div><p class="eyebrow">MT5 CONFIGURATION</p><h2>Strategy presets</h2></div></div>
+            <div class="resource-grid">
+              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.60</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v260" data-download-name="CornGrid_XAUUSD_v2.60.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.5</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v25" data-download-name="CornGrid_XAUUSD_v2.5.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">€</div><div class="resource-copy"><p class="eyebrow">EURO · EURUSD M1</p><h3>EURUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="eurusd-m1-v200" data-download-name="CornGrid_EURUSD_M1_v2.00.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">£</div><div class="resource-copy"><p class="eyebrow">POUND · GBPUSD M1</p><h3>GBPUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="gbpusd-m1-v200" data-download-name="CornGrid_GBPUSD_M1_v2.00.set">↓ Download .SET</button></article>
+              <article class="resource-card"><div class="resource-icon">¥</div><div class="resource-copy"><p class="eyebrow">YEN · USDJPY M1</p><h3>USDJPY M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="usdjpy-m1-v200" data-download-name="CornGrid_USDJPY_M1_v2.00.set">↓ Download .SET</button></article>
+            </div>
+          </section>
+          <section class="panel download-section">
+            <div class="panel-header"><div><p class="eyebrow">INSTALLATION</p><h2>Setup guide</h2></div></div>
+            <article class="resource-card guide-resource"><div class="resource-icon resource-icon-guide">PDF</div><div class="resource-copy"><h3>CornGrid Setup Guide v1.1</h3><p class="muted">Step-by-step installation guide in PDF format.</p></div><button class="button button-primary" type="button" data-download-id="setup-guide" data-download-name="CornGrid_Setup_Guide_v1.1.pdf">↓ Download guide</button></article>
+          </section>
+        </section>
+
+        <section class="page" id="page-chat">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">COMMUNITY &amp; DIRECT MESSAGING</p>
+              <h1>Terminal Chat</h1>
+              <p class="muted">Connect and chat with other CornGrid traders. Search by username to start a direct message.</p>
+            </div>
+            <div class="heading-actions">
+              <button class="button button-secondary" id="chat-support-btn" type="button">Contact support</button>
+              <button class="button button-secondary" id="refresh-chat-btn" type="button">↻ Refresh chat</button>
+            </div>
+          </div>
+
+          <div class="chat-app-box">
+            <!-- Sidebar: Search & Conversations -->
+            <aside class="chat-sidebar" id="chat-sidebar">
+              <button class="button button-secondary chat-support-entry" id="chat-support-entry" type="button">Contact CornGrid Support</button>
+              <div class="chat-search-wrap">
+                <input type="search" id="chat-user-search" class="input-control chat-search-field" placeholder="Search username…" aria-label="Search traders by username" autocomplete="off">
+                <span class="chat-search-icon">🔍</span>
+              </div>
+              <div class="chat-subtabs">
+                <button type="button" class="chat-subtab is-active" id="subtab-convos" aria-pressed="true">Recent Chats</button>
+                <button type="button" class="chat-subtab" id="subtab-search" aria-pressed="false">Find Users</button>
+              </div>
+              <div class="chat-user-list" id="chat-user-list" aria-live="polite">
+                <div class="chat-empty-list">Loading conversations…</div>
+              </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <section class="chat-conversation-pane" id="chat-conversation-pane">
+              <!-- Active Peer Header -->
+              <div class="chat-peer-header" id="chat-peer-header" hidden>
+                <div class="chat-peer-info">
+                  <button type="button" class="button button-small chat-mobile-back" id="chat-mobile-back" aria-label="Back to conversations">← <span>Chats</span></button>
+                  <div class="chat-avatar" id="chat-peer-avatar">?</div>
+                  <div>
+                    <strong class="chat-peer-username" id="chat-peer-username">Username</strong>
+                    <span class="chat-peer-bio" id="chat-peer-bio">Bio</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Message Stream -->
+              <div class="chat-messages-stream" id="chat-messages-stream" aria-live="polite" aria-relevant="additions text">
+                <div class="chat-empty-state" id="chat-empty-state">
+                  <span class="chat-empty-state-icon">💬</span>
+                  <h3>Select a trader to chat</h3>
+                  <p class="muted">Choose an existing conversation from the list or search for any username to start chatting.</p>
+                </div>
+              </div>
+
+              <!-- Chat Input Box -->
+              <form class="chat-composer-form" id="chat-composer-form" hidden>
+                <textarea id="chat-composer-text" class="input-control chat-composer-textarea" aria-label="Write a chat message" placeholder="Type a message… (Press Enter to send)" rows="1" maxlength="2000" required></textarea>
+                <button type="submit" class="button button-primary chat-submit-btn" id="chat-submit-btn" aria-label="Send message">
+                  <span>Send</span>
+                  <span aria-hidden="true">➤</span>
+                </button>
+              </form>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-settings">
+          <div class="page-heading"><div><p class="eyebrow">PREFERENCES &amp; PROFILE</p><h1>Settings</h1><p class="muted">Manage profile and dashboard display preferences.</p></div></div>
+          <p class="notice notice-info"><span class="notice-icon">i</span><span><strong>Install CornGrid on Android.</strong> Open corngrid.com in Chrome, then choose <em>Install app</em> or <em>Add to Home screen</em> from the browser menu. An install button also appears when your browser supports it. Current trading and account data still requires an internet connection.</span></p>
+          <div class="settings-layout"><nav class="settings-tabs" aria-label="Settings sections"><button class="settings-tab is-active" data-setting="profile">Profile</button><button class="settings-tab" data-setting="security">Security</button><button class="settings-tab" data-setting="appearance">Appearance</button><button class="settings-tab" data-setting="notifications">Notifications</button><button class="settings-tab" data-setting="privacy">Privacy</button></nav>
+            <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form></section>
+            <section class="panel settings-panel" id="setting-security" hidden><div class="panel-header"><div><p class="eyebrow">ACCOUNT PROTECTION</p><h2>Security</h2></div></div><form id="password-form" class="settings-form"><label>Current password<input id="current-password" class="input-control" type="password" autocomplete="current-password" required></label><label>New password<input id="new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm new password<input id="confirm-new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><p class="muted small">Changing your password revokes existing dashboard sessions. You will need to sign in again.</p><button class="button button-primary" type="submit">Change password</button></form><div class="privacy-copy"><h3>Password recovery</h3><p>Use the existing secure password-reset link from the login page if you cannot sign in. Passwords are stored as hashes and are never displayed.</p></div></section>
+            <section class="panel settings-panel" id="setting-appearance" hidden><div class="panel-header"><div><p class="eyebrow">DISPLAY PREFERENCES</p><h2>Appearance</h2></div></div><form id="preferences-form" class="settings-form"><label>Theme<select id="pref-theme" class="select-control"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select></label><label>Display currency<select id="pref-currency" class="select-control"><option value="account">Account currency</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><label>Date format<select id="pref-date-format" class="select-control"><option value="locale">Browser default</option><option value="en-US">MM/DD/YYYY</option><option value="en-GB">DD/MM/YYYY</option><option value="iso">ISO 8601</option></select></label><label>Time zone<input id="pref-timezone" class="input-control" type="text" maxlength="64" value="UTC" placeholder="UTC"></label><p class="notice notice-info"><span class="notice-icon">i</span><span>Currency is a display preference only. Values are not converted and remain in the MT5 account currency. Use an IANA time-zone name such as UTC or Asia/Kuala_Lumpur.</span></p><button class="button button-primary" type="submit">Save preferences</button></form></section>
+            <section class="panel settings-panel" id="setting-notifications" hidden><div class="panel-header"><div><p class="eyebrow">ALERT PREFERENCES</p><h2>Notifications</h2></div></div><div class="empty-settings"><span class="empty-icon">♧</span><h3>Email notifications are not configured</h3><p>This installation does not currently provide a notification delivery service. No inactive controls are shown.</p></div></section>
+            <section class="panel settings-panel" id="setting-privacy" hidden><div class="panel-header"><div><p class="eyebrow">DATA &amp; PRIVACY</p><h2>Privacy</h2></div></div><div class="privacy-copy"><h3>Portfolio visibility</h3><p>Choose which linked trading accounts appear on your public portfolio. Only selected accounts and their portfolio data are shown publicly. You can keep everything private or revoke public access at any time.</p><div class="portfolio-sharing-controls"><label for="portfolio-visibility">Portfolio visibility<select id="portfolio-visibility" class="select-control"><option value="private">Private — only me</option><option value="public">Public — listed for everyone</option></select></label><button class="button button-primary" id="save-portfolio-visibility" type="button">Save sharing settings</button></div><p class="portfolio-sharing-status" id="portfolio-sharing-status" aria-live="polite">Loading portfolio sharing settings…</p><div class="public-account-selection"><div class="public-account-selection-heading"><h3>Trading accounts to include</h3><span id="public-account-selection-count" class="muted small">Loading accounts…</span></div><div id="public-account-selection-list" class="public-account-selection-list"><div class="empty-settings"><p>Loading linked MT5 accounts…</p></div></div></div><div class="portfolio-share-link" id="portfolio-share-link" hidden><label for="portfolio-share-url">Public portfolio link</label><div><input id="portfolio-share-url" class="input-control" type="url" readonly><button class="button button-secondary" id="copy-portfolio-link" type="button">Copy link</button></div></div><h3>Public data shown</h3><p>For each selected account, public pages show its masked account identifier, account summary, open positions and recent trade details. They never show your email, broker server, full account number, ticket or deal identifiers, or trading credentials. Accounts you do not select remain private.</p><h3>Data collected</h3><p>When you link an EA, CornGrid can store the MT5 account identifier, broker/server, account currency, balance and equity snapshots, open positions, imported trade deals, EA version, and heartbeat timestamps sent by that installation.</p><h3>How data is used</h3><p>This information is used to display account monitoring and portfolio analytics to the authenticated owner of the linked account. No MT5 trading password is requested or stored.</p><h3>Retention and export</h3><p>Linked account data remains stored until the account is unlinked or the applicable account-retention process removes it. Contact support for a personal data export or deletion request.</p></div></section>
+          </div>
+        </section>
+        <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+      </div>
+    </main>
+  </div>
+  <div class="overlay" id="overlay" hidden></div>
+  <script src="dashboard.js?v=20261018-6"></script>
+</body>
+</html>

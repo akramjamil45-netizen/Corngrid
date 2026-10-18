@@ -1,7 +1,7 @@
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', downloads: 'Downloads', settings: 'Settings' };
-  const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', settings: 'Settings' };
+  const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
 
   function renderOverviewAccountSelector() {
     const select = $('#overview-account-select');
@@ -169,6 +169,222 @@
     if (name === 'positions') loadPositions();
     if (name === 'history') loadTrades();
     if (name === 'monitoring') loadMonitoring();
+    if (name === 'chat') {
+      setChatMobileView();
+      refreshChat();
+    }
+  }
+
+  function setChatMobileView(showConversation = state.chat.mobileShowConversation) {
+    const mobile = window.matchMedia('(max-width: 768px)').matches;
+    state.chat.mobileShowConversation = Boolean(showConversation && state.chat.peer);
+    $('#chat-sidebar').classList.toggle('chat-mobile-hide', mobile && showConversation);
+    $('#chat-conversation-pane').classList.toggle('chat-mobile-hide', mobile && !showConversation);
+  }
+
+  function chatTime(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function renderChatConversations(conversations) {
+    const list = $('#chat-user-list');
+    const signature = JSON.stringify(conversations.map(item => [
+      item.peerId, item.username, item.bio, item.lastMessage, item.lastSenderId, item.lastMessageAt, item.unreadCount
+    ]));
+    if (signature === state.chat.conversationSignature) return;
+    state.chat.conversationSignature = signature;
+    if (!conversations.length) {
+      list.innerHTML = '<div class="chat-empty-list chat-empty-conversations"><span class="chat-empty-list-icon" aria-hidden="true">⌁</span><strong>No chats yet</strong><p>Find a trader by username to start a private conversation.</p><button class="button button-secondary" type="button" data-chat-action="search">Find traders</button></div>';
+      return;
+    }
+    list.innerHTML = conversations.map(item => `
+      <button class="chat-user-item${String(state.chat.peer?.id) === String(item.peerId) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(item.peerId)}" data-chat-bio="${escapeHtml(item.bio || '')}" aria-label="Open chat with ${escapeHtml(item.username)}">
+        <span class="chat-avatar">${escapeHtml((item.username || '?').slice(0, 1))}</span>
+        <span class="chat-user-info">
+          <span class="chat-user-top"><span class="chat-username">${escapeHtml(item.username)}</span><span class="chat-time">${escapeHtml(chatTime(item.lastMessageAt))}</span></span>
+          <span class="chat-snippet">${item.lastSenderId && state.profile?.id === item.lastSenderId ? 'You: ' : ''}${escapeHtml(item.lastMessage || '')}${Number(item.unreadCount) > 0 ? `<span class="chat-unread-badge">${Number(item.unreadCount) > 99 ? '99+' : Number(item.unreadCount)}</span>` : ''}</span>
+        </span>
+      </button>
+    `).join('');
+  }
+
+  async function loadChatConversations() {
+    const data = await request('/chat/conversations');
+    renderChatConversations(data.conversations || []);
+  }
+
+  async function searchChatUsers() {
+    const search = $('#chat-user-search').value.trim();
+    const requestId = ++state.chat.searchRequestId;
+    $('#chat-user-list').innerHTML = '<div class="chat-empty-list">Searching traders…</div>';
+    try {
+      const data = await request(`/chat/users?search=${encodeURIComponent(search)}`);
+      if (requestId !== state.chat.searchRequestId || state.chat.mode !== 'search') return;
+      const users = data.users || [];
+      if (!users.length) {
+        $('#chat-user-list').innerHTML = '<div class="chat-empty-list">No traders found.</div>';
+        return;
+      }
+      $('#chat-user-list').innerHTML = users.map(user => `
+        <button class="chat-user-item${String(state.chat.peer?.id) === String(user.id) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(user.id)}" aria-label="Start chat with ${escapeHtml(user.username)}">
+          <span class="chat-avatar">${escapeHtml((user.username || '?').slice(0, 1))}</span>
+          <span class="chat-user-info">
+            <span class="chat-user-top"><span class="chat-username">${escapeHtml(user.username)}</span></span>
+            <span class="chat-snippet">${escapeHtml(user.bio || 'CornGrid trader')}</span>
+          </span>
+        </button>
+      `).join('');
+    } catch (error) {
+      if (requestId !== state.chat.searchRequestId) return;
+      $('#chat-user-list').innerHTML = `<div class="chat-empty-list">${escapeHtml(error.message || 'Unable to search traders.')}</div>`;
+    }
+  }
+
+  async function loadChatHistory({ scroll = false } = {}) {
+    if (!state.chat.peer) return;
+    const peerId = state.chat.peer.id;
+    const supportActive = state.chat.supportActive;
+    const requestId = ++state.chat.historyRequestId;
+    const data = supportActive
+      ? await request('/chat/support/messages')
+      : await request(`/chat/messages/${encodeURIComponent(peerId)}`);
+    if (requestId !== state.chat.historyRequestId || state.chat.supportActive !== supportActive || String(state.chat.peer?.id) !== String(peerId)) return;
+    state.chat.peer = { ...data.peer, id: peerId };
+    const stream = $('#chat-messages-stream');
+    const wasAtBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
+    const previousScrollTop = stream.scrollTop;
+    const messages = data.messages || [];
+    const unchanged = Array.isArray(state.chat.messages) && messages.length === state.chat.messages.length && messages.every((message, index) => {
+      const previous = state.chat.messages[index];
+      return previous && previous.id === message.id && previous.message === message.message &&
+        previous.readAt === message.readAt && previous.createdAt === message.createdAt &&
+        previous.isMine === message.isMine;
+    });
+    state.chat.messages = messages;
+    $('#chat-peer-header').hidden = false;
+    $('#chat-peer-avatar').textContent = (data.peer.username || '?').slice(0, 1);
+    $('#chat-peer-username').textContent = data.peer.username;
+    $('#chat-peer-bio').textContent = data.peer.bio || 'CornGrid trader';
+    $('#chat-composer-form').hidden = false;
+    if (!unchanged) {
+      if (!messages.length) {
+        stream.innerHTML = '<div class="chat-empty-state"><span class="chat-empty-state-icon">💬</span><h3>Start the conversation</h3><p class="muted">Send a message to begin chatting.</p></div>';
+      } else {
+        stream.innerHTML = messages.map(message => `
+          <div class="chat-bubble-wrap ${message.isMine ? 'is-mine' : 'is-peer'}">
+            <div class="chat-bubble">${escapeHtml(message.message)}</div>
+            <div class="chat-meta"><span>${escapeHtml(chatTime(message.createdAt))}</span>${message.isMine && message.readAt ? '<span aria-label="Read">· Read</span>' : ''}</div>
+          </div>
+        `).join('');
+      }
+      if (scroll || wasAtBottom) stream.scrollTop = stream.scrollHeight;
+      else stream.scrollTop = previousScrollTop;
+    }
+    await updateChatUnread().catch(error => console.error('Unable to refresh unread chat count:', error));
+  }
+
+  async function selectChatPeer(peer) {
+    state.chat.supportActive = false;
+    state.chat.peer = { id: Number(peer.id), username: peer.username, bio: peer.bio };
+    state.chat.messages = null;
+    state.chat.historyRequestId += 1;
+    $$('#chat-user-list [data-chat-peer]').forEach(button => {
+      button.classList.toggle('is-selected', Number(button.dataset.chatPeer) === state.chat.peer.id);
+    });
+    $('#chat-peer-header').hidden = false;
+    $('#chat-peer-avatar').textContent = (peer.username || '?').slice(0, 1);
+    $('#chat-peer-username').textContent = peer.username || 'Trader';
+    $('#chat-peer-bio').textContent = peer.bio || 'CornGrid trader';
+    $('#chat-composer-text').placeholder = 'Type a message… (Press Enter to send)';
+    $('#chat-composer-form').hidden = false;
+    $('#chat-messages-stream').innerHTML = '<div class="chat-empty-state"><p class="muted">Loading messages…</p></div>';
+    setChatMobileView(true);
+    try {
+      await loadChatHistory({ scroll: true });
+      if (state.chat.mode === 'conversations') await loadChatConversations();
+      $('#chat-composer-text').focus();
+    } catch (error) {
+      $('#chat-messages-stream').innerHTML = `<div class="chat-empty-state"><h3>Unable to load chat</h3><p class="muted">${escapeHtml(error.message)}</p></div>`;
+      toast(error.message || 'Unable to load chat.', 'error');
+    }
+  }
+
+  async function selectSupportChat() {
+    state.chat.supportActive = true;
+    state.chat.peer = { id: 'support', username: 'CornGrid Support', bio: 'Official customer support' };
+    state.chat.messages = null;
+    state.chat.historyRequestId += 1;
+    $('#chat-user-list').querySelectorAll('[data-chat-peer]').forEach(button => button.classList.remove('is-selected'));
+    $('#chat-peer-avatar').textContent = 'C';
+    $('#chat-peer-username').textContent = 'CornGrid Support';
+    $('#chat-peer-bio').textContent = 'Official customer support';
+    $('#chat-peer-header').hidden = false;
+    $('#chat-composer-form').hidden = false;
+    $('#chat-composer-text').placeholder = 'Message CornGrid Support…';
+    $('#chat-messages-stream').innerHTML = '<div class="chat-empty-state"><p class="muted">Loading your support conversation…</p></div>';
+    $('#chat-support-btn').disabled = true;
+    $('#chat-support-btn').textContent = 'Opening support…';
+    $('#chat-support-entry').disabled = true;
+    $('#chat-support-entry').textContent = 'Opening support…';
+    setChatMobileView(true);
+    try {
+      await loadChatHistory({ scroll: true });
+      $('#chat-composer-text').focus();
+    } catch (error) {
+      $('#chat-messages-stream').innerHTML = `<div class="chat-empty-state"><h3>Unable to load support</h3><p class="muted">${escapeHtml(error.message)}</p></div>`;
+      toast(error.message || 'Unable to load support conversation.', 'error');
+    } finally {
+      $('#chat-support-btn').disabled = false;
+      $('#chat-support-btn').textContent = 'Contact support';
+      $('#chat-support-entry').disabled = false;
+      $('#chat-support-entry').textContent = 'Contact CornGrid Support';
+    }
+  }
+
+  async function updateChatUnread() {
+    const data = await request('/chat/unread-count');
+    const badge = $('#chat-nav-badge');
+    const count = Number(data.unreadCount) || 0;
+    badge.hidden = count === 0;
+    badge.textContent = count > 99 ? '99+' : String(count);
+  }
+
+  async function refreshChat(manual = true) {
+    if (manual) $('#refresh-chat-btn').disabled = true;
+    try {
+      if (state.chat.peer) await loadChatHistory();
+      else await updateChatUnread();
+      if (state.chat.mode === 'search') {
+        if (manual) await searchChatUsers();
+      } else {
+        await loadChatConversations();
+      }
+    } catch (error) {
+      if (manual) toast(error.message || 'Unable to refresh chat.', 'error');
+      else console.error('Unable to refresh the active chat:', error);
+    } finally {
+      if (manual) $('#refresh-chat-btn').disabled = false;
+    }
+  }
+
+  function setChatMode(mode, fetch = true) {
+    if (state.chat.mode !== mode && mode === 'conversations') state.chat.conversationSignature = '';
+    state.chat.mode = mode;
+    state.chat.searchRequestId += 1;
+    $('#subtab-convos').classList.toggle('is-active', mode === 'conversations');
+    $('#subtab-search').classList.toggle('is-active', mode === 'search');
+    $('#subtab-convos').setAttribute('aria-pressed', String(mode === 'conversations'));
+    $('#subtab-search').setAttribute('aria-pressed', String(mode === 'search'));
+    $('#chat-user-search').placeholder = 'Search username…';
+    if (!fetch) return;
+    if (mode === 'search') searchChatUsers();
+    else {
+      $('#chat-user-search').value = '';
+      loadChatConversations().catch(error => {
+      $('#chat-user-list').innerHTML = `<div class="chat-empty-list">${escapeHtml(error.message || 'Unable to load conversations.')}</div>`;
+      });
+    }
   }
 
   function setSidebarOpen(open) {
@@ -428,7 +644,7 @@
   }
 
   async function unlinkAccount(id) {
-    if (!window.confirm('Unlink this MT5 account? Its stored snapshots, positions, and imported deals will also be deleted.')) return;
+    if (!window.confirm('Unlink this MT5 account? The EA does not need to be online. Its stored snapshots, positions, and imported deals will also be deleted.')) return;
     try {
       await request(`/mt5/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
       toast('MT5 account unlinked and its data removed.', 'success');
@@ -685,6 +901,7 @@
     }
   });
   window.matchMedia('(max-width: 850px)').addEventListener('change', () => setSidebarOpen(false));
+  window.matchMedia('(max-width: 768px)').addEventListener('change', () => setChatMobileView());
   setSidebarOpen(false);
   $('#theme-toggle').addEventListener('click', () => {
     const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
@@ -711,6 +928,73 @@
   $('#refresh-button').addEventListener('click', loadOverview);
   $('#retry-overview-accounts').addEventListener('click', () => loadOverview());
   $('#refresh-positions').addEventListener('click', loadPositions);
+  $('#refresh-chat-btn').addEventListener('click', () => refreshChat());
+  $('#chat-support-btn').addEventListener('click', selectSupportChat);
+  $('#chat-support-entry').addEventListener('click', selectSupportChat);
+  $('#subtab-convos').addEventListener('click', () => setChatMode('conversations'));
+  $('#subtab-search').addEventListener('click', () => setChatMode('search'));
+  $('#chat-user-search').addEventListener('input', () => {
+    if (state.chat.mode !== 'search') setChatMode('search', false);
+    window.clearTimeout(state.chat.searchTimer);
+    state.chat.searchTimer = window.setTimeout(searchChatUsers, 250);
+  });
+  $('#chat-user-list').addEventListener('click', event => {
+    const action = event.target.closest('[data-chat-action]');
+    if (action?.dataset.chatAction === 'search') {
+      setChatMode('search');
+      $('#chat-user-search').focus();
+      return;
+    }
+    const button = event.target.closest('[data-chat-peer]');
+    if (!button) return;
+    const peerId = Number(button.dataset.chatPeer);
+    if (!Number.isSafeInteger(peerId) || peerId <= 0) return;
+    const current = state.chat.mode === 'conversations'
+      ? { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.dataset.chatBio || '' }
+      : { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.querySelector('.chat-snippet')?.textContent || '' };
+    selectChatPeer(current);
+  });
+  $('#chat-mobile-back').addEventListener('click', () => setChatMobileView(false));
+  $('#chat-composer-text').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      $('#chat-composer-form').requestSubmit();
+    }
+  });
+  $('#chat-composer-text').addEventListener('input', event => {
+    event.target.style.height = 'auto';
+    event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`;
+  });
+  $('#chat-composer-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = $('#chat-composer-text');
+    const message = input.value.trim();
+    const peerId = state.chat.peer?.id;
+    const supportActive = state.chat.supportActive;
+    if (!peerId || !message) {
+      if (!message) input.focus();
+      return;
+    }
+    const button = $('#chat-submit-btn');
+    button.disabled = true;
+    try {
+      await request(supportActive ? '/chat/support/messages' : '/chat/messages', {
+        method: 'POST',
+        body: JSON.stringify(supportActive ? { message } : { recipientId: peerId, message })
+      });
+      input.value = '';
+      input.style.height = 'auto';
+      if (state.chat.supportActive === supportActive && String(state.chat.peer?.id) === String(peerId)) {
+        await loadChatHistory({ scroll: true });
+        if (!supportActive && state.chat.mode === 'conversations') await loadChatConversations();
+      }
+    } catch (error) {
+      toast(error.message || 'Unable to send this message.', 'error');
+    } finally {
+      button.disabled = false;
+      input.focus();
+    }
+  });
   $('[data-refresh]').addEventListener('click', loadMonitoring);
   $('#create-pairing').addEventListener('click', createPairingCode);
   $('#refresh-accounts').addEventListener('click', loadAccounts);
@@ -810,6 +1094,8 @@
     if (!document.hidden && state.page === 'accounts') loadAccounts();
     if (!document.hidden && state.page === 'positions') loadPositions();
     if (!document.hidden && state.page === 'monitoring') loadMonitoring();
+    if (!document.hidden) updateChatUnread().catch(error => console.error('Unable to refresh unread chat count:', error));
+    if (!document.hidden && state.page === 'chat') refreshChat(false);
   });
   window.setInterval(() => {
     if (!document.hidden) {
@@ -817,10 +1103,15 @@
       if (state.page === 'accounts') loadAccounts();
       if (state.page === 'positions') loadPositions();
       if (state.page === 'monitoring') loadMonitoring();
+      updateChatUnread().catch(error => console.error('Unable to refresh unread chat count:', error));
     }
   }, 30000);
+  window.setInterval(() => {
+    if (!document.hidden && state.page === 'chat') refreshChat(false);
+  }, 8000);
 
   loadOverview();
   loadProfile();
   loadPortfolioSharing();
+  updateChatUnread().catch(error => console.error('Unable to load unread chat count:', error));
 })();

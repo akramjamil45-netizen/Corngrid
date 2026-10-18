@@ -1,5 +1,6 @@
 const AUTH_COOKIE_NAME = 'corngrid_session';
-const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_DURATION_MS = Number(process.env.SESSION_DURATION_MS) || DEFAULT_SESSION_DURATION_MS;
 
 function secureCookies(req) {
   if (process.env.NODE_ENV === 'production') return true;
@@ -51,13 +52,13 @@ function isSameOriginRequest(req) {
   }
 }
 
-function setAuthCookie(res, token, req) {
+function setAuthCookie(res, token, req, maxAge = SESSION_DURATION_MS) {
   res.cookie(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     secure: secureCookies(req),
     sameSite: 'lax',
     path: '/',
-    maxAge: SESSION_DURATION_MS
+    maxAge
   });
 }
 
@@ -72,6 +73,7 @@ function clearAuthCookie(res, req) {
 
 module.exports = {
   AUTH_COOKIE_NAME,
+  SESSION_DURATION_MS,
   clearAuthCookie,
   isSameOriginRequest,
   readAuthCredential,

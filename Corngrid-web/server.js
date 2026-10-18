@@ -6,7 +6,10 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const ROOT_DIR = path.join(__dirname, '..');
 const registerMt5Api = require('./mt5-api');
+const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
@@ -72,12 +75,26 @@ app.use((req, res, next) => {
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve root marketing static assets when running standalone
+app.get('/mystyle.css', (req, res) => res.sendFile(path.join(ROOT_DIR, 'mystyle.css')));
+app.get('/script.js', (req, res) => res.sendFile(path.join(ROOT_DIR, 'script.js')));
+app.use('/download', express.static(path.join(ROOT_DIR, 'download')));
+app.use('/files', express.static(path.join(ROOT_DIR, 'files')));
+app.use('/video', express.static(path.join(ROOT_DIR, 'video')));
+app.use('/images', express.static(path.join(ROOT_DIR, 'images')));
+
 // Connect to the SQLite database
 const db = new sqlite3.Database(DATABASE_PATH, (err) => {
   if (err) {
     console.error('Failed to connect to SQLite:', err.message);
   } else {
     console.log('Connected to the CornGrid SQLite database.');
+    db.serialize(() => {
+      db.run('PRAGMA journal_mode = WAL;');
+      db.run('PRAGMA busy_timeout = 5000;');
+      db.run('PRAGMA synchronous = NORMAL;');
+      db.run('PRAGMA foreign_keys = ON;');
+    });
   }
 });
 
@@ -134,6 +151,7 @@ db.run(`
 const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
 registerMt5Api(app, db, verifyToken);
+registerChatApi(app, db, verifyToken);
 registerAdminApi(
   app,
   db,
@@ -189,6 +207,10 @@ app.get('/api/downloads/:resourceId', verifyToken, downloadRateLimit, (req, res)
 // ------------------- ENDPOINTS LALUAN HALAMAN (ROUTING) -------------------
 
 app.get('/', (req, res) => {
+  const marketingPath = path.join(ROOT_DIR, 'index.html');
+  if (fs.existsSync(marketingPath)) {
+    return res.sendFile(marketingPath);
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -269,11 +291,15 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'Please enter your email and password.' });
   }
 
+  const rememberMe = req.body && req.body.rememberMe !== false;
+  const tokenDuration = rememberMe ? '30d' : '1d';
+  const cookieDuration = rememberMe ? (30 * 24 * 60 * 60 * 1000) : (24 * 60 * 60 * 1000);
+
   if (adminAuth.matchesEmail(email)) {
     try {
-      const token = await adminAuth.authenticate(email, password);
+      const token = await adminAuth.authenticate(email, password, tokenDuration);
       if (!token) return res.status(400).json({ error: 'Email or password is incorrect.' });
-      if (isSameOriginRequest(req)) setAuthCookie(res, token, req);
+      if (isSameOriginRequest(req)) setAuthCookie(res, token, req, cookieDuration);
       return res.json({
         message: 'Login successful!',
         token,
@@ -313,10 +339,10 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
       const token = jwt.sign(
         { id: user.id, email: user.email, username: user.username, authVersion },
         SECRET_KEY,
-        { expiresIn: '2h' }
+        { expiresIn: tokenDuration }
       );
 
-      if (isSameOriginRequest(req)) setAuthCookie(res, token, req);
+      if (isSameOriginRequest(req)) setAuthCookie(res, token, req, cookieDuration);
       res.json({
         message: 'Login successful!',
         token,

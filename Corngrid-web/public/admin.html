@@ -10,6 +10,9 @@
   <link rel="apple-touch-icon" href="/images/pwa-192.png">
   <link rel="stylesheet" href="/pwa.css">
   <script src="/pwa.js" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261017-6">
   <link rel="stylesheet" href="admin.css">
   <script src="admin.js" defer></script>
@@ -23,19 +26,19 @@
       </a>
       <div class="workspace-label">ADMIN WORKSPACE</div>
       <nav class="main-nav" aria-label="Administrator navigation">
-        <a class="nav-item is-active admin-nav-link" href="#overview"><span class="nav-icon">▦</span>Overview</a>
+        <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
+        <a class="nav-item admin-nav-link" href="#support" data-admin-page="support"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>Support <span class="admin-unread-badge" id="admin-support-unread" hidden>0</span></a>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot"></span><span>Administrator access</span></div>
-        <a class="nav-item admin-nav-link" href="/dashboard.html"><span class="nav-icon">↗</span>User dashboard</a>
-        <button class="nav-item nav-logout" id="admin-logout" type="button"><span class="nav-icon">↪</span>Sign out</button>
-        <div class="sidebar-footnote">Private user and portfolio overview. Trading account identifiers and financial data are not displayed.</div>
+        <button class="nav-item nav-logout" id="admin-logout" type="button"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>Sign out</button>
+        <div class="sidebar-footnote">Administrator-only user management and support tools.</div>
       </div>
     </aside>
 
     <main class="main-content">
       <header class="topbar">
-        <div class="breadcrumb"><span>Administration</span><b>/</b><strong>Overview</strong></div>
+        <div class="breadcrumb"><span>Administration</span><b>/</b><strong id="admin-breadcrumb-page">Overview</strong></div>
         <div class="topbar-actions"><span class="admin-user-label">Administrator</span><button class="button button-secondary" id="admin-refresh" type="button">↻ Refresh</button></div>
       </header>
 
@@ -43,13 +46,13 @@
         <section class="page is-visible" id="overview">
           <div class="page-heading"><div><p class="eyebrow">CORNGRID ADMINISTRATION</p><h1>Platform overview</h1><p class="muted">User profile counts, portfolio visibility, and linked account status.</p></div></div>
           <div class="stat-grid admin-stat-grid">
-            <article class="stat-card"><div class="stat-top"><span>User profiles</span><span class="stat-icon">♙</span></div><strong class="stat-value" id="stat-users">—</strong><small>Registered user profiles</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Public portfolios</span><span class="stat-icon">◎</span></div><strong class="stat-value" id="stat-public">—</strong><small>Explicitly published with selected accounts</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Private portfolios</span><span class="stat-icon">◉</span></div><strong class="stat-value" id="stat-private">—</strong><small>Not listed publicly</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Online MT5 accounts</span><span class="stat-icon">⌁</span></div><strong class="stat-value" id="stat-online">—</strong><small><span id="stat-total-accounts">—</span> linked in total</small></article>
+            <article class="stat-card"><div class="stat-top"><span>User profiles</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span></div><strong class="stat-value" id="stat-users">—</strong><small>Registered user profiles</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Public portfolios</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg></span></div><strong class="stat-value" id="stat-public">—</strong><small>Explicitly published with selected accounts</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Private portfolios</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span></div><strong class="stat-value" id="stat-private">—</strong><small>Not listed publicly</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Online MT5 accounts</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12H13z"/></svg></span></div><strong class="stat-value" id="stat-online">—</strong><small><span id="stat-total-accounts">—</span> linked in total</small></article>
           </div>
 
-          <div class="notice notice-info admin-privacy-note"><span class="notice-icon">i</span><span>This view shows username, profile creation date, portfolio visibility, account counts, and connection status only. It does not expose email addresses, account identifiers, balances, positions, or trade history.</span></div>
+          <div class="notice notice-info admin-privacy-note"><span class="notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><span>This overview shows profile and connection summaries only. Authorized administrators can open a user's separate trading overview for masked account identifiers, balances, positions, and recent trade history.</span></div>
 
           <section class="panel table-panel admin-profile-panel">
             <div class="panel-header"><div><p class="eyebrow">USER DIRECTORY</p><h2>Profiles and portfolios</h2></div><span class="muted small" id="admin-result-count" aria-live="polite">Loading profiles…</span></div>
@@ -57,12 +60,42 @@
               <input class="input-control" id="admin-search" type="search" maxlength="100" placeholder="Search username" aria-label="Search username">
               <select class="select-control" id="admin-visibility" aria-label="Filter portfolio visibility"><option value="all">All portfolios</option><option value="public">Public</option><option value="private">Private</option></select>
             </div>
-            <div class="table-scroll"><table><thead><tr><th>User</th><th>Profile created</th><th>Portfolio</th><th>Selected accounts</th><th>Linked accounts</th><th>Connection</th></tr></thead><tbody id="admin-profiles"><tr><td class="table-empty" colspan="6">Loading user profiles…</td></tr></tbody></table></div>
+            <div class="table-scroll"><table><thead><tr><th>User</th><th>Profile created</th><th>Portfolio</th><th>Selected accounts</th><th>Linked accounts</th><th>Connection</th><th>Account access</th><th>Actions</th></tr></thead><tbody id="admin-profiles"><tr><td class="table-empty" colspan="8">Loading user profiles…</td></tr></tbody></table></div>
             <div class="pagination"><span id="admin-pagination-label">—</span><div><button class="button button-small" id="admin-prev" type="button" disabled>Previous</button><button class="button button-small" id="admin-next" type="button" disabled>Next</button></div></div>
           </section>
+        </section>
+
+        <section class="page" id="support" hidden>
+          <div class="page-heading"><div><p class="eyebrow">CUSTOMER CARE</p><h1>Support inbox</h1><p class="muted">Reply to users who contact CornGrid support from Terminal Chat.</p></div></div>
+          <div class="admin-support-layout">
+            <aside class="panel admin-support-list-panel">
+              <div class="panel-header"><div><p class="eyebrow">INBOX</p><h2>Conversations</h2></div><button class="button button-small" id="admin-support-refresh" type="button">Refresh</button></div>
+              <div class="admin-support-list" id="admin-support-list" aria-live="polite"><p class="table-empty">Loading support conversations…</p></div>
+            </aside>
+            <section class="panel admin-support-chat">
+              <header class="admin-support-chat-header"><div><p class="eyebrow">SELECTED USER</p><h2 id="admin-support-user">Choose a conversation</h2><span class="muted small" id="admin-support-email"></span></div></header>
+              <div class="admin-support-messages" id="admin-support-messages" aria-live="polite"><div class="chat-empty-state"><h3>No conversation selected</h3><p class="muted">Choose a user from the inbox to view and reply.</p></div></div>
+              <form class="admin-support-composer" id="admin-support-form" hidden><textarea class="input-control" id="admin-support-input" maxlength="2000" rows="2" placeholder="Write a reply…" required></textarea><button class="button button-primary" id="admin-support-send" type="submit">Send reply</button></form>
+            </section>
+          </div>
         </section>
       </div>
     </main>
   </div>
+
+  <dialog class="admin-dialog" id="admin-trading-dialog">
+    <form method="dialog"><button class="admin-dialog-close" aria-label="Close trading overview">×</button></form>
+    <div class="admin-dialog-content" id="admin-trading-content"></div>
+  </dialog>
+
+  <dialog class="admin-dialog admin-suspend-dialog" id="admin-suspend-dialog">
+    <form id="admin-suspend-form">
+      <div class="admin-dialog-content"><p class="eyebrow">ACCOUNT ACCESS</p><h2>Temporarily suspend user</h2><p class="muted" id="admin-suspend-user"></p>
+        <label class="admin-field">Suspension duration<select class="select-control" id="admin-suspend-duration"><option value="24">24 hours</option><option value="168">7 days</option><option value="720">30 days</option></select></label>
+        <label class="admin-field">Reason (optional)<textarea class="input-control" id="admin-suspend-reason" maxlength="300" rows="3"></textarea></label>
+        <div class="admin-dialog-actions"><button class="button button-secondary" type="button" id="admin-suspend-cancel">Cancel</button><button class="button button-primary" id="admin-suspend-submit" type="submit">Suspend account</button></div>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

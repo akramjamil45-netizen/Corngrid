@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261017-6">
+  <link rel="stylesheet" href="dashboard.css?v=20261018-8">
 </head>
 <body>
   <div class="app-shell">
@@ -24,17 +24,18 @@
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="main-nav" aria-label="Main navigation">
-        <button class="nav-item is-active" data-page="overview"><span class="nav-icon">▦</span>Overview</button>
-        <button class="nav-item" data-page="accounts"><span class="nav-icon">▣</span>MT5 Accounts</button>
-        <button class="nav-item" data-page="positions"><span class="nav-icon">➚</span>Open Positions</button>
-        <button class="nav-item" data-page="history"><span class="nav-icon">◷</span>Trade History</button>
-        <button class="nav-item" data-page="monitoring"><span class="nav-icon">⌁</span>EA Monitoring</button>
-        <button class="nav-item" data-page="downloads"><span class="nav-icon">↓</span>Downloads</button>
+        <button class="nav-item is-active" data-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
+        <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
+        <button class="nav-item" data-page="positions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17 9 12l4 3 7-8"/><path d="M14 7h6v6"/></svg></span>Open Positions</button>
+        <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
+        <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
+        <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
+        <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot status-dot-muted"></span><span id="sidebar-connection">No EA data yet</span></div>
-        <button class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</button>
-        <button class="nav-item nav-logout" id="logout-btn"><span class="nav-icon">⤷</span>Sign out</button>
+        <button class="nav-item" data-page="settings"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.58 4.58l2.12 2.12m10.6 10.6 2.12 2.12m0-14.84L17.3 6.7M6.7 17.3l-2.12 2.12"/></svg></span>Settings</button>
+        <button class="nav-item nav-logout" id="logout-btn"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 16l4-4-4-4m4 4H9"/></svg></span>Sign out</button>
         <div class="sidebar-footnote">Trading involves risk. Past performance does not guarantee future results.</div>
       </div>
     </aside>
@@ -116,6 +117,40 @@
           <div class="notice notice-warning"><span class="notice-icon">!</span><span>Pairing codes expire after 10 minutes and can only be used once. Enter the code in an authorized CornGrid EA installation.</span></div>
           <div class="pairing-card" id="pairing-card" hidden><div><span class="eyebrow">ONE-TIME PAIRING CODE</span><p>Enter this code in your CornGrid EA. It will only be shown here once.</p></div><code id="pairing-code"></code><div class="pairing-expiry" id="pairing-expiry"></div></div>
           <div class="account-grid" id="account-list"><div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div></div>
+          <div class="panel setup-guide-panel" style="margin-top: 18px; border-left: 3px solid var(--accent);">
+            <div class="panel-header" style="margin-bottom: 8px;">
+              <div>
+                <p class="eyebrow">MT5 SETUP &amp; TROUBLESHOOTING</p>
+                <h2>WebRequest Configuration Guide</h2>
+              </div>
+            </div>
+            <p class="muted small" style="margin-bottom: 12px;">
+              To enable your MT5 Expert Advisor to link and synchronize trading data with this dashboard, allow WebRequest in MetaTrader 5:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 14px;">
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">1. Enable WebRequest in MT5</strong>
+                <span class="muted small">Open MT5 &rarr; <strong>Tools</strong> &rarr; <strong>Options</strong> (Ctrl+O) &rarr; <strong>Expert Advisors</strong> &rarr; Check <em>"Allow WebRequest for listed URL"</em>.</span>
+              </div>
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">2. Add Dashboard URL</strong>
+                <span class="muted small">Add this exact URL: <code style="color: var(--accent); user-select: all;">https://corngrid.com</code></span>
+              </div>
+              <div style="background: var(--surface-raised, rgba(255,255,255,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px;">3. Enter Pairing Code</strong>
+                <span class="muted small">Generate a code above and paste it into the <code>InpDashboardPairingCode</code> EA input parameter.</span>
+              </div>
+            </div>
+            <details style="font-size: 12px; color: var(--muted); cursor: pointer;">
+              <summary style="font-weight: 600; color: var(--text);">Common MT5 Error Codes &amp; Solutions (Ralat Lazim)</summary>
+              <ul style="margin: 8px 0 0 18px; padding: 0; line-height: 1.6;">
+                <li><strong>MT5 Error 4014 (ERR_WEBREQUEST_NOT_ALLOWED)</strong>: <code>https://corngrid.com</code> is missing from MT5's Allowed URLs list. Add it under Tools &rarr; Options &rarr; Expert Advisors.</li>
+                <li><strong>HTTP Error 400</strong>: The pairing code has expired (codes expire after 10 minutes) or has already been used. Click "Generate pairing code" above for a new code.</li>
+                <li><strong>HTTP Error 409</strong>: This MT5 account number and broker server is already linked to your profile.</li>
+                <li><strong>Status Stays Offline</strong>: Ensure the <em>"Algo Trading"</em> button is active (green) in MT5 and your terminal remains connected to your broker.</li>
+              </ul>
+            </details>
+          </div>
         </section>
 
         <section class="page" id="page-positions">
@@ -133,7 +168,7 @@
         <section class="page" id="page-monitoring">
           <div class="page-heading"><div><p class="eyebrow">SYSTEM HEALTH</p><h1>EA monitoring</h1><p class="muted">Connection and synchronization status for linked installations.</p></div><button class="button button-secondary" data-refresh>↻ Refresh status</button></div>
           <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon">⌁</span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
-          <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div></section>
+          <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div><p class="muted small" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">Having trouble keeping your EA connected? Ensure <code>https://corngrid.com</code> is added to MT5's Allowed URLs under <em>Tools &rarr; Options &rarr; Expert Advisors</em> and the terminal's <em>Algo Trading</em> button is enabled.</p></section>
         </section>
 
         <section class="page" id="page-downloads">
@@ -141,18 +176,82 @@
           <div class="notice notice-warning download-notice"><span class="notice-icon">!</span><span>Preset files contain trading parameters. Choose a preset matching the instrument and EA build, review its settings, and test on a demo account before using it on a live account.</span></div>
           <section class="panel download-section">
             <div class="panel-header"><div><p class="eyebrow">MT5 CONFIGURATION</p><h2>Strategy presets</h2></div></div>
-            <div class="resource-grid">
-              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.60</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v260" data-download-name="CornGrid_XAUUSD_v2.60.set">↓ Download .SET</button></article>
-              <article class="resource-card"><div class="resource-icon">Au</div><div class="resource-copy"><p class="eyebrow">GOLD · XAUUSD</p><h3>XAUUSD v2.5</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="xauusd-v25" data-download-name="CornGrid_XAUUSD_v2.5.set">↓ Download .SET</button></article>
-              <article class="resource-card"><div class="resource-icon">€</div><div class="resource-copy"><p class="eyebrow">EURO · EURUSD M1</p><h3>EURUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="eurusd-m1-v200" data-download-name="CornGrid_EURUSD_M1_v2.00.set">↓ Download .SET</button></article>
-              <article class="resource-card"><div class="resource-icon">£</div><div class="resource-copy"><p class="eyebrow">POUND · GBPUSD M1</p><h3>GBPUSD M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="gbpusd-m1-v200" data-download-name="CornGrid_GBPUSD_M1_v2.00.set">↓ Download .SET</button></article>
-              <article class="resource-card"><div class="resource-icon">¥</div><div class="resource-copy"><p class="eyebrow">YEN · USDJPY M1</p><h3>USDJPY M1 v2.00</h3><p class="muted">MetaTrader 5 preset file (.SET)</p></div><button class="button button-primary" type="button" data-download-id="usdjpy-m1-v200" data-download-name="CornGrid_USDJPY_M1_v2.00.set">↓ Download .SET</button></article>
+            <div class="preset-grid">
+              <article class="preset-card featured"><div class="preset-body"><div class="preset-header"><div class="preset-icon gold"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg></div><div class="preset-title"><div class="preset-pair">XAUUSD</div><div class="preset-asset">Gold · Commodity</div></div><span class="preset-badge">Latest</span></div><div class="preset-meta"><div class="spec-row"><div class="spec-label">Strategy</div><div class="spec-value">Volatility Scalp</div></div><span class="risk-badge risk-high">Dynamic Yield</span></div><button class="button button-primary preset-download" type="button" data-download-id="xauusd-v260" data-download-name="CornGrid_XAUUSD_v2.60.set">↓ Download .SET</button></div></article>
+              <article class="preset-card"><div class="preset-body"><div class="preset-header"><div class="preset-icon euro"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg></div><div class="preset-title"><div class="preset-pair">EURUSD</div><div class="preset-asset">Euro / US Dollar</div></div></div><div class="preset-meta"><div class="spec-row"><div class="spec-label">Strategy</div><div class="spec-value">Balanced Recovery</div></div><span class="risk-badge risk-medium">Moderate Yield</span></div><button class="button button-primary preset-download" type="button" data-download-id="eurusd-m1-v200" data-download-name="CornGrid_EURUSD_M1_v2.00.set">↓ Download .SET</button></div></article>
+              <article class="preset-card"><div class="preset-body"><div class="preset-header"><div class="preset-icon pound"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div class="preset-title"><div class="preset-pair">GBPUSD</div><div class="preset-asset">British Pound</div></div></div><div class="preset-meta"><div class="spec-row"><div class="spec-label">Strategy</div><div class="spec-value">Balanced Recovery</div></div><span class="risk-badge risk-medium">Moderate Yield</span></div><button class="button button-primary preset-download" type="button" data-download-id="gbpusd-m1-v200" data-download-name="CornGrid_GBPUSD_M1_v2.00.set">↓ Download .SET</button></div></article>
+              <article class="preset-card"><div class="preset-body"><div class="preset-header"><div class="preset-icon yen"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12H13z"/></svg></div><div class="preset-title"><div class="preset-pair">USDJPY</div><div class="preset-asset">US Dollar / Yen</div></div></div><div class="preset-meta"><div class="spec-row"><div class="spec-label">Strategy</div><div class="spec-value">Trend Stabilization</div></div><span class="risk-badge risk-low">Stable Growth</span></div><button class="button button-primary preset-download" type="button" data-download-id="usdjpy-m1-v200" data-download-name="CornGrid_USDJPY_M1_v2.00.set">↓ Download .SET</button></div></article>
             </div>
           </section>
           <section class="panel download-section">
             <div class="panel-header"><div><p class="eyebrow">INSTALLATION</p><h2>Setup guide</h2></div></div>
             <article class="resource-card guide-resource"><div class="resource-icon resource-icon-guide">PDF</div><div class="resource-copy"><h3>CornGrid Setup Guide v1.1</h3><p class="muted">Step-by-step installation guide in PDF format.</p></div><button class="button button-primary" type="button" data-download-id="setup-guide" data-download-name="CornGrid_Setup_Guide_v1.1.pdf">↓ Download guide</button></article>
           </section>
+        </section>
+
+        <section class="page" id="page-chat">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">COMMUNITY &amp; DIRECT MESSAGING</p>
+              <h1>Terminal Chat</h1>
+              <p class="muted">Connect and chat with other CornGrid traders. Search by username to start a direct message.</p>
+            </div>
+            <div class="heading-actions">
+              <button class="button button-secondary" id="chat-support-btn" type="button">Contact support</button>
+              <button class="button button-secondary" id="refresh-chat-btn" type="button">↻ Refresh chat</button>
+            </div>
+          </div>
+
+          <div class="chat-app-box">
+            <!-- Sidebar: Search & Conversations -->
+            <aside class="chat-sidebar" id="chat-sidebar">
+              <button class="button button-secondary chat-support-entry" id="chat-support-entry" type="button">Contact CornGrid Support</button>
+              <div class="chat-search-wrap">
+                <input type="search" id="chat-user-search" class="input-control chat-search-field" placeholder="Search username…" aria-label="Search traders by username" autocomplete="off">
+                <span class="chat-search-icon">🔍</span>
+              </div>
+              <div class="chat-subtabs">
+                <button type="button" class="chat-subtab is-active" id="subtab-convos" aria-pressed="true">Recent Chats</button>
+                <button type="button" class="chat-subtab" id="subtab-search" aria-pressed="false">Find Users</button>
+              </div>
+              <div class="chat-user-list" id="chat-user-list" aria-live="polite">
+                <div class="chat-empty-list">Loading conversations…</div>
+              </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <section class="chat-conversation-pane" id="chat-conversation-pane">
+              <!-- Active Peer Header -->
+              <div class="chat-peer-header" id="chat-peer-header" hidden>
+                <div class="chat-peer-info">
+                  <button type="button" class="button button-small chat-mobile-back" id="chat-mobile-back" aria-label="Back to conversations">← <span>Chats</span></button>
+                  <div class="chat-avatar" id="chat-peer-avatar">?</div>
+                  <div>
+                    <strong class="chat-peer-username" id="chat-peer-username">Username</strong>
+                    <span class="chat-peer-bio" id="chat-peer-bio">Bio</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Message Stream -->
+              <div class="chat-messages-stream" id="chat-messages-stream" aria-live="polite" aria-relevant="additions text">
+                <div class="chat-empty-state" id="chat-empty-state">
+                  <span class="chat-empty-state-icon">💬</span>
+                  <h3>Select a trader to chat</h3>
+                  <p class="muted">Choose an existing conversation from the list or search for any username to start chatting.</p>
+                </div>
+              </div>
+
+              <!-- Chat Input Box -->
+              <form class="chat-composer-form" id="chat-composer-form" hidden>
+                <textarea id="chat-composer-text" class="input-control chat-composer-textarea" aria-label="Write a chat message" placeholder="Type a message… (Press Enter to send)" rows="1" maxlength="2000" required></textarea>
+                <button type="submit" class="button button-primary chat-submit-btn" id="chat-submit-btn" aria-label="Send message">
+                  <span>Send</span>
+                  <span aria-hidden="true">➤</span>
+                </button>
+              </form>
+            </section>
+          </div>
         </section>
 
         <section class="page" id="page-settings">
@@ -171,6 +270,6 @@
     </main>
   </div>
   <div class="overlay" id="overlay" hidden></div>
-  <script src="dashboard.js?v=20261017-5"></script>
+  <script src="dashboard.js?v=20261018-7"></script>
 </body>
 </html>

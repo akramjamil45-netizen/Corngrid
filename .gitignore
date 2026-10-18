@@ -1,0 +1,17 @@
+# Node dependencies
+node_modules/
+Corngrid-web/node_modules/
+
+# Environment files
+.env
+Corngrid-web/.env
+
+# Source code of EA / private algorithms
+*.mq5
+Corngrid-web/source/
+
+# SQLite databases
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+

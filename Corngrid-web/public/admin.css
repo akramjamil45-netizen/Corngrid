@@ -11,10 +11,48 @@
 .admin-profile-id { display: block; margin-top: 2px; color: var(--subtle); font-size: 9px; }
 .admin-status { white-space: nowrap; }
 .admin-error { color: var(--red); }
+.admin-unread-badge { margin-left: auto; border-radius: 999px; padding: 2px 7px; background: var(--accent); color: #080a0f; font-size: 10px; font-weight: 700; }
+.pill-suspended { border-color: rgba(255, 171, 92, .28); background: rgba(255, 171, 92, .1); color: #ffbf7d; }
+.admin-actions { min-width: 250px; }
+.admin-actions .button { margin: 2px; }
+.button-danger { border-color: rgba(255, 102, 102, .32); color: #ff8b8b; }
+.button-danger:hover { border-color: rgba(255, 102, 102, .7); color: #ffb0b0; }
+.admin-support-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 16px; min-height: 620px; }
+.admin-support-list-panel, .admin-support-chat { min-width: 0; padding: 0; overflow: hidden; }
+.admin-support-list-panel .panel-header { padding: 16px; }
+.admin-support-list { max-height: 550px; overflow: auto; }
+.admin-support-item { display: block; width: 100%; padding: 13px 16px; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.admin-support-item:hover, .admin-support-item.is-selected { background: var(--surface); }
+.admin-support-item-top { display: flex; justify-content: space-between; gap: 8px; }
+.admin-support-item-top time { color: var(--subtle); font-size: 10px; }
+.admin-support-preview { display: block; overflow: hidden; margin-top: 6px; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-support-preview .chat-unread-badge { float: right; }
+.admin-support-chat { display: flex; flex-direction: column; min-height: 620px; }
+.admin-support-chat-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.admin-support-chat-header h2 { margin: 0 0 4px; }
+.admin-support-messages { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 300px; max-height: 480px; overflow: auto; padding: 20px; }
+.admin-support-composer { display: flex; align-items: end; gap: 10px; padding: 14px; border-top: 1px solid var(--border); }
+.admin-support-composer textarea { flex: 1; resize: vertical; }
+.admin-dialog { width: min(1000px, calc(100vw - 28px)); max-width: none; max-height: min(85vh, 900px); padding: 0; overflow: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--background, #080a0f); color: var(--text); }
+.admin-dialog::backdrop { background: rgba(0, 0, 0, .72); backdrop-filter: blur(4px); }
+.admin-dialog-close { position: sticky; z-index: 2; top: 10px; float: right; margin: 10px 12px 0 0; border: 0; background: transparent; color: var(--muted); font-size: 28px; cursor: pointer; }
+.admin-dialog-content { padding: 24px; }
+.admin-dialog-content h3 { margin: 22px 0 10px; }
+.admin-dialog-content .table-scroll { margin-bottom: 14px; }
+.admin-suspend-dialog { width: min(500px, calc(100vw - 28px)); }
+.admin-field { display: grid; gap: 8px; margin-top: 16px; color: var(--muted); }
+.admin-dialog-actions { display: flex; justify-content: end; gap: 10px; margin-top: 20px; }
 
 @media (max-width: 600px) {
   .admin-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-toolbar { align-items: stretch; }
   .admin-toolbar .input-control, .admin-toolbar .select-control { width: 100%; }
   .admin-user-label { display: none; }
+  .admin-support-layout { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+  .admin-support-list { max-height: 250px; }
+  .admin-support-chat { min-height: 520px; }
+  .admin-support-messages { min-height: 260px; padding: 14px; }
+  .admin-support-composer { align-items: stretch; flex-direction: column; }
+  .admin-support-composer .button { align-self: end; }
+  .admin-dialog-content { padding: 18px; }
 }

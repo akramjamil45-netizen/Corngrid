@@ -386,3 +386,178 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     await new Promise(resolve => db.close(resolve));
   }
 });
+
+test('MT5 accounts can be unlinked while the EA is offline and linked data is removed', async () => {
+  const db = new sqlite3.Database(':memory:');
+  const app = express();
+  const jwtSecret = 'test-signing-secret-for-offline-unlink';
+  app.use(express.json());
+  await new Promise((resolve, reject) => db.exec(`
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY,
+      username TEXT,
+      email TEXT,
+      password TEXT,
+      bio TEXT,
+      created_at TEXT
+    );
+  `, error => error ? reject(error) : resolve()));
+  const passwordHash = await bcrypt.hash('offline-unlink-password', 4);
+  await new Promise((resolve, reject) => db.run(
+    `INSERT INTO users (id, username, email, password, bio, created_at)
+     VALUES (1, 'Owner', 'owner@example.test', ?, '', CURRENT_TIMESTAMP),
+            (2, 'Stranger', 'stranger@example.test', ?, '', CURRENT_TIMESTAMP)`,
+    [passwordHash, passwordHash],
+    error => error ? reject(error) : resolve()
+  ));
+
+  const verifyToken = createUserAuth({ db, jwtSecret });
+  registerMt5Api(app, db, verifyToken);
+  await new Promise((resolve, reject) => db.get('SELECT 1', error => error ? reject(error) : resolve()));
+
+  const server = await new Promise(resolve => {
+    const instance = app.listen(0, () => resolve(instance));
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const ownerToken = jwt.sign({ id: 1, authVersion: 0 }, jwtSecret);
+  const strangerToken = jwt.sign({ id: 2, authVersion: 0 }, jwtSecret);
+  const request = (path, token, options = {}) => fetch(origin + path, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  try {
+    let response = await request('/api/mt5/pairing-code', ownerToken, { method: 'POST', body: '{}' });
+    assert.equal(response.status, 201);
+    const { code } = await response.json();
+    response = await request('/api/mt5/pair', null, {
+      method: 'POST',
+      body: JSON.stringify({ code, accountNumber: '99887766', brokerServer: 'OfflineBroker-Live', currency: 'USD', eaVersion: '2.60' })
+    });
+    assert.equal(response.status, 201);
+    const { installationSecret } = await response.json();
+
+    const now = Date.now();
+    response = await request('/api/mt5/heartbeat', null, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${installationSecret}` },
+      body: JSON.stringify({
+        timestamp: new Date(now).toISOString(),
+        balance: 5000,
+        equity: 5050,
+        floatingProfit: 50,
+        margin: 50,
+        freeMargin: 5000,
+        eaName: 'CornGrid EA',
+        eaVersion: '2.60',
+        positions: [{
+          ticket: '501',
+          symbol: 'XAUUSD',
+          direction: 'BUY',
+          volume: 0.1,
+          entryPrice: 2400,
+          currentPrice: 2410,
+          profit: 50,
+          swap: 0,
+          openedAt: new Date(now - 60_000).toISOString()
+        }]
+      })
+    });
+    assert.equal(response.status, 200);
+    response = await request('/api/mt5/trades', null, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${installationSecret}` },
+      body: JSON.stringify({ deals: [
+        { dealId: 'OFFLINE-D-1', symbol: 'XAUUSD', direction: 'BUY', volume: 0.1, profit: 40, commission: -1, swap: 0, closedAt: new Date(now - 5_000).toISOString(), durationSeconds: 60 }
+      ] })
+    });
+    assert.equal(response.status, 200);
+
+    const accounts = (await (await request('/api/mt5/accounts', ownerToken)).json()).accounts;
+    assert.equal(accounts.length, 1);
+    const accountId = accounts[0].id;
+    assert.equal(accounts[0].status, 'Online');
+
+    // Make the EA stale so the account reports Offline: the state users report as blocking unlink.
+    await new Promise((resolve, reject) => db.run(
+      'UPDATE mt5_accounts SET last_heartbeat = ? WHERE id = ?',
+      [Date.now() - 600_000, accountId],
+      error => error ? reject(error) : resolve()
+    ));
+    const offlineAccounts = (await (await request('/api/mt5/accounts', ownerToken)).json()).accounts;
+    assert.equal(offlineAccounts[0].status, 'Offline', 'precondition: the EA is offline before unlinking');
+    assert.equal((await (await request('/api/portfolio/positions', ownerToken)).json()).items.length, 1);
+
+    const counts = async table => (await new Promise((resolve, reject) =>
+      db.get(`SELECT COUNT(*) AS count FROM ${table} WHERE account_id = ?`, [accountId], (error, row) => error ? reject(error) : resolve(row.count))));
+    assert.equal(await counts('mt5_positions'), 1);
+    assert.equal(await counts('mt5_deals'), 1);
+    assert.ok(await counts('mt5_snapshots') >= 1);
+    assert.equal(await counts('mt5_installations'), 1);
+
+    assert.equal((await request(`/api/mt5/accounts/${accountId}`, strangerToken, { method: 'DELETE' })).status, 404,
+      'a different user cannot unlink the account');
+
+    // Simulate a database where foreign-key cascades are unavailable (legacy schema):
+    // unlinking must still remove the account and every linked row explicitly.
+    await new Promise((resolve, reject) => db.run('PRAGMA foreign_keys = OFF',
+      error => error ? reject(error) : resolve()));
+
+    response = await request(`/api/mt5/accounts/${accountId}`, ownerToken, { method: 'DELETE' });
+    assert.equal(response.status, 200, 'the owner can unlink an offline EA account');
+
+    assert.equal(await counts('mt5_positions'), 0, 'positions cascade on unlink');
+    assert.equal(await counts('mt5_deals'), 0, 'deals cascade on unlink');
+    assert.equal(await counts('mt5_snapshots'), 0, 'snapshots cascade on unlink');
+    assert.equal(await counts('mt5_installations'), 0, 'installations cascade on unlink');
+
+    assert.equal((await (await request('/api/mt5/accounts', ownerToken)).json()).accounts.length, 0);
+    assert.equal((await (await request('/api/portfolio/positions', ownerToken)).json()).items.length, 0);
+    assert.equal((await request(`/api/mt5/accounts/${accountId}`, ownerToken, { method: 'DELETE' })).status, 404,
+      'a second unlink attempt reports the account as gone');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await new Promise(resolve => db.close(resolve));
+  }
+});
+
+test('data retention cleanup prunes old snapshots and expired pairing codes', async () => {
+  const db = new sqlite3.Database(':memory:');
+  const app = express();
+  const verifyToken = (req, res, next) => next();
+  registerMt5Api(app, db, verifyToken);
+  await new Promise((resolve, reject) => db.get('SELECT 1', err => err ? reject(err) : resolve()));
+
+  await new Promise((resolve, reject) => db.run(`
+    CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT)
+  `, err => err ? reject(err) : resolve()));
+  await new Promise((resolve, reject) => db.run(`
+    INSERT INTO users (id, username, email, password) VALUES (1, 'User1', 'u@test.local', 'hash')
+  `, err => err ? reject(err) : resolve()));
+  await new Promise((resolve, reject) => db.run(`
+    INSERT INTO mt5_accounts (id, user_id, account_number, broker_server, currency, linked_at)
+    VALUES (1, 1, '12345', 'DemoServer', 'USD', ?)
+  `, [Date.now()], err => err ? reject(err) : resolve()));
+
+  const now = Date.now();
+  const oldTime = now - (100 * 24 * 60 * 60 * 1000);
+  const freshTime = now - (10 * 24 * 60 * 60 * 1000);
+
+  await new Promise((resolve, reject) => db.run(`
+    INSERT INTO mt5_snapshots (account_id, captured_at, balance, equity, floating_profit)
+    VALUES (1, ?, 1000, 1000, 0), (1, ?, 1200, 1200, 0)
+  `, [oldTime, freshTime], err => err ? reject(err) : resolve()));
+
+  await registerMt5Api.performDataRetentionCleanup(db);
+
+  const remaining = await new Promise((resolve, reject) => db.all('SELECT captured_at FROM mt5_snapshots', (err, rows) => err ? reject(err) : resolve(rows)));
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].captured_at, freshTime);
+
+  await new Promise(resolve => db.close(resolve));
+});
+

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const {
   AUTH_COOKIE_NAME,
+  SESSION_DURATION_MS,
   clearAuthCookie,
   isSameOriginRequest,
   readAuthCredential,
@@ -35,7 +36,7 @@ test('auth cookies are HttpOnly, same-site and scoped to the site', () => {
   assert.equal(cookieOptions.secure, process.env.NODE_ENV === 'production');
   assert.equal(cookieOptions.sameSite, 'lax');
   assert.equal(cookieOptions.path, '/');
-  assert.equal(cookieOptions.maxAge, 2 * 60 * 60 * 1000);
+  assert.equal(cookieOptions.maxAge, SESSION_DURATION_MS);
 
   let clearedCookie;
   clearAuthCookie({

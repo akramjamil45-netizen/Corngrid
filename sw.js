@@ -1,5 +1,16 @@
-const CACHE_NAME = 'corngrid-static-v1';
+const CACHE_NAME = 'corngrid-static-v3';
 const OFFLINE_PAGE = '/offline.html';
+const NETWORK_FIRST_ASSETS = new Set([
+  '/style.css',
+  '/login.js',
+  '/dashboard.css',
+  '/dashboard.js',
+  '/admin.css',
+  '/admin.js',
+  '/public-portfolios.js',
+  '/public-portfolio.js',
+  '/reset-password.js'
+]);
 
 const CORE_ASSETS = [
   '/manifest.webmanifest',
@@ -51,7 +62,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       cache.addAll(CORE_ASSETS.map(url => new Request(url, { cache: 'reload' })))
-    )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -88,14 +99,20 @@ self.addEventListener('fetch', event => {
 
   if (!STATIC_ASSETS.has(url.pathname)) return;
   event.respondWith((async () => {
-    const cachedResponse = await caches.match(url.pathname, { ignoreSearch: true });
-    if (cachedResponse) return cachedResponse;
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(url.pathname);
 
-    const response = await fetch(request);
-    if (response.ok && response.type === 'basic') {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(url.pathname, response.clone());
+    if (!NETWORK_FIRST_ASSETS.has(url.pathname) && cachedResponse) return cachedResponse;
+
+    try {
+      const response = await fetch(request);
+      if (response.ok && response.type === 'basic') {
+        await cache.put(url.pathname, response.clone());
+      }
+      return response;
+    } catch (error) {
+      if (cachedResponse) return cachedResponse;
+      throw error;
     }
-    return response;
   })());
 });

@@ -28,7 +28,7 @@ function createAdminAuth({ email, passwordHash, jwtSecret }) {
   return {
     isConfigured: enabled,
     matchesEmail,
-    async authenticate(value, password) {
+    async authenticate(value, password, expiresIn = '30d') {
       if (!matchesEmail(value) || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72) {
         return null;
       }
@@ -36,7 +36,7 @@ function createAdminAuth({ email, passwordHash, jwtSecret }) {
       return jwt.sign(
         { sub: 'admin', role: 'admin', adminVersion },
         jwtSecret,
-        { expiresIn: '2h' }
+        { expiresIn }
       );
     },
     verifyToken(req, res, next) {

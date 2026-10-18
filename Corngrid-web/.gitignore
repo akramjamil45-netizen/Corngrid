@@ -1,3 +1,5 @@
 node_modules/
 .env
+source/
+*.mq5
 Corngrid@ v37.mq5

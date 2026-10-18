@@ -15,6 +15,9 @@ const MAX_DEAL_COUNT = 500;
 
 const schema = `
   PRAGMA foreign_keys = ON;
+  PRAGMA journal_mode = WAL;
+  PRAGMA busy_timeout = 5000;
+  PRAGMA synchronous = NORMAL;
   CREATE TABLE IF NOT EXISTS user_preferences (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     preferences_json TEXT NOT NULL DEFAULT '{}',
@@ -23,6 +26,12 @@ const schema = `
   CREATE TABLE IF NOT EXISTS user_auth_versions (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS user_account_access (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    suspended_until INTEGER NOT NULL,
+    reason TEXT,
+    updated_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS public_portfolios (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -262,10 +271,37 @@ async function overviewAccountScope(db, req) {
     : { error: { status: 404, message: 'MT5 account not found.' } };
 }
 
+const SNAPSHOT_RETENTION_DAYS = Number(process.env.MT5_SNAPSHOT_RETENTION_DAYS) || 90;
+
+async function performDataRetentionCleanup(db) {
+  try {
+    const now = Date.now();
+    const snapshotCutoff = now - (SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const expiredCutoff = now - (24 * 60 * 60 * 1000);
+
+    const prunedSnapshots = await run(db, 'DELETE FROM mt5_snapshots WHERE captured_at < ?', [snapshotCutoff]).catch(() => ({ changes: 0 }));
+    const prunedCodes = await run(db, 'DELETE FROM mt5_pairing_codes WHERE (expires_at < ? OR used_at IS NOT NULL) AND created_at < ?', [now, expiredCutoff]).catch(() => ({ changes: 0 }));
+    const prunedTokens = await run(db, 'DELETE FROM password_reset_tokens WHERE (expires_at < ? OR used_at IS NOT NULL) AND created_at < ?', [now, expiredCutoff]).catch(() => ({ changes: 0 }));
+
+    if ((prunedSnapshots && prunedSnapshots.changes > 0) || (prunedCodes && prunedCodes.changes > 0) || (prunedTokens && prunedTokens.changes > 0)) {
+      console.log(`[Retention Cleanup] Pruned ${prunedSnapshots.changes} snapshots (> ${SNAPSHOT_RETENTION_DAYS}d), ${prunedCodes.changes} pairing codes, and ${prunedTokens.changes} tokens.`);
+    }
+  } catch (cleanupError) {
+    console.error('[Retention Cleanup Error]:', cleanupError.message);
+  }
+}
+
 function registerMt5Api(app, db, verifyToken) {
   db.exec(schema, (error) => {
-    if (error) console.error('Unable to initialize MT5 dashboard tables:', error.message);
+    if (error) {
+      console.error('Unable to initialize MT5 dashboard tables:', error.message);
+    } else {
+      performDataRetentionCleanup(db);
+    }
   });
+
+  const retentionTimer = setInterval(() => performDataRetentionCleanup(db), 24 * 60 * 60 * 1000);
+  if (retentionTimer.unref) retentionTimer.unref();
 
   const authenticated = verifyToken;
   const pairingLimit = rateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, key: req => `pair:${ownerId(req)}` });
@@ -612,6 +648,16 @@ function registerMt5Api(app, db, verifyToken) {
     const accountId = Number.parseInt(req.params.id, 10);
     if (!Number.isSafeInteger(accountId) || accountId < 1) return res.status(400).json({ error: 'Invalid account identifier.' });
     try {
+      const owned = await get(db, 'SELECT id FROM mt5_accounts WHERE id = ? AND user_id = ?', [accountId, ownerId(req)]);
+      if (!owned) return res.status(404).json({ error: 'MT5 account not found.' });
+      // Remove linked rows explicitly instead of relying only on foreign-key
+      // cascades, so unlinking works regardless of EA status (online or offline)
+      // and for databases created before the cascade clauses existed.
+      await run(db, 'DELETE FROM public_portfolio_accounts WHERE account_id = ?', [accountId]);
+      await run(db, 'DELETE FROM mt5_installations WHERE account_id = ?', [accountId]);
+      await run(db, 'DELETE FROM mt5_snapshots WHERE account_id = ?', [accountId]);
+      await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [accountId]);
+      await run(db, 'DELETE FROM mt5_deals WHERE account_id = ?', [accountId]);
       const result = await run(db, 'DELETE FROM mt5_accounts WHERE id = ? AND user_id = ?', [accountId, ownerId(req)]);
       if (result.changes !== 1) return res.status(404).json({ error: 'MT5 account not found.' });
       return res.json({ message: 'MT5 account unlinked.' });
@@ -1328,4 +1374,5 @@ async function getAccountSummaries(db, userId) {
   }));
 }
 
+registerMt5Api.performDataRetentionCleanup = performDataRetentionCleanup;
 module.exports = registerMt5Api;

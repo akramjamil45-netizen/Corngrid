@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
     const usernameGroup = document.getElementById('usernameGroup');
     const userUsername = document.getElementById('userUsername');
+    const rememberGroup = document.getElementById('rememberGroup');
+    const rememberMe = document.getElementById('rememberMe');
     const toggleAuthMode = document.getElementById('toggleAuthMode');
     const submitButton = document.getElementById('btnLogin');
     const submitLabel = document.querySelector('#btnLogin span');
@@ -14,10 +16,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const formDescription = document.querySelector('.form-header p');
     let isRegister = false;
 
+    // Check if user is already logged in (remember login for PWA / browser)
+    async function checkExistingSession() {
+        try {
+            const userRes = await fetch('/api/me', { credentials: 'same-origin' });
+            if (userRes.ok) {
+                window.location.replace('/dashboard.html');
+                return;
+            }
+            const adminRes = await fetch('/api/admin/overview?limit=1', { credentials: 'same-origin' });
+            if (adminRes.ok) {
+                window.location.replace('/admin.html');
+                return;
+            }
+        } catch {}
+    }
+    checkExistingSession();
+
     toggleAuthMode.addEventListener('click', () => {
         isRegister = !isRegister;
         usernameGroup.hidden = !isRegister;
         userUsername.required = isRegister;
+        if (rememberGroup) rememberGroup.hidden = isRegister;
         submitLabel.textContent = isRegister ? 'Create Account' : 'Sign In to Terminal';
         formTitle.textContent = isRegister ? 'Create CornGrid Account' : 'Account Login';
         formDescription.textContent = isRegister
@@ -69,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     email: userEmail.value.trim(),
                     password: userPassword.value,
-                    ...(isRegister ? { username: userUsername.value.trim() } : {})
+                    ...(isRegister ? { username: userUsername.value.trim() } : { rememberMe: rememberMe ? rememberMe.checked : true })
                 })
             });
 

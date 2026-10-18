@@ -1,9 +1,9 @@
 {
-  "id": "/",
+  "id": "/login",
   "name": "CornGrid EA",
   "short_name": "CornGrid",
   "description": "CornGrid EA trading dashboard and account tools.",
-  "start_url": "/?source=pwa",
+  "start_url": "/login?source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#080a0f",

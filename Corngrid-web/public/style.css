@@ -245,6 +245,10 @@ body {
     color: #FFD400;
 }
 .toggle-password:focus-visible { outline: 2px solid #FFD400; outline-offset: 2px; }
+.input-field .toggle-password {
+    display: grid;
+    place-items: center;
+}
 
 /* Checkbox & Options */
 .form-options {
