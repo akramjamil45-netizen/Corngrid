@@ -1,6 +1,6 @@
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', settings: 'Settings' };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
 
   function renderOverviewAccountSelector() {
@@ -173,6 +173,8 @@
       setChatMobileView();
       refreshChat();
     }
+    if (name === 'market' && window.CornGridMarket) window.CornGridMarket.onOpen();
+    if (name === 'feed' && window.CornGridFeed) window.CornGridFeed.onOpen();
   }
 
   function setChatMobileView(showConversation = state.chat.mobileShowConversation) {
@@ -195,7 +197,7 @@
     if (signature === state.chat.conversationSignature) return;
     state.chat.conversationSignature = signature;
     if (!conversations.length) {
-      list.innerHTML = '<div class="chat-empty-list chat-empty-conversations"><span class="chat-empty-list-icon" aria-hidden="true">⌁</span><strong>No chats yet</strong><p>Find a trader by username to start a private conversation.</p><button class="button button-secondary" type="button" data-chat-action="search">Find traders</button></div>';
+      list.innerHTML = '<div class="chat-empty-list chat-empty-conversations"><span class="chat-empty-list-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><strong>No chats yet</strong><p>Find a trader by username to start a private conversation.</p><button class="button button-secondary" type="button" data-chat-action="search">Find traders</button></div>';
       return;
     }
     list.innerHTML = conversations.map(item => `
@@ -415,7 +417,7 @@
         $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
         $('#data-notice').hidden = true;
         $('#connection-summary').hidden = false;
-        $('#connection-summary').innerHTML = '<div class="connection-symbol">▣</div><strong>No MT5 account linked</strong><p>Link an account to see balance, performance and trade activity here.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button>';
+        $('#connection-summary').innerHTML = '<div class="connection-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div><strong>No MT5 account linked</strong><p>Link an account to see balance, performance and trade activity here.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button>';
         $('#connection-details').hidden = true;
         $('#ea-status').textContent = 'No account';
         $('#ea-status').className = 'pill pill-muted';
@@ -500,11 +502,11 @@
         $('#overview-account-help').textContent = error.message;
         $('#retry-overview-accounts').hidden = false;
       }
-      $('#equity-chart').innerHTML = `<div class="chart-empty"><span class="empty-chart-icon">!</span><strong>Unable to load account history</strong><span>${escapeHtml(error.message)}</span></div>`;
+      $('#equity-chart').innerHTML = `<div class="chart-empty"><span class="empty-chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><strong>Unable to load account history</strong><span>${escapeHtml(error.message)}</span></div>`;
       $('#ea-status').textContent = 'Unknown';
       $('#ea-status').className = 'pill pill-muted';
       $('#connection-summary').hidden = false;
-      $('#connection-summary').innerHTML = `<div class="connection-symbol">!</div><strong>Connection status unavailable</strong><p>${escapeHtml(error.message)}</p>`;
+      $('#connection-summary').innerHTML = `<div class="connection-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><strong>Connection status unavailable</strong><p>${escapeHtml(error.message)}</p>`;
       $('#connection-details').hidden = true;
       $('#data-notice').className = 'notice notice-warning';
       $('#data-notice').innerHTML = `<span class="notice-icon">!</span><span>${escapeHtml(error.message)} Account metrics could not be refreshed.</span>`;
@@ -532,7 +534,7 @@
   function renderChart(snapshots, currency, unavailableReason) {
     const chart = $('#equity-chart');
     if (!snapshots.length) {
-      chart.innerHTML = `<div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>No equity history available</strong><span>${escapeHtml(unavailableReason || 'Historical chart data will appear after the selected EA sends account snapshots.')}</span></div>`;
+      chart.innerHTML = `<div class="chart-empty"><span class="empty-chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><strong>No equity history available</strong><span>${escapeHtml(unavailableReason || 'Historical chart data will appear after the selected EA sends account snapshots.')}</span></div>`;
       return;
     }
     const width = 800, height = 220, pad = 28;
@@ -586,7 +588,7 @@
   async function loadAccounts(showLoading = false) {
     const host = $('#account-list');
     if (state.page === 'accounts' && (showLoading || host.dataset.loaded !== 'true')) {
-      host.innerHTML = '<div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div>';
+      host.innerHTML = '<div class="panel empty-state" role="status"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div>';
     }
     try {
       const result = await request('/mt5/accounts');
@@ -598,9 +600,9 @@
     } catch (error) {
       if (state.page === 'accounts') {
         host.dataset.loaded = 'false';
-        host.innerHTML = `<div class="panel empty-state" role="alert"><span class="empty-icon">!</span><h2>Unable to load MT5 accounts</h2><p>${escapeHtml(error.message)}</p><button class="button button-primary" type="button" data-retry-accounts>Try again</button></div>`;
+        host.innerHTML = `<div class="panel empty-state" role="alert"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><h2>Unable to load MT5 accounts</h2><p>${escapeHtml(error.message)}</p><button class="button button-primary" type="button" data-retry-accounts>Try again</button></div>`;
       }
-      if (state.page === 'monitoring') $('#monitor-summary').innerHTML = `<div class="panel empty-state"><span class="empty-icon">!</span><h2>Unable to load monitoring data</h2><p>${escapeHtml(error.message)}</p></div>`;
+      if (state.page === 'monitoring') $('#monitor-summary').innerHTML = `<div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><h2>Unable to load monitoring data</h2><p>${escapeHtml(error.message)}</p></div>`;
       toast(error.message, 'error');
       return false;
     }
@@ -610,7 +612,7 @@
     const host = $('#account-list');
     host.dataset.loaded = 'true';
     if (!accounts.length) {
-      host.innerHTML = '<div class="panel empty-state"><span class="empty-icon">▣</span><h2>No MT5 accounts linked</h2><p>Generate a pairing code, then enter it in the CornGrid EA on your trading terminal. Account data will appear here after the first heartbeat.</p><button class="button button-primary" data-create-pairing>Generate pairing code</button></div>';
+      host.innerHTML = '<div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span><h2>No MT5 accounts linked</h2><p>Generate a pairing code, then enter it in the CornGrid EA on your trading terminal. Account data will appear here after the first heartbeat.</p><button class="button button-primary" data-create-pairing>Generate pairing code</button></div>';
       return;
     }
     host.innerHTML = accounts.map(account => `<article class="account-card"><div class="account-card-top"><div><p class="eyebrow">${escapeHtml(account.brokerServer || 'MT5 ACCOUNT')}</p><h2 class="account-id">${escapeHtml(account.maskedAccount || '••••••')}</h2><span class="account-server">${escapeHtml(account.accountName || 'CornGrid EA')} · ${escapeHtml(account.currency || 'Currency N/A')}</span></div>${safeStatus(account.status)}</div><div class="account-stats"><div><span>Balance</span><strong>${escapeHtml(money(account.balance, account.currency))}</strong></div><div><span>Equity</span><strong>${escapeHtml(money(account.equity, account.currency))}</strong></div><div><span>Floating P/L</span><strong class="${tone(account.floatingProfit)}">${escapeHtml(money(account.floatingProfit, account.currency))}</strong></div></div><div class="account-meta"><div>EA version<strong>${escapeHtml(account.eaVersion || 'N/A')}</strong></div><div>Last heartbeat<strong>${escapeHtml(dateTime(account.lastHeartbeat))}</strong></div><div>Linked<strong>${escapeHtml(dateTime(account.linkedAt))}</strong></div><div>Last sync<strong>${escapeHtml(dateTime(account.lastSync))}</strong></div></div><div class="account-actions"><button class="button button-small rename-account" data-id="${escapeHtml(account.id)}" data-name="${escapeHtml(account.accountName || '')}">Rename</button><button class="button button-small unlink-account" data-id="${escapeHtml(account.id)}">Unlink account</button></div></article>`).join('');
@@ -765,7 +767,7 @@
     if (!await loadAccounts()) return;
     const host = $('#monitor-summary');
     if (!state.accounts.length) {
-      host.innerHTML = '<div class="panel empty-state"><span class="empty-icon">⌁</span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div>';
+      host.innerHTML = '<div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div>';
       return;
     }
     host.innerHTML = `<div class="account-grid">${state.accounts.map(account => `<article class="account-card"><div class="account-card-top"><div><p class="eyebrow">${escapeHtml(account.brokerServer || 'MT5 ACCOUNT')}</p><h2 class="account-id">${escapeHtml(account.maskedAccount || '••••••')}</h2><span class="account-server">${escapeHtml(account.accountName || 'CornGrid EA')} · ${escapeHtml(account.eaVersion || 'Version N/A')}</span></div>${safeStatus(account.status)}</div><div class="account-meta"><div>Last heartbeat<strong>${escapeHtml(dateTime(account.lastHeartbeat))}</strong></div><div>Last synchronization<strong>${escapeHtml(dateTime(account.lastSync))}</strong></div><div>Open positions<strong>${escapeHtml(account.openPositions ?? 'N/A')}</strong></div><div>Linked on<strong>${escapeHtml(dateTime(account.linkedAt))}</strong></div></div><p class="method-note">${account.status === 'Online' ? 'A recent authenticated heartbeat was received.' : account.lastHeartbeat ? 'No authenticated heartbeat was received within the configured timeout.' : 'The account is paired, but its first heartbeat has not arrived.'}</p></article>`).join('')}</div>`;

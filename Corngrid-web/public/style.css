@@ -189,6 +189,9 @@ body {
     font-size: 12px;
     color: #FFD400;
     text-decoration: none;
+    /* Expand the tap target to ~43px without shifting the label row. */
+    padding: 12px 6px;
+    margin: -12px -6px;
 }
 
 .forgot-link:hover {
@@ -264,6 +267,9 @@ body {
     font-size: 12px;
     color: #8A92A6;
     cursor: pointer;
+    /* Expand the tappable row to ~43px without adding layout height. */
+    padding: 12px 0;
+    margin: -12px 0;
 }
 
 .checkbox-container input {
@@ -311,7 +317,9 @@ body {
 }
 
 .auth-mode-toggle {
-    padding: 0;
+    /* Expand the tap target to ~44px without shifting the footer line. */
+    padding: 12px 8px;
+    margin: -12px -8px;
     background: none;
     border: 0;
     color: #FFD400;

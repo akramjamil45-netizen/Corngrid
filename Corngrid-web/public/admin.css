@@ -43,6 +43,21 @@
 .admin-field { display: grid; gap: 8px; margin-top: 16px; color: var(--muted); }
 .admin-dialog-actions { display: flex; justify-content: end; gap: 10px; margin-top: 20px; }
 
+/* Community announcements */
+.admin-ann-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.admin-ann-composer .settings-form { margin-top: 14px; max-width: none; }
+.admin-ann-pin { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+.admin-ann-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-ann-list { display: grid; gap: 12px; margin-top: 14px; }
+.admin-ann-item { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); display: grid; gap: 9px; }
+.admin-ann-item.is-pinned { border-color: rgba(255, 212, 0, .45); }
+.admin-ann-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.admin-ann-body { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+
+@media (max-width: 900px) {
+  .admin-ann-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 600px) {
   .admin-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-toolbar { align-items: stretch; }
@@ -55,4 +70,19 @@
   .admin-support-composer { align-items: stretch; flex-direction: column; }
   .admin-support-composer .button { align-self: end; }
   .admin-dialog-content { padding: 18px; }
+}
+
+/* Visible keyboard focus for admin-only controls (dashboard.css already covers
+   shared .button/.input-control, so this targets the elements unique to admin). */
+.admin-support-item:focus-visible,
+.admin-dialog-close:focus-visible,
+.admin-nav-link:focus-visible,
+.admin-ann-pin input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Respect reduced motion for the admin surface as well. */
+@media (prefers-reduced-motion: reduce) {
+  .admin-support-item, .admin-ann-item { transition: none; }
 }

@@ -1,10 +1,12 @@
-const CACHE_NAME = 'corngrid-static-v3';
+const CACHE_NAME = 'corngrid-static-v5';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
   '/style.css',
   '/login.js',
   '/dashboard.css',
   '/dashboard.js',
+  '/market.js',
+  '/feed.js',
   '/admin.css',
   '/admin.js',
   '/public-portfolios.js',
@@ -24,6 +26,9 @@ const CORE_ASSETS = [
   '/login.js',
   '/dashboard.css',
   '/dashboard.js',
+  '/market.js',
+  '/feed.js',
+  '/vendor/lightweight-charts.standalone.production.js',
   '/admin.css',
   '/admin.js',
   '/public-portfolios.js',

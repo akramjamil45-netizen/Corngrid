@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261018-9">
+  <link rel="stylesheet" href="dashboard.css?v=20261018-16">
 </head>
 <body>
   <div class="app-shell">
@@ -31,6 +31,8 @@
         <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
         <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
         <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
+        <button class="nav-item" data-page="market"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4.5" y="7" width="5" height="10" rx="1"/><path d="M7 4v3M7 17v3"/><rect x="14.5" y="9.5" width="5" height="7" rx="1"/><path d="M17 6.5v3M17 16.5v3"/></svg></span>Market Overview</button>
+        <button class="nav-item" data-page="feed"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg></span>Live Feed</button>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot status-dot-muted"></span><span id="sidebar-connection">No EA data yet</span></div>
@@ -70,25 +72,25 @@
           </div>
           <div class="notice notice-warning" id="data-notice" hidden></div>
           <div class="stat-grid">
-            <article class="stat-card"><div class="stat-top"><span>Balance</span><span class="stat-icon">◈</span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Account funds</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Equity</span><span class="stat-icon">◇</span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Including floating P/L</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon">⌁</span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Open trades</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Net profit</span><span class="stat-icon">↗</span></div><strong class="stat-value" data-stat="netProfit">N/A</strong><small class="stat-period">Closed deals · 30 days</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Today</span><span class="stat-icon">◷</span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed trade P/L</small></article>
-            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon">◎</span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small data-stat-deals>Closed deals · N/A</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Balance</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg></span></div><strong class="stat-value" data-stat="balance">N/A</strong><small>Account funds</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Equity</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span></div><strong class="stat-value" data-stat="equity">N/A</strong><small>Including floating P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Floating P/L</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span></div><strong class="stat-value" data-stat="floating">N/A</strong><small>Open trades</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Net profit</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span></div><strong class="stat-value" data-stat="netProfit">N/A</strong><small class="stat-period">Closed deals · 30 days</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Today</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span></div><strong class="stat-value" data-stat="dailyProfit">N/A</strong><small>Closed trade P/L</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Win rate</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span></div><strong class="stat-value" data-stat="winRate">N/A</strong><small data-stat-deals>Closed deals · N/A</small></article>
           </div>
 
           <div class="content-grid">
             <section class="panel chart-panel">
               <div class="panel-header"><div><p class="eyebrow">SELECTED ACCOUNT PERFORMANCE</p><h2>Balance &amp; equity</h2></div><div class="chart-legend"><span><i class="legend-equity"></i>Equity</span><span><i class="legend-balance"></i>Balance</span></div></div>
               <div class="chart-area" id="equity-chart">
-                <div class="chart-empty"><span class="empty-chart-icon">⌁</span><strong>Waiting for account history</strong><span>Historical chart data will appear after a linked EA sends account snapshots.</span></div>
+                <div class="chart-empty"><span class="empty-chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><strong>Waiting for account history</strong><span>Historical chart data will appear after a linked EA sends account snapshots.</span></div>
               </div>
               <div class="chart-foot"><span>Historical values are reported by the selected MT5 account.</span><span id="last-update">Last update: N/A</span></div>
             </section>
             <section class="panel connection-panel">
               <div class="panel-header"><div><p class="eyebrow">CONNECTIVITY</p><h2>EA status</h2></div><span class="pill pill-muted" id="ea-status">No data</span></div>
-              <div class="connection-empty" id="connection-summary"><div class="connection-symbol">⌁</div><strong>No EA connected</strong><p>Link an MT5 account to start securely receiving monitoring data.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button></div>
+              <div class="connection-empty" id="connection-summary"><div class="connection-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div><strong>No EA connected</strong><p>Link an MT5 account to start securely receiving monitoring data.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button></div>
               <div class="connection-details" id="connection-details" hidden></div>
             </section>
           </div>
@@ -116,7 +118,7 @@
           <div class="page-heading"><div><p class="eyebrow">ACCOUNT MANAGEMENT</p><h1>MT5 accounts</h1><p class="muted">Link multiple authorized trading accounts by generating a new pairing code for each MT5 account. Your MT5 trading password is never requested.</p></div><div class="heading-actions"><button class="button button-secondary" id="refresh-accounts">↻ Refresh view</button><button class="button button-primary" id="create-pairing">＋ Generate pairing code</button></div></div>
           <div class="notice notice-warning"><span class="notice-icon">!</span><span>Pairing codes expire after 10 minutes and can only be used once. Enter the code in an authorized CornGrid EA installation.</span></div>
           <div class="pairing-card" id="pairing-card" hidden><div><span class="eyebrow">ONE-TIME PAIRING CODE</span><p>Enter this code in your CornGrid EA. It will only be shown here once.</p></div><code id="pairing-code"></code><div class="pairing-expiry" id="pairing-expiry"></div></div>
-          <div class="account-grid" id="account-list"><div class="panel empty-state" role="status"><span class="empty-icon">◌</span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div></div>
+          <div class="account-grid" id="account-list"><div class="panel empty-state" role="status"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div></div>
           <div class="panel setup-guide-panel" style="margin-top: 18px; border-left: 3px solid var(--accent);">
             <div class="panel-header" style="margin-bottom: 8px;">
               <div>
@@ -167,7 +169,7 @@
 
         <section class="page" id="page-monitoring">
           <div class="page-heading"><div><p class="eyebrow">SYSTEM HEALTH</p><h1>EA monitoring</h1><p class="muted">Connection and synchronization status for linked installations.</p></div><button class="button button-secondary" data-refresh>↻ Refresh status</button></div>
-          <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon">⌁</span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
+          <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
           <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div><p class="muted small" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">Having trouble keeping your EA connected? Ensure <code>https://corngrid.com</code> is added to MT5's Allowed URLs under <em>Tools &rarr; Options &rarr; Expert Advisors</em> and the terminal's <em>Algo Trading</em> button is enabled.</p></section>
         </section>
 
@@ -254,6 +256,157 @@
           </div>
         </section>
 
+        <section class="page" id="page-market">
+          <div class="page-heading">
+            <div><p class="eyebrow">GLOBAL MARKETS</p><h1>Market Overview</h1><p class="muted">Professional candlestick charts for gold and major currency pairs, powered by live provider data.</p></div>
+            <div class="market-head-status"><span class="pill pill-muted" id="market-data-status">Loading…</span><span class="muted small" id="market-last-update">Last update: N/A</span></div>
+          </div>
+
+          <div class="market-symbol-bar" id="market-symbol-bar" role="tablist" aria-label="Market symbols">
+            <button type="button" class="market-symbol is-active" role="tab" aria-selected="true" data-market-symbol="XAUUSD"><strong>XAUUSD</strong><small>Gold / US Dollar</small></button>
+            <button type="button" class="market-symbol" role="tab" aria-selected="false" data-market-symbol="EURUSD"><strong>EURUSD</strong><small>Euro / US Dollar</small></button>
+            <button type="button" class="market-symbol" role="tab" aria-selected="false" data-market-symbol="GBPUSD"><strong>GBPUSD</strong><small>British Pound / US Dollar</small></button>
+            <button type="button" class="market-symbol" role="tab" aria-selected="false" data-market-symbol="USDJPY"><strong>USDJPY</strong><small>US Dollar / Japanese Yen</small></button>
+          </div>
+
+          <section class="panel market-chart-panel">
+            <div class="market-chart-top">
+              <div class="market-quote">
+                <div class="market-quote-head"><span class="market-quote-symbol" id="market-quote-symbol">XAUUSD</span><span class="market-quote-label muted" id="market-quote-label">Gold / US Dollar</span></div>
+                <div class="market-quote-price"><strong id="market-price">—</strong><span id="market-change" class="market-change">—</span></div>
+              </div>
+              <div class="market-toolbar">
+                <div class="market-timeframes" id="market-timeframes" role="group" aria-label="Chart timeframe">
+                  <button type="button" class="market-tf" data-tf="1m">1m</button>
+                  <button type="button" class="market-tf" data-tf="5m">5m</button>
+                  <button type="button" class="market-tf" data-tf="15m">15m</button>
+                  <button type="button" class="market-tf" data-tf="30m">30m</button>
+                  <button type="button" class="market-tf is-active" data-tf="1h">1H</button>
+                  <button type="button" class="market-tf" data-tf="4h">4H</button>
+                  <button type="button" class="market-tf" data-tf="1d">1D</button>
+                  <button type="button" class="market-tf" data-tf="1w">1W</button>
+                </div>
+                <div class="market-actions" role="group" aria-label="Chart tools">
+                  <button type="button" class="button button-secondary button-small" id="market-tool-hline" title="Draw horizontal price line">— Line</button>
+                  <button type="button" class="button button-secondary button-small" id="market-tool-trend" title="Draw trend line (two points)">／ Trend</button>
+                  <button type="button" class="button button-secondary button-small" id="market-clear-drawings" title="Remove all drawings">Clear</button>
+                  <button type="button" class="button button-secondary button-small" id="market-zoom-in" title="Zoom in">＋</button>
+                  <button type="button" class="button button-secondary button-small" id="market-zoom-out" title="Zoom out">－</button>
+                  <button type="button" class="button button-secondary button-small" id="market-reset-view" title="Reset chart view">↺ Reset</button>
+                  <button type="button" class="button button-secondary button-small" id="market-fullscreen" title="Fullscreen chart">⛶</button>
+                </div>
+              </div>
+            </div>
+            <div class="market-ohlc" id="market-ohlc" aria-live="polite"><span>O —</span><span>H —</span><span>L —</span><span>C —</span></div>
+            <div class="market-chart-wrap" id="market-chart-wrap">
+              <div id="market-chart"></div>
+              <div class="market-chart-state" id="market-chart-state" role="status"><span class="market-spinner" aria-hidden="true"></span><strong>Loading market data…</strong></div>
+            </div>
+            <p class="market-instrument-note muted small" id="market-instrument-note" hidden></p>
+            <div class="market-chart-foot"><span class="muted small" id="market-attribution">Market data —</span><span class="muted small" id="market-drawing-hint">Tip: pick a tool, then tap or click the chart to place a level.</span></div>
+          </section>
+
+          <div class="market-lower-grid">
+            <section class="panel market-info-panel">
+              <div class="panel-header"><div><p class="eyebrow">INSTRUMENT</p><h2>Market information</h2></div></div>
+              <div class="market-info-grid" id="market-info-grid">
+                <div><span>Open</span><strong id="info-open">N/A</strong></div>
+                <div><span>High</span><strong id="info-high">N/A</strong></div>
+                <div><span>Low</span><strong id="info-low">N/A</strong></div>
+                <div><span>Close</span><strong id="info-close">N/A</strong></div>
+                <div><span>Previous close</span><strong id="info-prev-close">N/A</strong></div>
+                <div><span>Change</span><strong id="info-change">N/A</strong></div>
+              </div>
+              <p class="method-note" id="market-status-note">Prices come from the selected provider and may be delayed. CornGrid does not generate or estimate market prices.</p>
+            </section>
+            <section class="panel market-drawings-panel">
+              <div class="panel-header"><div><p class="eyebrow">CHART TOOLS</p><h2>Saved drawings</h2></div></div>
+              <div class="market-drawings-list" id="market-drawings-list"><p class="muted small">No drawings yet for this symbol. Horizontal lines and trend lines you place are saved to your account.</p></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-feed">
+          <div class="page-heading">
+            <div><p class="eyebrow">TRADING COMMUNITY</p><h1>Live Feed</h1><p class="muted">Share ideas with fellow CornGrid traders. Follow official announcements and community discussion in one place.</p></div>
+          </div>
+
+          <div class="feed-layout">
+            <div class="feed-main">
+              <section class="panel feed-composer-panel">
+                <div class="feed-composer-head">
+                  <div class="feed-avatar" id="feed-composer-avatar">?</div>
+                  <textarea id="feed-composer-input" class="input-control feed-composer-input" rows="3" maxlength="4000" placeholder="Share an update with the community…" aria-label="Post content"></textarea>
+                </div>
+                <div class="feed-composer-image" id="feed-composer-image" hidden>
+                  <img id="feed-composer-image-preview" alt="Selected upload preview">
+                  <button type="button" class="button button-secondary button-small" id="feed-composer-image-remove">✕ Remove</button>
+                </div>
+                <div class="feed-composer-actions">
+                  <div class="feed-composer-tools">
+                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file">🖼 Add image</label>
+                    <input type="file" id="feed-composer-file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <span class="feed-char-count muted small" id="feed-char-count">0 / 4000</span>
+                  </div>
+                  <div class="feed-composer-buttons">
+                    <button type="button" class="button button-secondary" id="feed-composer-cancel" hidden>Cancel</button>
+                    <button type="button" class="button button-primary" id="feed-composer-submit">Publish post</button>
+                  </div>
+                </div>
+              </section>
+
+              <div class="feed-filters" id="feed-filters" role="group" aria-label="Feed filters">
+                <button type="button" class="feed-filter is-active" data-feed-filter="latest">Latest</button>
+                <button type="button" class="feed-filter" data-feed-filter="popular">Popular</button>
+                <button type="button" class="feed-filter" data-feed-filter="announcements">Announcements</button>
+                <button type="button" class="feed-filter" data-feed-filter="mine">My Posts</button>
+              </div>
+
+              <div class="feed-list" id="feed-list" aria-live="polite"><p class="muted small feed-loading">Loading feed…</p></div>
+              <div class="feed-load-more-wrap" id="feed-load-more-wrap" hidden>
+                <button type="button" class="button button-secondary" id="feed-load-more">Load more posts</button>
+              </div>
+            </div>
+
+            <aside class="feed-sidebar">
+              <section class="panel feed-side-panel">
+                <div class="panel-header"><div><p class="eyebrow">MY PROFILE</p><h2 id="feed-side-username">Profile</h2></div></div>
+                <p class="muted small" id="feed-side-bio">—</p>
+                <div class="feed-side-stats">
+                  <div><span>Posts</span><strong id="feed-side-posts">0</strong></div>
+                  <div><span>Comments</span><strong id="feed-side-comments">0</strong></div>
+                  <div><span>Joined</span><strong id="feed-side-joined">—</strong></div>
+                </div>
+                <button type="button" class="button button-secondary" id="feed-view-profile">View my profile</button>
+              </section>
+              <section class="panel feed-side-panel">
+                <div class="panel-header"><div><p class="eyebrow">COMMUNITY</p><h2>Guidelines</h2></div></div>
+                <p class="muted small">Keep discussion professional. No spam, solicitations, or guaranteed-return claims. Reported content is reviewed by administrators. Trading involves risk.</p>
+              </section>
+            </aside>
+          </div>
+
+          <div class="feed-profile-view" id="feed-profile-view" hidden>
+            <section class="panel feed-profile-card">
+              <button type="button" class="button button-secondary button-small" id="feed-profile-back">← Back to feed</button>
+              <div class="feed-profile-head">
+                <div class="feed-avatar feed-avatar-lg" id="feed-profile-avatar">?</div>
+                <div>
+                  <h2 id="feed-profile-name">—</h2>
+                  <p class="muted small" id="feed-profile-username">@—</p>
+                  <p class="muted small" id="feed-profile-bio">—</p>
+                  <p class="muted small" id="feed-profile-meta">—</p>
+                </div>
+              </div>
+              <div class="feed-profile-tabs" id="feed-profile-tabs">
+                <button type="button" class="feed-filter is-active" data-profile-tab="posts">Posts</button>
+                <button type="button" class="feed-filter" data-profile-tab="activity">My Comments</button>
+              </div>
+              <div class="feed-list" id="feed-profile-list"></div>
+            </section>
+          </div>
+        </section>
+
         <section class="page" id="page-settings">
           <div class="page-heading"><div><p class="eyebrow">PREFERENCES &amp; PROFILE</p><h1>Settings</h1><p class="muted">Manage profile and dashboard display preferences.</p></div></div>
           <p class="notice notice-info"><span class="notice-icon">i</span><span><strong>Install CornGrid on Android.</strong> Open corngrid.com in Chrome, then choose <em>Install app</em> or <em>Add to Home screen</em> from the browser menu. An install button also appears when your browser supports it. Current trading and account data still requires an internet connection.</span></p>
@@ -261,7 +414,7 @@
             <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form></section>
             <section class="panel settings-panel" id="setting-security" hidden><div class="panel-header"><div><p class="eyebrow">ACCOUNT PROTECTION</p><h2>Security</h2></div></div><form id="password-form" class="settings-form"><label>Current password<input id="current-password" class="input-control" type="password" autocomplete="current-password" required></label><label>New password<input id="new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm new password<input id="confirm-new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><p class="muted small">Changing your password revokes existing dashboard sessions. You will need to sign in again.</p><button class="button button-primary" type="submit">Change password</button></form><div class="privacy-copy"><h3>Password recovery</h3><p>Use the existing secure password-reset link from the login page if you cannot sign in. Passwords are stored as hashes and are never displayed.</p></div></section>
             <section class="panel settings-panel" id="setting-appearance" hidden><div class="panel-header"><div><p class="eyebrow">DISPLAY PREFERENCES</p><h2>Appearance</h2></div></div><form id="preferences-form" class="settings-form"><label>Theme<select id="pref-theme" class="select-control"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select></label><label>Display currency<select id="pref-currency" class="select-control"><option value="account">Account currency</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><label>Date format<select id="pref-date-format" class="select-control"><option value="locale">Browser default</option><option value="en-US">MM/DD/YYYY</option><option value="en-GB">DD/MM/YYYY</option><option value="iso">ISO 8601</option></select></label><label>Time zone<input id="pref-timezone" class="input-control" type="text" maxlength="64" value="UTC" placeholder="UTC"></label><p class="notice notice-info"><span class="notice-icon">i</span><span>Currency is a display preference only. Values are not converted and remain in the MT5 account currency. Use an IANA time-zone name such as UTC or Asia/Kuala_Lumpur.</span></p><button class="button button-primary" type="submit">Save preferences</button></form></section>
-            <section class="panel settings-panel" id="setting-notifications" hidden><div class="panel-header"><div><p class="eyebrow">ALERT PREFERENCES</p><h2>Notifications</h2></div></div><div class="empty-settings"><span class="empty-icon">♧</span><h3>Email notifications are not configured</h3><p>This installation does not currently provide a notification delivery service. No inactive controls are shown.</p></div></section>
+            <section class="panel settings-panel" id="setting-notifications" hidden><div class="panel-header"><div><p class="eyebrow">ALERT PREFERENCES</p><h2>Notifications</h2></div></div><div class="empty-settings"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.9 17.9 0 0 1 18 8"/><path d="M6.26 6.26A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span><h3>Email notifications are not configured</h3><p>This installation does not currently provide a notification delivery service. No inactive controls are shown.</p></div></section>
             <section class="panel settings-panel" id="setting-privacy" hidden><div class="panel-header"><div><p class="eyebrow">DATA &amp; PRIVACY</p><h2>Privacy</h2></div></div><div class="privacy-copy"><h3>Portfolio visibility</h3><p>Choose which linked trading accounts appear on your public portfolio. Only selected accounts and their portfolio data are shown publicly. You can keep everything private or revoke public access at any time.</p><div class="portfolio-sharing-controls"><label for="portfolio-visibility">Portfolio visibility<select id="portfolio-visibility" class="select-control"><option value="private">Private — only me</option><option value="public">Public — listed for everyone</option></select></label><button class="button button-primary" id="save-portfolio-visibility" type="button">Save sharing settings</button></div><p class="portfolio-sharing-status" id="portfolio-sharing-status" aria-live="polite">Loading portfolio sharing settings…</p><div class="public-account-selection"><div class="public-account-selection-heading"><h3>Trading accounts to include</h3><span id="public-account-selection-count" class="muted small">Loading accounts…</span></div><div id="public-account-selection-list" class="public-account-selection-list"><div class="empty-settings"><p>Loading linked MT5 accounts…</p></div></div></div><div class="portfolio-share-link" id="portfolio-share-link" hidden><label for="portfolio-share-url">Public portfolio link</label><div><input id="portfolio-share-url" class="input-control" type="url" readonly><button class="button button-secondary" id="copy-portfolio-link" type="button">Copy link</button></div></div><h3>Public data shown</h3><p>For each selected account, public pages show its masked account identifier, account summary, open positions and recent trade details. They never show your email, broker server, full account number, ticket or deal identifiers, or trading credentials. Accounts you do not select remain private.</p><h3>Data collected</h3><p>When you link an EA, CornGrid can store the MT5 account identifier, broker/server, account currency, balance and equity snapshots, open positions, imported trade deals, EA version, and heartbeat timestamps sent by that installation.</p><h3>How data is used</h3><p>This information is used to display account monitoring and portfolio analytics to the authenticated owner of the linked account. No MT5 trading password is requested or stored.</p><h3>Retention and export</h3><p>Linked account data remains stored until the account is unlinked or the applicable account-retention process removes it. Contact support for a personal data export or deletion request.</p></div></section>
           </div>
         </section>
@@ -270,6 +423,9 @@
     </main>
   </div>
   <div class="overlay" id="overlay" hidden></div>
-  <script src="dashboard.js?v=20261018-7"></script>
+  <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
+  <script src="dashboard.js?v=20261018-9"></script>
+  <script src="market.js?v=20261018-1"></script>
+  <script src="feed.js?v=20261018-6"></script>
 </body>
 </html>

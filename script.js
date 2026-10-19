@@ -18,19 +18,34 @@ if (mainHeader) {
 // =========================================
 const faqItems = document.querySelectorAll(".faq-item-white, .faq-item");
 
-faqItems.forEach((item) => {
+faqItems.forEach((item, index) => {
     const button = item.querySelector(".faq-question-white, .faq-question");
+    const panel = item.querySelector(".faq-answer-white, .faq-answer");
 
-    if (button) {
-        button.addEventListener("click", () => {
-            faqItems.forEach((faq) => {
-                if (faq !== item) {
-                    faq.classList.remove("active");
-                }
-            });
-            item.classList.toggle("active");
+    if (!button) return;
+
+    // Expose the accordion pattern (WCAG 4.1.2): link each button to its panel
+    // and report expanded state. Native <button> already handles Enter/Space.
+    if (panel && !panel.id) panel.id = `faq-panel-${index + 1}`;
+    if (panel && panel.id) button.setAttribute("aria-controls", panel.id);
+    button.setAttribute("aria-expanded", String(item.classList.contains("active")));
+
+    button.addEventListener("click", () => {
+        faqItems.forEach((faq) => {
+            if (faq !== item) {
+                faq.classList.remove("active");
+            }
         });
-    }
+        item.classList.toggle("active");
+
+        // The toggle is exclusive, so every button's expanded state can change.
+        faqItems.forEach((faq) => {
+            const faqButton = faq.querySelector(".faq-question-white, .faq-question");
+            if (faqButton) {
+                faqButton.setAttribute("aria-expanded", String(faq.classList.contains("active")));
+            }
+        });
+    });
 });
 
 // =========================================

@@ -15,7 +15,7 @@
   };
   const tone = value => Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '';
   const renderStat = (label, value, note, positive = false, negative = false) => `
-    <article class="stat-card"><div class="stat-top"><span>${escapeHtml(label)}</span><span class="stat-icon">◈</span></div>
+    <article class="stat-card"><div class="stat-top"><span>${escapeHtml(label)}</span><span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span></div>
     <strong class="stat-value ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}">${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></article>`;
 
   function renderChart(snapshots, currency) {

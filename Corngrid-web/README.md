@@ -49,7 +49,17 @@ All browser endpoints below require the existing `Authorization: Bearer <JWT>` t
 - `PATCH /api/user/portfolio-sharing` with `{ "isPublic": true|false, "accountIds": [1, 2] }`
 - `POST /api/user/change-password`
 - `GET /api/downloads/:resourceId` streams an allow-listed preset or setup guide and requires the existing bearer token.
-- `GET /api/admin/overview?page=1&limit=50&search=username&visibility=public|private|all` requires an administrator token issued by the existing login endpoint.
+- `GET /api/feed?filter=latest|popular|announcements|mine&cursor=123&limit=15` returns the community feed with cursor pagination (newest first; pinned announcements lead the default view).
+- `POST /api/feed/posts` with `{ "content": "...", "imagePath": "/uploads/feed/<name>" }` (imagePath optional; the image must be uploaded first).
+- `PATCH /api/feed/posts/:id` with `{ "content": "..." }` (owner only).
+- `DELETE /api/feed/posts/:id` (owner only; soft delete).
+- `GET /api/feed/posts/:id/comments?cursor=&limit=`; `POST /api/feed/posts/:id/comments` with `{ "content": "...", "parentId": 123 }` (parentId optional, one reply level).
+- `PATCH /api/feed/comments/:id`; `DELETE /api/feed/comments/:id` (owner only).
+- `POST /api/feed/posts/:id/like` and `DELETE /api/feed/posts/:id/like` are idempotent; uniqueness is enforced by the `(user_id, post_id)` primary key.
+- `GET /api/feed/profile/:username`; `GET /api/feed/my-activity?cursor=&limit=`.
+- `POST /api/feed/reports` with `{ "targetType": "post|comment", "targetId": 1, "reason": "..." }`.
+- `POST /api/feed/uploads` streams a raw JPEG/PNG/WebP body (magic-byte validated, 5 MB cap) and returns `{ "url": "/uploads/feed/<name>" }`; files are stored under `public/uploads/feed`, which must exist at deployment and is excluded from version control.
+- Administrator-only feed routes (separate admin token): `GET|POST /api/feed/announcements`, `PATCH|DELETE /api/feed/announcements/:id`, `GET /api/feed/admin/reports`, `POST /api/feed/admin/reports/:id/resolve`, and `DELETE /api/feed/admin/content/:kind/:id`. Announcements are authored by the administrator identity (no user row), so a community post can never impersonate an official announcement.
 
 Download resource IDs are `setup-guide`, `xauusd-v260`, `xauusd-v25`, `eurusd-m1-v200`, `gbpusd-m1-v200`, and `usdjpy-m1-v200`. Files are served from the sibling `files` directory, not the public static directory. Keep this directory alongside `Corngrid-web` in deployment; the endpoint is authenticated and rate-limited.
 

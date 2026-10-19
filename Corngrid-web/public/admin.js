@@ -13,6 +13,16 @@
     })[character]);
   }
 
+  function toast(message, type = '') {
+    const region = document.getElementById('toast-region');
+    if (!region) return;
+    const item = document.createElement('div');
+    item.className = `toast ${type ? `toast-${type}` : ''}`;
+    item.textContent = message;
+    region.append(item);
+    window.setTimeout(() => item.remove(), 4500);
+  }
+
   function formatDate(value) {
     if (!value) return 'Unknown';
     const date = new Date(value);
@@ -211,24 +221,140 @@
     }
   }
 
+  // ---- Community announcements (Live Feed) ----
+  let editingAnnouncementId = null;
+
+  async function loadAnnouncements() {
+    const list = $('#admin-ann-list');
+    list.innerHTML = '<p class="table-empty">Loading announcements…</p>';
+    try {
+      const data = await api('/api/feed/announcements');
+      if (!data.announcements.length) {
+        list.innerHTML = '<p class="table-empty">No announcements published yet.</p>';
+        return;
+      }
+      list.innerHTML = data.announcements.map(item => `
+        <div class="admin-ann-item${item.isPinned ? ' is-pinned' : ''}">
+          <div class="admin-ann-head">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span class="muted small">${item.isPinned ? '📌 Pinned · ' : ''}${escapeHtml(formatDateTime(item.createdAt))}${item.updatedAt ? ' · edited' : ''}</span>
+          </div>
+          <p class="admin-ann-body">${escapeHtml(item.content)}</p>
+          <div class="admin-ann-actions">
+            <button class="button button-secondary button-small" type="button" data-ann-edit="${escapeHtml(item.id)}">Edit</button>
+            <button class="button button-secondary button-small" type="button" data-ann-pin="${escapeHtml(item.id)}" data-pinned="${item.isPinned ? '1' : '0'}">${item.isPinned ? 'Unpin' : 'Pin'}</button>
+            <button class="button button-secondary button-small" type="button" data-ann-delete="${escapeHtml(item.id)}">Delete</button>
+          </div>
+        </div>`).join('');
+    } catch (error) {
+      list.innerHTML = `<p class="table-empty">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  function resetAnnouncementForm() {
+    editingAnnouncementId = null;
+    $('#admin-ann-form').reset();
+    $('#admin-ann-form-title').textContent = 'New announcement';
+    $('#admin-ann-submit').textContent = 'Publish announcement';
+    $('#admin-ann-cancel').hidden = true;
+  }
+
+  $('#admin-ann-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const title = $('#admin-ann-title').value.trim();
+    const content = $('#admin-ann-content').value.trim();
+    if (!title || !content) return toast('Title and message are both required.', 'error');
+    const submit = $('#admin-ann-submit');
+    if (submit.disabled) return;
+    submit.disabled = true;
+    const original = submit.textContent;
+    submit.textContent = editingAnnouncementId ? 'Saving…' : 'Publishing…';
+    try {
+      const body = JSON.stringify({ title, content, isPinned: $('#admin-ann-pin').checked });
+      if (editingAnnouncementId != null) {
+        await api(`/api/feed/announcements/${encodeURIComponent(editingAnnouncementId)}`, { method: 'PATCH', body });
+        toast('Announcement updated.', 'success');
+      } else {
+        await api('/api/feed/announcements', { method: 'POST', body });
+        toast('Announcement published.', 'success');
+      }
+      resetAnnouncementForm();
+      loadAnnouncements();
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = original;
+    }
+  });
+
+  $('#admin-ann-cancel').addEventListener('click', resetAnnouncementForm);
+  $('#admin-ann-refresh').addEventListener('click', loadAnnouncements);
+
+  $('#admin-ann-list').addEventListener('click', async event => {
+    const editButton = event.target.closest('[data-ann-edit]');
+    const pinButton = event.target.closest('[data-ann-pin]');
+    const deleteButton = event.target.closest('[data-ann-delete]');
+    try {
+      if (editButton) {
+        const data = await api('/api/feed/announcements');
+        const item = data.announcements.find(entry => String(entry.id) === editButton.dataset.annEdit);
+        if (!item) return;
+        editingAnnouncementId = item.id;
+        $('#admin-ann-title').value = item.title;
+        $('#admin-ann-content').value = item.content;
+        $('#admin-ann-pin').checked = item.isPinned;
+        $('#admin-ann-form-title').textContent = 'Edit announcement';
+        $('#admin-ann-submit').textContent = 'Save changes';
+        $('#admin-ann-cancel').hidden = false;
+        $('#admin-ann-title').focus();
+        return;
+      }
+      if (pinButton) {
+        const nextPinned = pinButton.dataset.pinned !== '1';
+        await api(`/api/feed/announcements/${encodeURIComponent(pinButton.dataset.annPin)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ isPinned: nextPinned })
+        });
+        toast(nextPinned ? 'Announcement pinned.' : 'Announcement unpinned.', 'success');
+        loadAnnouncements();
+        return;
+      }
+      if (deleteButton) {
+        if (!window.confirm('Remove this announcement from the Live Feed?')) return;
+        await api(`/api/feed/announcements/${encodeURIComponent(deleteButton.dataset.annDelete)}`, { method: 'DELETE' });
+        toast('Announcement removed.', 'success');
+        loadAnnouncements();
+      }
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  });
+
   function showAdminPage(name) {
-    const support = name === 'support';
-    $('#overview').hidden = support;
-    $('#support').hidden = !support;
-    $('#overview').classList.toggle('is-visible', !support);
-    $('#support').classList.toggle('is-visible', support);
+    const pages = ['overview', 'support', 'announcements'];
+    const active = pages.includes(name) ? name : 'overview';
+    pages.forEach(pageName => {
+      const section = document.getElementById(pageName);
+      if (!section) return;
+      section.hidden = pageName !== active;
+      section.classList.toggle('is-visible', pageName === active);
+    });
     $$('[data-admin-page]').forEach(link => {
-      link.classList.toggle('is-active', link.dataset.adminPage === name);
-      if (link.dataset.adminPage === name) link.setAttribute('aria-current', 'page');
+      link.classList.toggle('is-active', link.dataset.adminPage === active);
+      if (link.dataset.adminPage === active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    $('#admin-breadcrumb-page').textContent = support ? 'Support' : 'Overview';
-    if (support) loadSupportConversations();
+    const labels = { overview: 'Overview', support: 'Support', announcements: 'Announcements' };
+    $('#admin-breadcrumb-page').textContent = labels[active];
+    if (active === 'support') loadSupportConversations();
+    if (active === 'announcements') loadAnnouncements();
   }
 
   $('#admin-refresh').addEventListener('click', () => {
-    if ($('#support').hidden) loadOverview();
-    else loadSupportConversations();
+    if (!$('#support').hidden) loadSupportConversations();
+    else if (!$('#announcements').hidden) loadAnnouncements();
+    else loadOverview();
   });
   $$('[data-admin-page]').forEach(link => link.addEventListener('click', event => {
     event.preventDefault();
@@ -343,7 +469,10 @@
       $('#admin-support-form').requestSubmit();
     }
   });
-  window.addEventListener('hashchange', () => showAdminPage(location.hash === '#support' ? 'support' : 'overview'));
+  window.addEventListener('hashchange', () => {
+    const hash = location.hash.replace('#', '');
+    showAdminPage(['support', 'announcements'].includes(hash) ? hash : 'overview');
+  });
   window.setInterval(() => {
     if (!document.hidden && !$('#support').hidden) {
       if (selectedSupportUserId) loadSupportMessages(selectedSupportUserId);
@@ -354,5 +483,6 @@
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
   if (location.hash === '#support') showAdminPage('support');
+  else if (location.hash === '#announcements') showAdminPage('announcements');
   loadOverview();
 })();

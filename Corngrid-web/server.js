@@ -9,6 +9,8 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const ROOT_DIR = path.join(__dirname, '..');
 const registerMt5Api = require('./mt5-api');
+const registerMarketApi = require('./market-api');
+const registerFeedApi = require('./feed-api');
 const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
@@ -82,6 +84,8 @@ app.use('/download', express.static(path.join(ROOT_DIR, 'download')));
 app.use('/files', express.static(path.join(ROOT_DIR, 'files')));
 app.use('/video', express.static(path.join(ROOT_DIR, 'video')));
 app.use('/images', express.static(path.join(ROOT_DIR, 'images')));
+// Community feed uploads (written by feed-api.js with validated random filenames).
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Connect to the SQLite database
 const db = new sqlite3.Database(DATABASE_PATH, (err) => {
@@ -152,6 +156,8 @@ const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
 registerMt5Api(app, db, verifyToken);
 registerChatApi(app, db, verifyToken);
+registerMarketApi(app, db, verifyToken);
+registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
 registerAdminApi(
   app,
   db,

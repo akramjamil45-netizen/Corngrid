@@ -15,3 +15,6 @@ Corngrid-web/source/
 *.sqlite-wal
 *.sqlite-shm
 
+# Community feed image uploads (runtime user content)
+/public/uploads/feed/
+

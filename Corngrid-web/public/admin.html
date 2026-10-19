@@ -14,8 +14,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261017-6">
-  <link rel="stylesheet" href="admin.css">
-  <script src="admin.js" defer></script>
+  <link rel="stylesheet" href="admin.css?v=20261018-1">
+  <script src="admin.js?v=20261018-1" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -28,6 +28,7 @@
       <nav class="main-nav" aria-label="Administrator navigation">
         <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
         <a class="nav-item admin-nav-link" href="#support" data-admin-page="support"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>Support <span class="admin-unread-badge" id="admin-support-unread" hidden>0</span></a>
+        <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot"></span><span>Administrator access</span></div>
@@ -79,6 +80,29 @@
             </section>
           </div>
         </section>
+
+        <section class="page" id="announcements" hidden>
+          <div class="page-heading"><div><p class="eyebrow">COMMUNITY BROADCAST</p><h1>Announcements</h1><p class="muted">Publish official notices that appear pinned at the top of the community Live Feed.</p></div></div>
+          <div class="admin-ann-layout">
+            <section class="panel admin-ann-composer">
+              <div class="panel-header"><div><p class="eyebrow">COMPOSER</p><h2 id="admin-ann-form-title">New announcement</h2></div></div>
+              <form id="admin-ann-form" class="settings-form">
+                <label>Title<input class="input-control" id="admin-ann-title" type="text" maxlength="140" placeholder="e.g. CornGrid EA v2.70 released" required></label>
+                <label>Message<textarea class="input-control" id="admin-ann-content" maxlength="8000" rows="6" placeholder="Write the announcement body…" required></textarea></label>
+                <label class="admin-ann-pin"><input type="checkbox" id="admin-ann-pin"> Pin to top of feed</label>
+                <div class="admin-ann-actions">
+                  <button class="button button-secondary" type="button" id="admin-ann-cancel" hidden>Cancel edit</button>
+                  <button class="button button-primary" type="submit" id="admin-ann-submit">Publish announcement</button>
+                </div>
+              </form>
+            </section>
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">PUBLISHED</p><h2>Existing announcements</h2></div><button class="button button-small" id="admin-ann-refresh" type="button">Refresh</button></div>
+              <div class="admin-ann-list" id="admin-ann-list" aria-live="polite"><p class="table-empty">Loading announcements…</p></div>
+            </section>
+          </div>
+        </section>
+        <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
       </div>
     </main>
   </div>
