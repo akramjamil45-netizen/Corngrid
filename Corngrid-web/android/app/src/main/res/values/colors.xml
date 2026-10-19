@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CornGrid brand palette (mirrors the site's cg custom properties). -->
+    <color name="cg_background">#080A0F</color>
+    <color name="cg_surface">#161616</color>
+    <color name="cg_border">#262626</color>
+    <color name="cg_text">#FFFFFF</color>
+    <color name="cg_text_muted">#A6A6A6</color>
+    <color name="cg_gold">#FFD400</color>
+    <color name="cg_on_gold">#111111</color>
+
+    <!-- App theme colors (override the values shipped in capacitor-android). -->
+    <color name="colorPrimary">#FFD400</color>
+    <color name="colorPrimaryDark">#080A0F</color>
+    <color name="colorAccent">#FFD400</color>
+</resources>

@@ -1,0 +1,40 @@
+{
+  "appId": "com.corngrid.app",
+  "appName": "CornGrid",
+  "webDir": "web-app-shell",
+  "server": {
+    "url": "https://corngrid.com/login",
+    "cleartext": false,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "corngrid.com",
+      "*.corngrid.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#080a0f",
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "loggingBehavior": "none"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#080a0f",
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "showSpinner": false,
+      "androidSplashResourceName": "splash"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#080a0f"
+    },
+    "SystemBars": {
+      "style": "DARK"
+    },
+    "App": {
+      "disableBackButtonHandler": true
+    }
+  }
+}

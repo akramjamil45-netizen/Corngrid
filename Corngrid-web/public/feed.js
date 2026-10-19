@@ -114,9 +114,9 @@
         <div class="feed-card-content">${escapeHtml(post.content).replace(/\n/g, '<br>')}</div>
         ${image}
         <div class="feed-card-actions">
-          <button type="button" class="feed-action${post.likedByMe ? ' is-active' : ''}" data-feed-like="${escapeHtml(post.id)}" aria-pressed="${post.likedByMe ? 'true' : 'false'}">♥ <span data-like-count="${escapeHtml(post.id)}">${escapeHtml(post.likeCount)}</span></button>
-          <button type="button" class="feed-action" data-feed-comments="${escapeHtml(post.id)}">💬 <span data-comment-count="${escapeHtml(post.id)}">${escapeHtml(post.commentCount)}</span></button>
-          <button type="button" class="feed-action" data-feed-copy="${escapeHtml(post.id)}" title="Copy link to this post">🔗 Link</button>
+          <button type="button" class="feed-action${post.likedByMe ? ' is-active' : ''}" data-feed-like="${escapeHtml(post.id)}" aria-pressed="${post.likedByMe ? 'true' : 'false'}" aria-label="Like this post"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> <span data-like-count="${escapeHtml(post.id)}">${escapeHtml(post.likeCount)}</span></button>
+          <button type="button" class="feed-action" data-feed-comments="${escapeHtml(post.id)}" aria-label="View comments"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> <span data-comment-count="${escapeHtml(post.id)}">${escapeHtml(post.commentCount)}</span></button>
+          <button type="button" class="feed-action" data-feed-copy="${escapeHtml(post.id)}" title="Copy link to this post" aria-label="Copy link to this post"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6a5 5 0 0 1 0-10h3"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Link</button>
           ${menu}
         </div>
         <div class="feed-comments" data-comments-for="${escapeHtml(post.id)}" hidden></div>

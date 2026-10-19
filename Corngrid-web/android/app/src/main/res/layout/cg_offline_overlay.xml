@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen branded overlay shown when the device is offline or corngrid.com
+     cannot be reached. Added above the WebView by MainActivity. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cg_offline_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/cg_background"
+    android:clickable="true"
+    android:focusable="true"
+    android:padding="32dp">
+
+    <ImageView
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="@string/app_name" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/cg_offline_title"
+        android:textColor="@color/cg_text"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/cg_offline_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:text="@string/cg_offline_no_network"
+        android:textColor="@color/cg_text_muted"
+        android:textSize="15sp" />
+
+    <Button
+        android:id="@+id/cg_offline_retry"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:backgroundTint="@color/cg_gold"
+        android:elevation="0dp"
+        android:text="@string/cg_offline_retry"
+        android:textAllCaps="false"
+        android:textColor="@color/cg_on_gold"
+        android:textStyle="bold" />
+
+</LinearLayout>

@@ -3,3 +3,9 @@ node_modules/
 source/
 *.mq5
 Corngrid@ v37.mq5
+
+# Android signing material (never commit)
+*.jks
+*.keystore
+keystore.properties
+android/app/keystore.properties

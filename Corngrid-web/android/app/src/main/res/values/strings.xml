@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CornGrid</string>
+    <string name="title_activity_main">CornGrid</string>
+    <string name="package_name">com.corngrid.app</string>
+    <string name="custom_url_scheme">com.corngrid.app</string>
+    <string name="cg_offline_title">You\u2019re offline</string>
+    <string name="cg_offline_no_network">No internet connection. Check your network and try again.</string>
+    <string name="cg_offline_server">CornGrid can\u2019t be reached right now. The server may be temporarily unavailable.</string>
+    <string name="cg_offline_http_error">CornGrid returned an error (HTTP %1$d). Please try again shortly.</string>
+    <string name="cg_offline_retry">Try again</string>
+    <string name="cg_download_started">Download started</string>
+    <string name="cg_download_failed">Download could not be started</string>
+    <string name="cg_file_saved">Saved %1$s to Downloads</string>
+    <string name="cg_file_save_failed">The file could not be saved</string>
+    <string name="cg_render_gone">CornGrid needs to restart.</string>
+</resources>

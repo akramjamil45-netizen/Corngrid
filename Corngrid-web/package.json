@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test",
-    "start": "node server.js"
+    "start": "node server.js",
+    "gen:android-assets": "node scripts/generate-android-assets.mjs"
   },
   "engines": {
     "node": ">=20.17.0"
@@ -14,6 +15,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.8",
@@ -22,5 +31,8 @@
     "lightweight-charts": "^4.2.3",
     "nodemailer": "^10.1.2",
     "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

@@ -1100,6 +1100,8 @@ td { font-size: 13px; }
 .feed-edited { color: var(--subtle); }
 .feed-card-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .feed-action { padding: 6px 11px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.feed-action-icon { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; flex: 0 0 auto; }
+.feed-image-label .feed-action-icon, #feed-composer-image-remove .feed-action-icon { width: 15px; height: 15px; vertical-align: -3px; }
 .feed-action:hover { background: var(--surface-raised); color: var(--text); }
 .feed-action.is-active { color: var(--red); background: rgba(255,115,125,.1); }
 .feed-card-menu { margin-left: auto; display: flex; gap: 6px; }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080a0f">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>CornGrid | Trading Dashboard</title>
@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261018-16">
+  <link rel="stylesheet" href="dashboard.css?v=20261018-17">
 </head>
 <body>
   <div class="app-shell">
@@ -24,15 +24,15 @@
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="main-nav" aria-label="Main navigation">
-        <button class="nav-item is-active" data-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
-        <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
-        <button class="nav-item" data-page="positions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17 9 12l4 3 7-8"/><path d="M14 7h6v6"/></svg></span>Open Positions</button>
-        <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
-        <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
-        <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
-        <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
-        <button class="nav-item" data-page="market"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4.5" y="7" width="5" height="10" rx="1"/><path d="M7 4v3M7 17v3"/><rect x="14.5" y="9.5" width="5" height="7" rx="1"/><path d="M17 6.5v3M17 16.5v3"/></svg></span>Market Overview</button>
         <button class="nav-item" data-page="feed"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg></span>Live Feed</button>
+        <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
+        <button class="nav-item is-active" data-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
+        <button class="nav-item" data-page="market"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4.5" y="7" width="5" height="10" rx="1"/><path d="M7 4v3M7 17v3"/><rect x="14.5" y="9.5" width="5" height="7" rx="1"/><path d="M17 6.5v3M17 16.5v3"/></svg></span>Market Overview</button>
+        <button class="nav-item" data-page="positions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17 9 12l4 3 7-8"/><path d="M14 7h6v6"/></svg></span>Open Positions</button>
+        <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
+        <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
+        <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
+        <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot status-dot-muted"></span><span id="sidebar-connection">No EA data yet</span></div>
@@ -340,11 +340,11 @@
                 </div>
                 <div class="feed-composer-image" id="feed-composer-image" hidden>
                   <img id="feed-composer-image-preview" alt="Selected upload preview">
-                  <button type="button" class="button button-secondary button-small" id="feed-composer-image-remove">✕ Remove</button>
+                  <button type="button" class="button button-secondary button-small" id="feed-composer-image-remove"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Remove</button>
                 </div>
                 <div class="feed-composer-actions">
                   <div class="feed-composer-tools">
-                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file">🖼 Add image</label>
+                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Add image</label>
                     <input type="file" id="feed-composer-file" accept="image/jpeg,image/png,image/webp" hidden>
                     <span class="feed-char-count muted small" id="feed-char-count">0 / 4000</span>
                   </div>
@@ -426,6 +426,6 @@
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="dashboard.js?v=20261018-9"></script>
   <script src="market.js?v=20261018-1"></script>
-  <script src="feed.js?v=20261018-6"></script>
+  <script src="feed.js?v=20261018-7"></script>
 </body>
 </html>
