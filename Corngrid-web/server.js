@@ -10,6 +10,7 @@ const fs = require('fs');
 const ROOT_DIR = path.join(__dirname, '..');
 const registerMt5Api = require('./mt5-api');
 const registerMarketApi = require('./market-api');
+const createMarketFeed = require('./market-feed');
 const registerFeedApi = require('./feed-api');
 const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
@@ -154,9 +155,11 @@ db.run(`
 
 const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
-registerMt5Api(app, db, verifyToken);
+const { authenticateInstallation } = registerMt5Api(app, db, verifyToken);
 registerChatApi(app, db, verifyToken);
-registerMarketApi(app, db, verifyToken);
+const marketFeed = createMarketFeed({ db, symbols: registerMarketApi.SYMBOLS });
+marketFeed.registerRoutes(app, { verifyToken, authenticateInstallation });
+registerMarketApi(app, db, verifyToken, marketFeed);
 registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
 registerAdminApi(
   app,

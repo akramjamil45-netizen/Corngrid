@@ -222,8 +222,13 @@ function rateLimiter({ limit, windowMs }) {
   };
 }
 
-function registerMarketApi(app, db, verifyToken) {
+// `feed` (market-feed.js) is optional; without it the legacy external-provider behavior is unchanged.
+function registerMarketApi(app, db, verifyToken, feed = null) {
   const market = createMarketData({ apiKey: process.env.TWELVE_DATA_API_KEY });
+  const fallbackSource = { kind: 'fallback', label: `${market.label} (external fallback, not CornGrid EA)` };
+  const eaUsable = view => Boolean(view && view.bid != null && (view.state === 'LIVE' || view.state === 'DELAYED'));
+  const feedUnavailable = { error: 'No trustworthy market feed is available. CornGrid EA is not publishing and no fallback is enabled.', state: 'OFFLINE' };
+  const feedLabel = id => `CornGrid EA broker feed (${id})`;
   const cache = createCandleCache();
   const marketReadLimit = rateLimiter({ limit: 30, windowMs: 60_000 });
 
@@ -249,6 +254,44 @@ function registerMarketApi(app, db, verifyToken) {
     }
     const cacheKey = `summary:${market.name}:${symbolKey}`;
     try {
+      if (feed) {
+        const view = await feed.currentView(symbolKey, typeof req.query.feed === 'string' ? req.query.feed : '');
+        if (view && (eaUsable(view) || !feed.config.fallbackEnabled)) {
+          const stats = view.bid != null ? await feed.dayStats(view.feed.id, symbolKey) : null;
+          const change = stats && stats.previousClose != null ? view.bid - stats.previousClose : null;
+          return res.json({
+            symbol: symbolKey,
+            label: SYMBOLS[symbolKey].label,
+            price: view.bid,
+            bid: view.bid,
+            ask: view.ask,
+            spread: view.spread == null ? null : view.spread,
+            spreadPoints: view.spreadPoints == null ? null : view.spreadPoints,
+            digits: view.digits == null ? null : view.digits,
+            change,
+            changePercent: change != null && stats.previousClose ? (change / stats.previousClose) * 100 : null,
+            dayOpen: stats ? stats.dayOpen : null,
+            dayHigh: stats ? stats.dayHigh : null,
+            dayLow: stats ? stats.dayLow : null,
+            previousClose: stats ? stats.previousClose : null,
+            lastUpdate: view.receivedAt || null,
+            tickTime: view.tickTime || null,
+            provider: 'CornGrid EA',
+            source: { ...view.source, feed: view.feed.id, label: feedLabel(view.feed.id) },
+            state: view.state,
+            quiet: view.quiet,
+            ageMs: view.ageMs,
+            limits: view.limits,
+            rev: view.rev,
+            serverUtcOffsetSec: view.serverUtcOffsetSec ?? null,
+            brokerSymbol: view.brokerSymbol || null,
+            attribution: `Prices from the CornGrid EA broker feed (${view.feed.id}). Broker quotes are indicative; faster updates are not a guarantee of zero latency.`,
+            dataStatus: view.state,
+            instrumentNote: null
+          });
+        }
+        if (!feed.config.fallbackEnabled) return res.status(503).json(feedUnavailable);
+      }
       const cached = cache.get(cacheKey);
       if (cached) return res.json(cached);
       const { candles, instrumentNote } = await market.fetchCandles(symbolKey, '1d', 30);
@@ -274,7 +317,8 @@ function registerMarketApi(app, db, verifyToken) {
         provider: market.label,
         attribution: market.attribution,
         dataStatus: market.dataStatus,
-        instrumentNote
+        instrumentNote,
+        ...(feed ? { source: fallbackSource, state: 'FALLBACK' } : {})
       };
       cache.set(cacheKey, payload, 60_000);
       return res.json(payload);
@@ -299,6 +343,36 @@ function registerMarketApi(app, db, verifyToken) {
     const outputsize = Number.isSafeInteger(requested) ? Math.min(1000, Math.max(20, requested)) : 500;
     const cacheKey = `candles:${market.name}:${symbolKey}:${intervalKey}:${outputsize}`;
     try {
+      if (feed) {
+        const view = await feed.currentView(symbolKey, typeof req.query.feed === 'string' ? req.query.feed : '');
+        const eaCandles = view ? await feed.getCandles(view.feed.id, symbolKey, intervalKey, outputsize) : [];
+        if (eaCandles.length && (eaUsable(view) || !feed.config.fallbackEnabled)) {
+          const updatedAt = await feed.lastCandleUpdate(view.feed.id, symbolKey, intervalKey);
+          return res.json({
+            symbol: symbolKey,
+            interval: intervalKey,
+            candles: eaCandles,
+            provider: 'CornGrid EA',
+            source: { ...view.source, feed: view.feed.id, label: feedLabel(view.feed.id) },
+            state: view.state,
+            volumeKind: 'tick',
+            timeBasis: 'broker-server',
+            serverUtcOffsetSec: view.serverUtcOffsetSec ?? null,
+            attribution: `Candles from the CornGrid EA broker feed (${view.feed.id}); chart times are broker server time, as on the MT5 chart. History is limited to what the EA has transmitted.`,
+            dataStatus: view.state,
+            instrumentNote: null,
+            lastUpdate: updatedAt ? new Date(updatedAt).toISOString() : null
+          });
+        }
+        if (!feed.config.fallbackEnabled) {
+          return res.status(503).json({
+            ...feedUnavailable,
+            error: view
+              ? 'CornGrid EA has not transmitted candles for this symbol and timeframe yet.'
+              : feedUnavailable.error
+          });
+        }
+      }
       const cached = cache.get(cacheKey);
       if (cached) return res.json(cached);
       const { candles, instrumentNote } = await market.fetchCandles(symbolKey, intervalKey, outputsize);
@@ -313,7 +387,8 @@ function registerMarketApi(app, db, verifyToken) {
         attribution: market.attribution,
         dataStatus: market.dataStatus,
         instrumentNote,
-        lastUpdate: new Date().toISOString()
+        lastUpdate: new Date().toISOString(),
+        ...(feed ? { source: fallbackSource, state: 'FALLBACK' } : {})
       };
       cache.set(cacheKey, payload, INTERVALS[intervalKey].ttlMs);
       return res.json(payload);

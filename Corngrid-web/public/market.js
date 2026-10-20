@@ -4,7 +4,21 @@
   const API = '/api';
   const SYMBOL_LABELS = { XAUUSD: 'Gold / US Dollar', EURUSD: 'Euro / US Dollar', GBPUSD: 'British Pound / US Dollar', USDJPY: 'US Dollar / Japanese Yen' };
   const DECIMALS = { XAUUSD: 2, EURUSD: 5, GBPUSD: 5, USDJPY: 3 };
+  const TF_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
+  const STATE_CLASS = { LIVE: 'pill-live', DELAYED: 'pill-delayed', STALE: 'pill-stale', OFFLINE: 'pill-offline', FALLBACK: 'pill-fallback' };
+  const STATE_RANK = { LIVE: 3, DELAYED: 2, STALE: 1, OFFLINE: 0 };
   const state = {
+    pageOpen: false,
+    hovering: false,
+    candleSource: null,
+    stats: null,
+    live: {
+      source: null, feed: null, bid: null, ask: null, spread: null, spreadPoints: null, digits: null,
+      state: 'OFFLINE', quiet: false, anchor: 0, receivedMs: 0, rev: 0, tickTime: null, limits: null,
+      es: null, pollTimer: null, guardTimer: null, polling: false, message: ''
+    },
+    watchdogTimer: null,
+    watchdogTicks: 0,
     symbol: 'XAUUSD',
     interval: '1h',
     chart: null,
@@ -49,11 +63,19 @@
     if (response.status === 401 || response.status === 403) {
       throw new Error('Your session has expired. Please sign in again.');
     }
-    if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
+    if (!response.ok) {
+      const failure = new Error(data.error || 'The request could not be completed.');
+      failure.data = data;
+      throw failure;
+    }
     return data;
   }
 
-  function decimals() { return DECIMALS[state.symbol] ?? 2; }
+  function decimals() {
+    const live = state.live;
+    if (live.source === 'corngrid-ea' && Number.isInteger(live.digits)) return live.digits;
+    return DECIMALS[state.symbol] ?? 2;
+  }
   function formatPrice(value) {
     if (!Number.isFinite(value)) return 'N/A';
     return new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals(), maximumFractionDigits: decimals() }).format(value);
@@ -113,6 +135,7 @@
     // OHLC legend follows the crosshair; falls back to the latest candle.
     state.chart.subscribeCrosshairMove(param => {
       const value = param && param.seriesData && param.seriesData.get(state.candleSeries);
+      state.hovering = Boolean(value);
       renderOhlc(value || state.lastCandle || null);
     });
     // Overlay layer for trend lines (lightweight-charts has no built-in trend drawing).
@@ -230,37 +253,269 @@
   }
 
 
-  async function loadSummary() {
-    try {
-      const summary = await request(`/market/summary?symbol=${encodeURIComponent(state.symbol)}`);
-      state.summary = summary;
-      $('market-price').textContent = formatPrice(summary.price);
-      const changeEl = $('market-change');
-      const sign = summary.change >= 0 ? '+' : '';
-      changeEl.textContent = `${sign}${formatPrice(summary.change)} (${sign}${summary.changePercent.toFixed(2)}%)`;
-      changeEl.className = `market-change ${summary.change >= 0 ? 'positive' : 'negative'}`;
-      $('market-quote-symbol').textContent = summary.symbol;
-      $('market-quote-label').textContent = summary.label;
-      $('info-open').textContent = formatPrice(summary.dayOpen);
-      $('info-high').textContent = formatPrice(summary.dayHigh);
-      $('info-low').textContent = formatPrice(summary.dayLow);
-      $('info-close').textContent = formatPrice(summary.price);
-      $('info-prev-close').textContent = formatPrice(summary.previousClose);
-      const infoChange = $('info-change');
-      infoChange.textContent = `${sign}${formatPrice(summary.change)} (${sign}${summary.changePercent.toFixed(2)}%)`;
-      infoChange.className = summary.change >= 0 ? 'positive' : 'negative';
-      $('market-data-status').textContent = `${summary.dataStatus} · ${summary.provider}`;
-      $('market-data-status').className = 'pill pill-muted';
-      $('market-last-update').textContent = `Last update: ${new Date(summary.lastUpdate).toLocaleString()}`;
-      $('market-attribution').textContent = summary.attribution;
-      const note = $('market-instrument-note');
-      if (summary.instrumentNote) { note.textContent = summary.instrumentNote; note.hidden = false; }
-      else note.hidden = true;
-    } catch (error) {
-      $('market-data-status').textContent = 'Unavailable';
-      $('market-data-status').className = 'pill pill-offline';
-      if (state.loaded) toast(error.message, 'error');
+  // Connection state shown to the user: server state, downgraded locally if updates stop arriving.
+  function localState() {
+    const live = state.live;
+    if (live.source !== 'corngrid-ea') return live.state;
+    const limits = live.limits || { liveSeconds: 10, delayedSeconds: 30, staleSeconds: 120 };
+    const age = (Date.now() - live.anchor) / 1000;
+    const byAge = age <= limits.liveSeconds ? 'LIVE' : age <= limits.delayedSeconds ? 'DELAYED' : age <= limits.staleSeconds ? 'STALE' : 'OFFLINE';
+    return STATE_RANK[byAge] < STATE_RANK[live.state] ? byAge : live.state;
+  }
+
+  function setConnState(name, detail) {
+    const pill = $('market-data-status');
+    pill.textContent = detail ? `${name} · ${detail}` : name;
+    pill.className = `pill ${STATE_CLASS[name] || 'pill-muted'}`;
+  }
+
+  function renderChange(change, percent) {
+    const text = change == null ? 'N/A' : `${change >= 0 ? '+' : ''}${formatPrice(change)}${percent == null ? '' : ` (${change >= 0 ? '+' : ''}${percent.toFixed(2)}%)`}`;
+    const tone = change == null ? '' : change >= 0 ? 'positive' : 'negative';
+    $('market-change').textContent = change == null ? '—' : text;
+    $('market-change').className = `market-change ${tone}`;
+    $('info-change').textContent = text;
+    $('info-change').className = tone;
+  }
+
+  function renderLive() {
+    const live = state.live;
+    if (live.source !== 'corngrid-ea') return;
+    const current = localState();
+    const usable = current === 'LIVE' || current === 'DELAYED';
+    const fmt = value => (value == null ? '—' : formatPrice(value));
+    const spreadText = live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—';
+    $('market-price').textContent = fmt(live.bid);
+    $('market-price').classList.toggle('muted', !usable);
+    $('market-quote-meta').textContent = `Bid ${fmt(live.bid)} · Ask ${fmt(live.ask)} · Spread ${spreadText}`;
+    $('info-bid').textContent = fmt(live.bid);
+    $('info-ask').textContent = fmt(live.ask);
+    $('info-spread').textContent = spreadText;
+    $('info-close').textContent = fmt(live.bid);
+    const prev = state.stats && state.stats.previousClose;
+    if (live.bid != null && prev) renderChange(live.bid - prev, ((live.bid - prev) / prev) * 100);
+    else renderChange(null, null);
+    const detail = current === 'LIVE' && live.quiet ? 'no new ticks (market quiet?)' : current === 'OFFLINE' ? 'CornGrid EA not publishing' : current === 'STALE' ? 'prices are old' : '';
+    setConnState(current, detail);
+    $('market-source').textContent = `Source: CornGrid EA broker feed${live.feed ? ` (${live.feed})` : ''}${live.brokerSymbol ? ` · ${live.brokerSymbol}` : ''}`;
+    const received = live.receivedMs ? new Date(live.receivedMs).toLocaleTimeString() : 'N/A';
+    const age = live.anchor ? Math.max(0, Math.round((Date.now() - live.anchor) / 1000)) : null;
+    $('market-last-update').textContent = `Last update: ${received}${age == null ? '' : ` (${age}s ago)`}${live.tickTime ? ` · last tick ${new Date(live.tickTime).toLocaleTimeString()}` : ''}`;
+  }
+
+  function applySummary(summary) {
+    state.summary = summary;
+    const live = state.live;
+    state.stats = { previousClose: summary.previousClose, dayOpen: summary.dayOpen, dayHigh: summary.dayHigh, dayLow: summary.dayLow };
+    $('market-quote-symbol').textContent = summary.symbol;
+    $('market-quote-label').textContent = summary.label;
+    $('info-open').textContent = summary.dayOpen == null ? 'N/A' : formatPrice(summary.dayOpen);
+    $('info-high').textContent = summary.dayHigh == null ? 'N/A' : formatPrice(summary.dayHigh);
+    $('info-low').textContent = summary.dayLow == null ? 'N/A' : formatPrice(summary.dayLow);
+    $('info-prev-close').textContent = summary.previousClose == null ? 'N/A' : formatPrice(summary.previousClose);
+    $('market-attribution').textContent = summary.attribution || '';
+    const note = $('market-instrument-note');
+    if (summary.instrumentNote) { note.textContent = summary.instrumentNote; note.hidden = false; }
+    else note.hidden = true;
+
+    if (summary.source && summary.source.kind === 'corngrid-ea') {
+      Object.assign(live, {
+        source: 'corngrid-ea', feed: summary.source.feed, brokerSymbol: summary.brokerSymbol,
+        bid: summary.bid, ask: summary.ask, spread: summary.spread, spreadPoints: summary.spreadPoints, digits: summary.digits,
+        state: summary.state, quiet: Boolean(summary.quiet), limits: summary.limits,
+        anchor: Date.now() - (summary.ageMs || 0), receivedMs: summary.lastUpdate ? Date.parse(summary.lastUpdate) : 0,
+        rev: summary.rev || 0, tickTime: summary.tickTime, offset: summary.serverUtcOffsetSec
+      });
+      renderLive();
+      return;
     }
+    // Fallback provider data: always labeled, never presented as the CornGrid EA broker feed.
+    stopLive();
+    Object.assign(live, { source: 'fallback', state: 'FALLBACK', bid: null, ask: null, feed: null });
+    $('market-price').textContent = formatPrice(summary.price);
+    $('market-price').classList.remove('muted');
+    $('market-quote-meta').textContent = 'Bid/Ask not available from the fallback provider';
+    $('info-bid').textContent = 'N/A';
+    $('info-ask').textContent = 'N/A';
+    $('info-spread').textContent = 'N/A';
+    $('info-close').textContent = formatPrice(summary.price);
+    renderChange(summary.change, summary.changePercent);
+    setConnState('FALLBACK', summary.provider || 'external provider');
+    $('market-source').textContent = `Source: ${summary.source ? summary.source.label : (summary.provider || 'external provider')} — not the CornGrid EA broker feed`;
+    $('market-last-update').textContent = `Last update: ${summary.lastUpdate ? new Date(summary.lastUpdate).toLocaleString() : 'N/A'}`;
+  }
+
+  async function loadSummary(silent = false) {
+    const symbol = state.symbol;
+    try {
+      const summary = await request(`/market/summary?symbol=${encodeURIComponent(symbol)}`);
+      if (symbol !== state.symbol) return;
+      applySummary(summary);
+      if (summary.source && summary.source.kind === 'corngrid-ea') startLive();
+    } catch (error) {
+      if (symbol !== state.symbol) return;
+      const live = state.live;
+      const unavailable = error.data && error.data.state === 'OFFLINE';
+      // A transient error must not wipe an EA feed that is still streaming.
+      if (!unavailable && live.source === 'corngrid-ea') {
+        if (!silent && state.loaded) toast(error.message, 'error');
+        return;
+      }
+      Object.assign(live, { source: unavailable ? 'none' : live.source, state: 'OFFLINE', bid: null, ask: null });
+      stopLive();
+      $('market-price').textContent = '—';
+      $('market-quote-meta').textContent = 'Bid — · Ask — · Spread —';
+      renderChange(null, null);
+      setConnState('OFFLINE', unavailable ? 'no feed' : 'unavailable');
+      $('market-source').textContent = unavailable ? 'Source: none — CornGrid EA is not publishing and no fallback is enabled.' : `Source: unavailable (${error.message})`;
+      $('market-last-update').textContent = 'Last update: N/A';
+      if (!silent && state.loaded && !unavailable) toast(error.message, 'error');
+    }
+  }
+
+  // ---- live updates: Server-Sent Events first, HTTP polling when streaming is unavailable ----
+  function stopLive() {
+    const live = state.live;
+    if (live.es) { live.es.close(); live.es = null; }
+    if (live.pollTimer) { clearInterval(live.pollTimer); live.pollTimer = null; }
+    if (live.guardTimer) { clearTimeout(live.guardTimer); live.guardTimer = null; }
+    live.polling = false;
+  }
+
+  function startPolling() {
+    const live = state.live;
+    if (live.pollTimer) return;
+    const symbol = state.symbol;
+    const pollOnce = async () => {
+      if (live.polling || document.hidden || symbol !== state.symbol) return;
+      live.polling = true;
+      try {
+        const data = await request(`/market/quote?symbol=${encodeURIComponent(symbol)}`);
+        if (data.quote) applyQuote(data.quote);
+      } catch { /* the watchdog downgrades the state if updates stop */ }
+      live.polling = false;
+    };
+    live.pollTimer = setInterval(pollOnce, 2500);
+    pollOnce();
+  }
+
+  function startLive() {
+    const live = state.live;
+    if (!state.pageOpen || document.hidden || live.es || live.pollTimer) return;
+    if (!window.EventSource) { startPolling(); return; }
+    const symbol = state.symbol;
+    let received = false;
+    let errors = 0;
+    const source = new EventSource(`${API}/market/stream?symbol=${encodeURIComponent(symbol)}`, { withCredentials: true });
+    live.es = source;
+    const fallToPolling = () => { if (live.es === source) { source.close(); live.es = null; } startPolling(); };
+    // Reverse proxies that buffer responses never deliver events; poll instead.
+    live.guardTimer = setTimeout(() => { if (!received) fallToPolling(); }, 8000);
+    const onFrame = event => {
+      received = true;
+      errors = 0;
+      if (symbol !== state.symbol) return;
+      try { applyQuote(JSON.parse(event.data)); } catch { /* ignore malformed frame */ }
+    };
+    source.addEventListener('snapshot', onFrame);
+    source.addEventListener('quote', onFrame);
+    source.addEventListener('bye', () => { source.close(); if (live.es === source) live.es = null; window.setTimeout(startLive, 500); });
+    source.onerror = () => {
+      errors += 1;
+      if (source.readyState === EventSource.CLOSED || errors >= 4) fallToPolling();
+    };
+  }
+
+  function applyQuote(quote) {
+    const live = state.live;
+    if (!quote || quote.symbol !== state.symbol || live.source !== 'corngrid-ea') return;
+    if (quote.bid == null) {
+      live.state = 'OFFLINE';
+      renderLive();
+      return;
+    }
+    const feedId = quote.feed && quote.feed.id;
+    if (live.feed && feedId && feedId !== live.feed) {
+      // The server switched to a different broker feed; reload so the chart never mixes feeds.
+      live.feed = feedId;
+      loadSummary(true);
+      loadCandles();
+      return;
+    }
+    const receivedMs = Date.parse(quote.receivedAt);
+    if (live.receivedMs && (receivedMs < live.receivedMs || (receivedMs === live.receivedMs && quote.rev < live.rev))) return;
+    Object.assign(live, {
+      bid: quote.bid, ask: quote.ask, spread: quote.spread, spreadPoints: quote.spreadPoints, digits: quote.digits ?? live.digits,
+      state: quote.state, quiet: Boolean(quote.quiet), limits: quote.limits || live.limits, brokerSymbol: quote.brokerSymbol || live.brokerSymbol,
+      anchor: Date.now() - (quote.ageMs || 0), receivedMs, rev: quote.rev || 0, tickTime: quote.tickTime,
+      offset: quote.serverUtcOffsetSec ?? live.offset
+    });
+    if (quote.state === 'LIVE' || quote.state === 'DELAYED') updateLiveCandle(quote);
+    renderLive();
+  }
+
+  // Applies a broker tick to the forming candle in place (zoom and crosshair are untouched).
+  // The EA's periodic candle refresh remains the authoritative correction.
+  function updateLiveCandle(quote) {
+    const last = state.lastCandle;
+    if (state.candleSource !== 'corngrid-ea' || !state.candleSeries || !last) return;
+    const seconds = TF_SECONDS[state.interval];
+    // Candle times are broker server time; shift the UTC tick time onto the same basis.
+    const offset = state.live.offset;
+    const tickSeconds = Math.floor(Date.parse(quote.tickTime) / 1000) + (Number.isInteger(offset) ? offset : NaN);
+    if (!seconds || !Number.isFinite(tickSeconds) || tickSeconds < last.time) return;
+    let candle;
+    if (tickSeconds < last.time + seconds) {
+      candle = { ...last, high: Math.max(last.high, quote.bid), low: Math.min(last.low, quote.bid), close: quote.bid };
+    } else if (seconds <= 3600) {
+      const bucket = last.time + Math.floor((tickSeconds - last.time) / seconds) * seconds;
+      candle = { time: bucket, open: quote.bid, high: quote.bid, low: quote.bid, close: quote.bid, volume: null };
+    } else {
+      return;
+    }
+    state.candleSeries.update({ time: candle.time, open: candle.open, high: candle.high, low: candle.low, close: candle.close });
+    state.lastCandle = candle;
+    if (!state.hovering) renderOhlc(candle);
+  }
+
+  // Pulls the newest candles so corrected/closed bars replace the tick-built ones.
+  async function refreshTail() {
+    const { symbol, interval } = state;
+    if (state.candleSource !== 'corngrid-ea' || !state.candleSeries || !state.lastCandle) return;
+    try {
+      const payload = await request(`/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&outputsize=20`);
+      if (symbol !== state.symbol || interval !== state.interval || !state.candleSeries || !state.lastCandle) return;
+      if (!payload.source || payload.source.kind !== 'corngrid-ea') return;
+      for (const candle of payload.candles) {
+        if (candle.time < state.lastCandle.time) continue;
+        state.candleSeries.update({ time: candle.time, open: candle.open, high: candle.high, low: candle.low, close: candle.close });
+        if (state.volumeSeries && candle.volume) {
+          state.volumeSeries.update({ time: candle.time, value: candle.volume, color: candle.close >= candle.open ? 'rgba(35,207,139,.35)' : 'rgba(255,115,125,.35)' });
+        }
+        state.lastCandle = candle;
+      }
+      if (!state.hovering) renderOhlc(state.lastCandle);
+    } catch { /* keep the current chart; state pill reflects feed health */ }
+  }
+
+  function watchdog() {
+    if (!state.pageOpen || document.hidden) return;
+    state.watchdogTicks += 1;
+    const live = state.live;
+    if (live.source === 'corngrid-ea') {
+      renderLive();
+      if (state.watchdogTicks % 20 === 0) refreshTail();
+    }
+    // When no EA feed is active, keep probing so recovery is picked up without a page refresh.
+    const healthy = live.source === 'corngrid-ea' && (localState() === 'LIVE' || localState() === 'DELAYED');
+    if (!healthy && state.watchdogTicks % 15 === 0) loadSummary(true);
+  }
+
+  function onVisibilityChange() {
+    if (!state.pageOpen) return;
+    if (document.hidden) { stopLive(); return; }
+    loadSummary(true);
+    loadCandles();
   }
 
   async function loadCandles() {
@@ -276,6 +531,7 @@
         return;
       }
       state.candleSeries.setData(payload.candles);
+      state.candleSource = payload.source ? payload.source.kind : null;
       state.lastCandle = payload.candles[payload.candles.length - 1];
       renderOhlc(state.lastCandle);
       // Genuine volume data only: hide the histogram when the provider reports none (e.g. FX).
@@ -430,6 +686,11 @@
   function selectSymbol(symbol) {
     if (!symbol || symbol === state.symbol) return;
     state.symbol = symbol;
+    stopLive();
+    Object.assign(state.live, { source: null, feed: null, bid: null, ask: null, receivedMs: 0, rev: 0, anchor: 0, state: 'OFFLINE' });
+    state.candleSource = null;
+    state.lastCandle = null;
+    state.stats = null;
     document.querySelectorAll('.market-symbol').forEach(button => {
       const active = button.dataset.marketSymbol === symbol;
       button.classList.toggle('is-active', active);
@@ -443,6 +704,7 @@
   function selectInterval(interval) {
     if (!interval || interval === state.interval) return;
     state.interval = interval;
+    state.candleSource = null;
     document.querySelectorAll('.market-tf').forEach(button => {
       button.classList.toggle('is-active', button.dataset.tf === interval);
     });
@@ -469,6 +731,9 @@
 
   function destroy() {
     // Release chart resources and observers when the dashboard page unloads.
+    stopLive();
+    if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
+    state.pageOpen = false;
     if (state.resizeObserver) { state.resizeObserver.disconnect(); state.resizeObserver = null; }
     if (state.chart) { state.chart.remove(); state.chart = null; }
     state.candleSeries = null;
@@ -483,7 +748,9 @@
 
   window.CornGridMarket = {
     onOpen() {
-      if (!eventsBound) { bindEvents(); eventsBound = true; }
+      state.pageOpen = true;
+      if (!state.watchdogTimer) state.watchdogTimer = setInterval(watchdog, 1000);
+      if (!eventsBound) { bindEvents(); document.addEventListener('visibilitychange', onVisibilityChange); eventsBound = true; }
       // First open: load data; later opens: only refresh if data is already present.
       ensureChart();
       if (state.chart && state.chartClickBound !== true) {
@@ -493,6 +760,12 @@
       loadSummary();
       loadCandles();
       loadDrawings();
+    },
+    onClose() {
+      // Leaving the Market page: stop streaming and timers so nothing runs in the background.
+      state.pageOpen = false;
+      stopLive();
+      if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
     },
     destroy
   };

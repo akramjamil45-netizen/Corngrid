@@ -115,6 +115,11 @@ h3 { font-size: 14px; }
 .pill-muted { background: rgba(130, 145, 151, .12); color: var(--muted); }
 .pill-online { background: var(--green-soft); color: var(--green); }
 .pill-offline { background: rgba(255, 115, 125, .12); color: var(--red); }
+.pill-live { background: var(--green-soft); color: var(--green); }
+.pill-delayed { background: rgba(255, 191, 125, .14); color: #ffbf7d; }
+.pill-stale { background: rgba(255, 140, 66, .16); color: #ff9a57; }
+.pill-fallback { background: rgba(120, 150, 255, .14); color: #9db2ff; }
+.market-quote-meta { margin-top: 3px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .connection-empty { min-height: 244px; gap: 7px; }
 .connection-symbol { display: grid; width: 47px; height: 47px; place-items: center; margin-bottom: 5px; border: 1px solid var(--border); border-radius: 50%; color: var(--subtle); font-size: 22px; }
 .connection-empty p { max-width: 230px; margin: 0 0 7px; color: var(--muted); font-size: 11px; }

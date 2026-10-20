@@ -173,6 +173,7 @@
       setChatMobileView();
       refreshChat();
     }
+    if (name !== 'market' && window.CornGridMarket) window.CornGridMarket.onClose();
     if (name === 'market' && window.CornGridMarket) window.CornGridMarket.onOpen();
     if (name === 'feed' && window.CornGridFeed) window.CornGridFeed.onOpen();
   }
