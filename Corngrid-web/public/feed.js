@@ -102,7 +102,7 @@
       <article class="feed-card${isAnnouncement ? ' feed-card-announcement' : ''}" data-post-id="${escapeHtml(post.id)}">
         <div class="feed-card-head">
           <button type="button" class="feed-avatar-btn" data-feed-profile="${escapeHtml(post.author.username || '')}" ${post.author.username ? '' : 'disabled'}>
-            <span class="feed-avatar">${escapeHtml(initials(authorName))}</span>
+            ${CornGridAvatar.html(post.author, '', 'feed-avatar')}
           </button>
           <div class="feed-card-author">
             <strong>${escapeHtml(authorName)}</strong>
@@ -262,24 +262,32 @@
 
 
   // ---- Comments: load, render, add, edit, delete ----
-  function renderComment(comment, postId) {
+  function renderComment(comment, postId, isReply = false) {
     const mine = comment.author.username === state.myUsername;
     const actions = mine
       ? `<button type="button" class="feed-action" data-comment-edit="${escapeHtml(comment.id)}">Edit</button>
          <button type="button" class="feed-action" data-comment-delete="${escapeHtml(comment.id)}" data-comment-post="${escapeHtml(postId)}">Delete</button>`
       : `<button type="button" class="feed-action" data-feed-report="${escapeHtml(comment.id)}" data-report-type="comment">Report</button>`;
     const edited = comment.edited ? '<span class="feed-edited" title="' + escapeHtml(exactTime(comment.createdAt)) + '">· edited</span>' : '';
+    const replies = !isReply && Array.isArray(comment.replies) && comment.replies.length
+      ? `<div class="feed-replies">${comment.replies.map(reply => renderComment(reply, postId, true)).join('')}</div>`
+      : '';
     return `
-      <div class="feed-comment" data-comment-id="${escapeHtml(comment.id)}">
-        <span class="feed-avatar feed-avatar-sm">${escapeHtml(initials(comment.author.displayName))}</span>
+      <div class="feed-comment${isReply ? ' feed-comment-reply' : ''}" data-comment-id="${escapeHtml(comment.id)}">
+        ${CornGridAvatar.html(comment.author, '', 'feed-avatar feed-avatar-sm')}
         <div class="feed-comment-body">
-          <strong>${escapeHtml(comment.author.displayName)}</strong>
-          <span class="muted small"> · <time title="${escapeHtml(exactTime(comment.createdAt))}">${escapeHtml(timeAgo(comment.createdAt))}</time>${edited}</span>
-          <div class="feed-comment-content">${escapeHtml(comment.content).replace(/\n/g, '<br>')}</div>
+          <div class="feed-comment-bubble">
+            <div class="feed-comment-meta">
+              <strong>${escapeHtml(comment.author.displayName)}</strong>
+              <span class="muted small"><time title="${escapeHtml(exactTime(comment.createdAt))}">${escapeHtml(timeAgo(comment.createdAt))}</time>${edited}</span>
+            </div>
+            <div class="feed-comment-content">${escapeHtml(comment.content).replace(/\n/g, '<br>')}</div>
+          </div>
           <div class="feed-comment-actions">
-            <button type="button" class="feed-action" data-comment-reply="${escapeHtml(comment.id)}" data-comment-post="${escapeHtml(postId)}">Reply</button>
+            <button type="button" class="feed-action feed-action-sm" data-comment-reply="${escapeHtml(comment.id)}" data-comment-post="${escapeHtml(postId)}">Reply</button>
             ${actions}
           </div>
+          ${replies}
         </div>
       </div>`;
   }
@@ -372,7 +380,7 @@
     button.setAttribute('aria-pressed', String(!wasLiked));
     if (countEl) countEl.textContent = String(wasLiked ? previous - 1 : previous + 1);
     try {
-      const data = await request(`/feed/posts/${encodeURIComponent(postId)}/${wasLiked ? 'unlike' : 'like'}`, { method: wasLiked ? 'DELETE' : 'POST' });
+      const data = await request(`/feed/posts/${encodeURIComponent(postId)}/like`, { method: wasLiked ? 'DELETE' : 'POST' });
       if (countEl) countEl.textContent = String(data.likeCount);
       button.classList.toggle('is-active', data.liked);
       button.setAttribute('aria-pressed', String(data.liked));
@@ -431,7 +439,7 @@
       const data = await request(`/feed/profile/${encodeURIComponent(username)}`);
       state.profile = data.profile;
       state.profilePosts = data.posts;
-      $('feed-profile-avatar').textContent = initials(data.profile.displayName);
+      CornGridAvatar.fill($('feed-profile-avatar'), data.profile);
       $('feed-profile-name').textContent = data.profile.displayName;
       $('feed-profile-username').textContent = `@${data.profile.username}`;
       $('feed-profile-bio').textContent = data.profile.bio || 'No bio yet.';
@@ -483,7 +491,7 @@
     try {
       const me = await request('/me');
       state.myUsername = me.username;
-      $('feed-composer-avatar').textContent = initials(me.username);
+      CornGridAvatar.fill($('feed-composer-avatar'), me);
       $('feed-side-username').textContent = me.username;
       $('feed-side-bio').textContent = me.bio || 'No bio yet.';
       // /api/me returns created_at (snake_case); fall back to createdAt for safety.
@@ -564,7 +572,11 @@
       const reply = event.target.closest('[data-comment-reply]');
       if (reply) {
         const form = document.querySelector(`[data-comment-form="${CSS.escape(reply.dataset.commentPost)}"] input`);
-        if (form) { form.focus(); form.value = `@${reply.closest('.feed-comment').querySelector('strong').textContent} `; }
+        if (form) {
+          form.focus();
+          form.value = `@${reply.closest('.feed-comment').querySelector('strong').textContent} `;
+          form.closest('form').dataset.parentId = reply.dataset.commentReply;
+        }
       }
     });
 
@@ -574,7 +586,7 @@
       if (!form) return;
       event.preventDefault();
       const input = form.querySelector('input');
-      submitComment(form.dataset.commentForm, input.value, null).then(() => { input.value = ''; });
+      submitComment(form.dataset.commentForm, input.value, form.dataset.parentId ? Number(form.dataset.parentId) : null).then(() => { input.value = ''; });
     });
 
     // Profile view

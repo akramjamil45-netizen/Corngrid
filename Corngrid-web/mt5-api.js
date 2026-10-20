@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
 
 const configuredHeartbeatTimeout = process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS === undefined
   ? 180
@@ -18,6 +19,7 @@ const schema = `
   PRAGMA journal_mode = WAL;
   PRAGMA busy_timeout = 5000;
   PRAGMA synchronous = NORMAL;
+  ${AVATAR_SCHEMA}
   CREATE TABLE IF NOT EXISTS user_preferences (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     preferences_json TEXT NOT NULL DEFAULT '{}',
@@ -314,6 +316,7 @@ function registerMt5Api(app, db, verifyToken) {
     try {
       const user = await get(db, 'SELECT id, username, email, bio, created_at FROM users WHERE id = ?', [ownerId(req)]);
       if (!user) return res.status(404).json({ error: 'User not found.' });
+      const avatarRow = await get(db, 'SELECT file FROM user_avatars WHERE user_id = ?', [ownerId(req)]);
       const row = await get(db, 'SELECT preferences_json FROM user_preferences WHERE user_id = ?', [ownerId(req)]);
       let preferences = {};
       if (row) {
@@ -330,7 +333,7 @@ function registerMt5Api(app, db, verifyToken) {
           return res.status(500).json({ error: 'The saved time zone preference is invalid. Update it in settings.' });
         }
       }
-      return res.json({ ...user, preferences });
+      return res.json({ ...user, preferences, avatarUrl: avatarUrl(avatarRow && avatarRow.file) });
     } catch (databaseError) {
       console.error('Failed to load the authenticated user profile:', databaseError.message);
       return res.status(500).json({ error: 'Unable to load profile data.' });

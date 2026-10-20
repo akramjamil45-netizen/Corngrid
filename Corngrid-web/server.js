@@ -11,6 +11,7 @@ const ROOT_DIR = path.join(__dirname, '..');
 const registerMt5Api = require('./mt5-api');
 const registerMarketApi = require('./market-api');
 const createMarketFeed = require('./market-feed');
+const registerAvatarApi = require('./avatar-api');
 const registerFeedApi = require('./feed-api');
 const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
@@ -156,6 +157,7 @@ db.run(`
 const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
 const { authenticateInstallation } = registerMt5Api(app, db, verifyToken);
+registerAvatarApi(app, db, verifyToken);
 registerChatApi(app, db, verifyToken);
 const marketFeed = createMarketFeed({ db, symbols: registerMarketApi.SYMBOLS });
 marketFeed.registerRoutes(app, { verifyToken, authenticateInstallation });
@@ -235,13 +237,91 @@ app.get('/portfolio/:shareId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'public-portfolio.html'));
 });
 
-app.get('/login', (req, res) => {
+// Check auth service availability before rendering the login page.
+app.get('/login', async (req, res) => {
+  let available = false;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const resp = await fetch(`http://localhost:${PORT}/api/health`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    available = resp.ok;
+  } catch {
+    // Network failure, timeout, or 5xx while trying to reach the auth layer.
+    available = false;
+  }
+
+  if (!available) {
+    // Preserve where the user came from for the "Return" action.
+    const referrer = req.headers.referer || '/';
+    const fallbackUrl =
+      typeof referrer === 'string' && referrer.startsWith('/')
+        ? referrer
+        : '/';
+    return res.redirect(
+      302,
+      `/service-unavailable?r=${encodeURIComponent(fallbackUrl)}`
+    );
+  }
+
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/login.html', (req, res) => {
+// Special case for explicit .html access as well.
+app.get('/login.html', async (req, res) => {
+  let available = false;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const resp = await fetch(`http://localhost:${PORT}/api/health`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    available = resp.ok;
+  } catch {
+    available = false;
+  }
+
+  if (!available) {
+    const referrer = req.headers.referer || '/';
+    const fallbackUrl =
+      typeof referrer === 'string' && referrer.startsWith('/')
+        ? referrer
+        : '/';
+    return res.redirect(
+      302,
+      `/service-unavailable?r=${encodeURIComponent(fallbackUrl)}`
+    );
+  }
+
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Service-unavailable fallback: rendered only when the auth layer is
+// genuinely unavailable. The page is fully static and self-contained, so it
+// can render even while the auth API is down.
+app.get('/service-unavailable', (req, res) => {
+  const fallbackUrl =
+    typeof req.query.r === 'string' && req.query.r.startsWith('/')
+      ? decodeURIComponent(req.query.r)
+      : '/';
+
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'service-unavailable.html'));
+});
+
+// Service-unavailable fallback assets
+app.get('/service-unavailable.css', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'service-unavailable.css'));
+});
+
+app.get('/service-unavailable.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'service-unavailable.js'));
+});
+
+
 
 app.get('/sw.js', (req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -249,6 +329,18 @@ app.get('/sw.js', (req, res) => {
 });
 
 // ------------------- ENDPOINTS API -------------------
+
+// Health check endpoint - lightweight availability probe for fallback flows.
+// Deliberately NOT an auth endpoint: it never requires a token, credentials,
+// or any session data. It only confirms that the web/API layer is reachable
+// and the auth service is accepting requests.
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'auth',
+    timestamp: Date.now()
+  });
+});
 
 // 1. API Pendaftaran Pengguna
 app.post('/api/register', loginRateLimit, async (req, res) => {

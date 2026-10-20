@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080a0f">
+  <title>Temporarily Unavailable | CornGrid</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/mystyle.css?v=20261018-5">
+  <link rel="stylesheet" href="/service-unavailable.css">
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; }
+      .fallback-btn { transition: none; }
+      body::before, body::after { background-image: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="fallback-page">
+    <div class="fallback-brand">
+      <div class="fallback-logo" aria-hidden="true">C</div>
+      <span class="fallback-logo-text">CORNGRID</span>
+    </div>
+
+    <div class="fallback-card">
+      <span class="status-badge" id="statusBadge">Temporarily Unavailable</span>
+
+      <h1 id="heading">Every Strong System Needs a Moment to Reset.</h1>
+
+      <p id="supportingMessage">
+        The CornGrid platform is temporarily unavailable while we restore normal service.
+        Your next opportunity does not depend on this moment. Take a breath, stay disciplined,
+        and come back when the system is ready.
+      </p>
+
+      <div class="quote-section">
+        <div class="quote-label">Coin of Wisdom</div>
+        <blockquote id="quoteText">Loading wisdom...</blockquote>
+      </div>
+
+      <div class="fallback-footer">
+        <button class="fallback-btn btn-retry" id="retryBtn" type="button">
+          <span class="spinner" id="retrySpinner"></span>
+          <span id="retryLabel">Try Again</span>
+        </button>
+        <button class="fallback-btn btn-legacy" id="returnBtn" type="button">
+          Return to CornGrid
+        </button>
+      </div>
+
+      <div class="status-message" id="statusMessage" role="status" aria-live="polite"></div>
+
+      <div class="connection-restored" id="connectionRestored" role="status" aria-live="polite">
+        Connection restored. Redirecting to login...
+      </div>
+    </div>
+  </div>
+
+  <script src="/service-unavailable.js" defer></script>
+</body>
+</html>

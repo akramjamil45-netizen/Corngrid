@@ -1,3 +1,5 @@
+const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
+
 function run(db, sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (error) {
@@ -44,6 +46,7 @@ function rateLimit({ limit, windowMs }) {
 }
 
 const schema = `
+  ${AVATAR_SCHEMA}
   CREATE TABLE IF NOT EXISTS direct_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -97,25 +100,25 @@ function registerChatApi(app, db, verifyToken) {
       if (search) {
         users = await all(
           db,
-          `SELECT id, username, bio, created_at
-           FROM users
-           WHERE id != ? AND username LIKE ? COLLATE NOCASE
-           ORDER BY username ASC
+          `SELECT u.id, u.username, u.bio, u.created_at, av.file AS avatar_file
+           FROM users u LEFT JOIN user_avatars av ON av.user_id = u.id
+           WHERE u.id != ? AND u.username LIKE ? COLLATE NOCASE
+           ORDER BY u.username ASC
            LIMIT 20`,
           [req.user.id, `%${search}%`]
         );
       } else {
         users = await all(
           db,
-          `SELECT id, username, bio, created_at
-           FROM users
-           WHERE id != ?
-           ORDER BY id DESC
+          `SELECT u.id, u.username, u.bio, u.created_at, av.file AS avatar_file
+           FROM users u LEFT JOIN user_avatars av ON av.user_id = u.id
+           WHERE u.id != ?
+           ORDER BY u.id DESC
            LIMIT 15`,
           [req.user.id]
         );
       }
-      return res.json({ users });
+      return res.json({ users: users.map(({ avatar_file: file, ...user }) => ({ ...user, avatarUrl: avatarUrl(file) })) });
     } catch (err) {
       console.error('Failed to search chat users:', err.message);
       return res.status(500).json({ error: 'Failed to search users.' });
@@ -140,6 +143,7 @@ function registerChatApi(app, db, verifyToken) {
            u.id AS peer_id,
            u.username,
            u.bio,
+           av.file AS avatar_file,
            m.id AS message_id,
            m.message AS last_message,
            m.sender_id AS last_sender_id,
@@ -151,6 +155,7 @@ function registerChatApi(app, db, verifyToken) {
            ) AS unread_count
          FROM peer_latest pl
          JOIN users u ON u.id = pl.peer_id
+         LEFT JOIN user_avatars av ON av.user_id = u.id
          JOIN direct_messages m ON m.id = pl.latest_id
          ORDER BY m.created_at DESC`,
         [myId, myId, myId, myId]
@@ -161,6 +166,7 @@ function registerChatApi(app, db, verifyToken) {
           peerId: r.peer_id,
           username: r.username,
           bio: r.bio,
+          avatarUrl: avatarUrl(r.avatar_file),
           lastMessage: r.last_message,
           lastSenderId: r.last_sender_id,
           lastMessageAt: r.last_message_at,
@@ -182,7 +188,8 @@ function registerChatApi(app, db, verifyToken) {
         return res.status(400).json({ error: 'Invalid peer user ID.' });
       }
 
-      const peer = await get(db, 'SELECT id, username, bio FROM users WHERE id = ?', [peerId]);
+      const peer = await get(db, `SELECT u.id, u.username, u.bio, av.file AS avatar_file
+        FROM users u LEFT JOIN user_avatars av ON av.user_id = u.id WHERE u.id = ?`, [peerId]);
       if (!peer) {
         return res.status(404).json({ error: 'User not found.' });
       }
@@ -210,7 +217,8 @@ function registerChatApi(app, db, verifyToken) {
         peer: {
           id: peer.id,
           username: peer.username,
-          bio: peer.bio
+          bio: peer.bio,
+          avatarUrl: avatarUrl(peer.avatar_file)
         },
         messages: messages.map(m => ({
           id: m.id,

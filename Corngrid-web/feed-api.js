@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
+const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
 
 function run(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -65,6 +66,7 @@ function cleanText(value, maxLength) {
 }
 
 const schema = `
+  ${AVATAR_SCHEMA}
   CREATE TABLE IF NOT EXISTS feed_posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     author_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -153,12 +155,13 @@ function createImageUploadHandler(uploadDir) {
 const POST_SELECT = `
   SELECT p.id, p.kind, p.title, p.content, p.image_path, p.is_pinned,
          p.created_at, p.updated_at, p.author_user_id,
-         u.username AS author_username, u.bio AS author_bio,
+         u.username AS author_username, u.bio AS author_bio, av.file AS author_avatar,
          (SELECT COUNT(*) FROM feed_comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL) AS comment_count,
          (SELECT COUNT(*) FROM feed_likes l WHERE l.post_id = p.id) AS like_count,
          EXISTS(SELECT 1 FROM feed_likes l2 WHERE l2.post_id = p.id AND l2.user_id = ?) AS liked_by_me
   FROM feed_posts p
   LEFT JOIN users u ON u.id = p.author_user_id
+  LEFT JOIN user_avatars av ON av.user_id = p.author_user_id
 `;
 
 // Uploaded paths must match our own naming scheme; reject anything else outright.
@@ -180,8 +183,8 @@ function shapePost(row) {
     updatedAt: row.updated_at,
     edited: Boolean(row.updated_at),
     author: row.kind === 'announcement'
-      ? { username: null, displayName: 'CornGrid Announcement', bio: null }
-      : { username: row.author_username, displayName: row.author_username, bio: row.author_bio },
+      ? { username: null, displayName: 'CornGrid Announcement', bio: null, avatarUrl: null }
+      : { username: row.author_username, displayName: row.author_username, bio: row.author_bio, avatarUrl: avatarUrl(row.author_avatar) },
     commentCount: row.comment_count,
     likeCount: row.like_count,
     likedByMe: row.liked_by_me === 1
@@ -340,9 +343,10 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
 
   const COMMENT_SELECT = `
     SELECT c.id, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at,
-           c.author_user_id, u.username AS author_username
+           c.author_user_id, u.username AS author_username, av.file AS author_avatar
     FROM feed_comments c
     JOIN users u ON u.id = c.author_user_id
+    LEFT JOIN user_avatars av ON av.user_id = c.author_user_id
   `;
 
   function shapeComment(row, viewerId) {
@@ -353,7 +357,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
       content: row.content,
       createdAt: row.created_at,
       edited: Boolean(row.updated_at),
-      author: { username: row.author_username, displayName: row.author_username },
+      author: { username: row.author_username, displayName: row.author_username, avatarUrl: avatarUrl(row.author_avatar) },
       canEdit: row.author_user_id === viewerId
     };
   }
@@ -526,7 +530,9 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     const username = cleanText(req.params.username, 60);
     if (!username) return res.status(400).json({ error: 'Invalid username.' });
     try {
-      const user = await get(db, 'SELECT id, username, bio, created_at FROM users WHERE username = ? COLLATE NOCASE', [username]);
+      const user = await get(db, `SELECT u.id, u.username, u.bio, u.created_at, av.file AS avatar_file
+        FROM users u LEFT JOIN user_avatars av ON av.user_id = u.id
+        WHERE u.username = ? COLLATE NOCASE`, [username]);
       if (!user) return res.status(404).json({ error: 'User not found.' });
       const stats = await get(db, `
         SELECT
@@ -541,6 +547,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
         profile: {
           username: user.username,
           displayName: user.username,
+          avatarUrl: avatarUrl(user.avatar_file),
           bio: user.bio,
           joinedAt: user.created_at,
           postCount: stats.post_count,

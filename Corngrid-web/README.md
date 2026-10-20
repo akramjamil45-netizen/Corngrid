@@ -194,6 +194,18 @@ HTTPS only (the EA refuses non-HTTPS URLs). Request size is capped (256 KB, at m
 
 Set the EA input `Publish broker prices/candles to the website` = false (trading behavior is unaffected either way) and `MARKET_FALLBACK_PROVIDER=external`; Market Overview then serves the previous provider data, labeled as fallback. To remove entirely, revert `market-feed.js` and the edits in `server.js`, `market-api.js`, `mt5-api.js`, `public/market.js`, `public/dashboard.*`; the `market_candles` table can stay.
 
+## Profile photos
+
+- **Where:** Settings > Profile > Profile photo. Users choose a JPEG, PNG, or WebP, see a preview, then Save, Cancel, or Remove. The browser crops to a square, resizes to at most 512x512, and re-encodes (which drops EXIF/GPS) before upload.
+- **Server (`avatar-api.js`):** `PUT /api/user/avatar` (raw image body) and `DELETE /api/user/avatar`, both session-authenticated, rate-limited (10 changes per 10 minutes per user), and always bound to the session user, never a client-supplied ID or URL. The server validates the declared type against the real file structure, rejects SVG/HTML/other types, limits size (default 5 MB) and dimensions (16-2048 px), strips EXIF/XMP/ICC and other metadata from JPEG, PNG, and WebP, rejects animated WebP, and stores the result under a random 32-hex filename.
+- **Database:** new table `user_avatars (user_id PRIMARY KEY, file UNIQUE, updated_at)`, created automatically with `CREATE TABLE IF NOT EXISTS` like the other tables. `users` is unchanged, so existing accounts simply have no row and show the initials fallback. Deleting a user cascades the row; leftover files are removed by an hourly orphan sweep.
+- **Storage:** files go to `AVATAR_DIR` (default `Corngrid-web/storage/avatars`, git-ignored, outside `public/`) and are served only by `GET /uploads/avatars/<hex>.<jpg|png|webp>` with `nosniff`, a sandbox CSP, and a one-year immutable cache. Each upload gets a new filename, so caches never show a stale photo. **This directory must be on persistent disk** (back it up with the database); on hosts with ephemeral disks, point `AVATAR_DIR` at a persistent volume.
+- **Where avatars show:** header, Live Feed posts, comments and replies, profile views, chat conversation list, chat header, and chat bubbles. All APIs resolve the avatar from the author's user record via a join, so there are no extra per-item queries, and old posts/comments/messages update automatically. After a change the open page updates in place with no reload (`CornGridAvatar` in `public/dashboard.js`, shared with `feed.js`).
+- **Environment (all optional):** `AVATAR_DIR`, `AVATAR_MAX_BYTES` (default 5242880), `AVATAR_MAX_DIMENSION` (default 2048).
+- **Deploy:** pull, restart Node (the table is created on start), ensure `AVATAR_DIR` is writable and persistent. Hard-refresh once because the service worker cache name changed.
+- **Rollback:** revert `avatar-api.js` and the edits to `server.js`, `feed-api.js`, `chat-api.js`, `mt5-api.js`, `public/avatar.js`, `public/dashboard.*`, and `public/feed.js`; the `user_avatars` table and `storage/avatars` can be left or deleted.
+- **Test:** `npm test` runs `test/avatar-api.test.js`. Manually: sign in, open Settings, choose a photo, Save, then check the header, Live Feed, comments, and chat; then Remove and confirm the initials return.
+
 ## Live Market Feed (CornGrid EA to Market Overview)
 
 ### Architecture

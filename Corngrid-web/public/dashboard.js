@@ -1,4 +1,55 @@
 (() => {
+  // Shared avatar component: one renderer for header, feed, comments, and chat.
+  // Initials are always rendered underneath so a missing or broken image degrades cleanly.
+  const SAFE_URL = /^\/uploads\/avatars\/[a-f0-9]{32}\.(jpg|png|webp)$/;
+
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const initial = name => (String(name || '?').trim()[0] || '?').toUpperCase();
+  const key = name => String(name || '').toLowerCase();
+
+  function imgTag(url) {
+    return SAFE_URL.test(url || '') ? `<img src="${escapeHtml(url)}" alt="" decoding="async">` : '';
+  }
+
+  // size: xs | sm | md | lg | xl. `extraClass` keeps legacy layout classes working.
+  function html(user, size = '', extraClass = '') {
+    const name = (user && (user.username || user.displayName)) || '?';
+    return `<span class="cg-avatar${size ? ` cg-avatar-${size}` : ''}${extraClass ? ` ${extraClass}` : ''}" data-avatar-user="${escapeHtml(key(name))}" role="img" aria-label="${escapeHtml(name)} profile photo"><span class="cg-avatar-initials" aria-hidden="true">${escapeHtml(initial(name))}</span>${imgTag(user && user.avatarUrl)}</span>`;
+  }
+
+  // Renders into an existing element (header chip, composer, chat header).
+  function fill(element, user, size) {
+    if (!element) return;
+    const name = (user && (user.username || user.displayName)) || '?';
+    element.classList.add('cg-avatar');
+    if (size) element.classList.add(`cg-avatar-${size}`);
+    element.dataset.avatarUser = key(name);
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', `${name} profile photo`);
+    element.innerHTML = `<span class="cg-avatar-initials" aria-hidden="true">${escapeHtml(initial(name))}</span>${imgTag(user && user.avatarUrl)}`;
+  }
+
+  // Updates every rendered avatar of one user in place (no reload) after a photo change.
+  function setUser(username, url) {
+    const target = key(username);
+    document.querySelectorAll('.cg-avatar[data-avatar-user]').forEach(element => {
+      if (element.dataset.avatarUser !== target) return;
+      const existing = element.querySelector('img');
+      if (existing) existing.remove();
+      if (SAFE_URL.test(url || '')) element.insertAdjacentHTML('beforeend', imgTag(url));
+    });
+  }
+
+  // Broken or unavailable images fall back to the initials underneath.
+  document.addEventListener('error', event => {
+    const image = event.target;
+    if (image && image.tagName === 'IMG' && image.closest && image.closest('.cg-avatar')) image.remove();
+  }, true);
+
+  window.CornGridAvatar = { html, fill, setUser, initial };
+})();
+
+(() => {
   const API = '/api';
   const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
@@ -193,7 +244,7 @@
   function renderChatConversations(conversations) {
     const list = $('#chat-user-list');
     const signature = JSON.stringify(conversations.map(item => [
-      item.peerId, item.username, item.bio, item.lastMessage, item.lastSenderId, item.lastMessageAt, item.unreadCount
+      item.peerId, item.username, item.bio, item.avatarUrl, item.lastMessage, item.lastSenderId, item.lastMessageAt, item.unreadCount
     ]));
     if (signature === state.chat.conversationSignature) return;
     state.chat.conversationSignature = signature;
@@ -202,8 +253,8 @@
       return;
     }
     list.innerHTML = conversations.map(item => `
-      <button class="chat-user-item${String(state.chat.peer?.id) === String(item.peerId) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(item.peerId)}" data-chat-bio="${escapeHtml(item.bio || '')}" aria-label="Open chat with ${escapeHtml(item.username)}">
-        <span class="chat-avatar">${escapeHtml((item.username || '?').slice(0, 1))}</span>
+      <button class="chat-user-item${String(state.chat.peer?.id) === String(item.peerId) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(item.peerId)}" data-chat-bio="${escapeHtml(item.bio || '')}" data-chat-avatar="${escapeHtml(item.avatarUrl || '')}" aria-label="Open chat with ${escapeHtml(item.username)}">
+        ${CornGridAvatar.html(item, '', 'chat-avatar')}
         <span class="chat-user-info">
           <span class="chat-user-top"><span class="chat-username">${escapeHtml(item.username)}</span><span class="chat-time">${escapeHtml(chatTime(item.lastMessageAt))}</span></span>
           <span class="chat-snippet">${item.lastSenderId && state.profile?.id === item.lastSenderId ? 'You: ' : ''}${escapeHtml(item.lastMessage || '')}${Number(item.unreadCount) > 0 ? `<span class="chat-unread-badge">${Number(item.unreadCount) > 99 ? '99+' : Number(item.unreadCount)}</span>` : ''}</span>
@@ -230,8 +281,8 @@
         return;
       }
       $('#chat-user-list').innerHTML = users.map(user => `
-        <button class="chat-user-item${String(state.chat.peer?.id) === String(user.id) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(user.id)}" aria-label="Start chat with ${escapeHtml(user.username)}">
-          <span class="chat-avatar">${escapeHtml((user.username || '?').slice(0, 1))}</span>
+        <button class="chat-user-item${String(state.chat.peer?.id) === String(user.id) ? ' is-selected' : ''}" type="button" data-chat-peer="${escapeHtml(user.id)}" data-chat-avatar="${escapeHtml(user.avatarUrl || '')}" aria-label="Start chat with ${escapeHtml(user.username)}">
+          ${CornGridAvatar.html(user, '', 'chat-avatar')}
           <span class="chat-user-info">
             <span class="chat-user-top"><span class="chat-username">${escapeHtml(user.username)}</span></span>
             <span class="chat-snippet">${escapeHtml(user.bio || 'CornGrid trader')}</span>
@@ -263,10 +314,11 @@
       return previous && previous.id === message.id && previous.message === message.message &&
         previous.readAt === message.readAt && previous.createdAt === message.createdAt &&
         previous.isMine === message.isMine;
-    });
+    }) && state.chat.avatarSignature === `${data.peer.avatarUrl || ''}|${state.profile?.avatarUrl || ''}`;
+    state.chat.avatarSignature = `${data.peer.avatarUrl || ''}|${state.profile?.avatarUrl || ''}`;
     state.chat.messages = messages;
     $('#chat-peer-header').hidden = false;
-    $('#chat-peer-avatar').textContent = (data.peer.username || '?').slice(0, 1);
+    CornGridAvatar.fill($('#chat-peer-avatar'), data.peer);
     $('#chat-peer-username').textContent = data.peer.username;
     $('#chat-peer-bio').textContent = data.peer.bio || 'CornGrid trader';
     $('#chat-composer-form').hidden = false;
@@ -275,9 +327,12 @@
         stream.innerHTML = '<div class="chat-empty-state"><span class="chat-empty-state-icon">💬</span><h3>Start the conversation</h3><p class="muted">Send a message to begin chatting.</p></div>';
       } else {
         stream.innerHTML = messages.map(message => `
-          <div class="chat-bubble-wrap ${message.isMine ? 'is-mine' : 'is-peer'}">
-            <div class="chat-bubble">${escapeHtml(message.message)}</div>
-            <div class="chat-meta"><span>${escapeHtml(chatTime(message.createdAt))}</span>${message.isMine && message.readAt ? '<span aria-label="Read">· Read</span>' : ''}</div>
+          <div class="chat-row ${message.isMine ? 'is-mine' : 'is-peer'}">
+            ${CornGridAvatar.html(message.isMine ? state.profile : data.peer, '', 'chat-avatar chat-avatar-sm')}
+            <div class="chat-bubble-wrap ${message.isMine ? 'is-mine' : 'is-peer'}">
+              <div class="chat-bubble">${escapeHtml(message.message)}</div>
+              <div class="chat-meta"><span>${escapeHtml(chatTime(message.createdAt))}</span>${message.isMine && message.readAt ? '<span aria-label="Read">· Read</span>' : ''}</div>
+            </div>
           </div>
         `).join('');
       }
@@ -289,14 +344,14 @@
 
   async function selectChatPeer(peer) {
     state.chat.supportActive = false;
-    state.chat.peer = { id: Number(peer.id), username: peer.username, bio: peer.bio };
+    state.chat.peer = { id: Number(peer.id), username: peer.username, bio: peer.bio, avatarUrl: peer.avatarUrl || null };
     state.chat.messages = null;
     state.chat.historyRequestId += 1;
     $$('#chat-user-list [data-chat-peer]').forEach(button => {
       button.classList.toggle('is-selected', Number(button.dataset.chatPeer) === state.chat.peer.id);
     });
     $('#chat-peer-header').hidden = false;
-    $('#chat-peer-avatar').textContent = (peer.username || '?').slice(0, 1);
+    CornGridAvatar.fill($('#chat-peer-avatar'), peer);
     $('#chat-peer-username').textContent = peer.username || 'Trader';
     $('#chat-peer-bio').textContent = peer.bio || 'CornGrid trader';
     $('#chat-composer-text').placeholder = 'Type a message… (Press Enter to send)';
@@ -326,8 +381,6 @@
     $('#chat-composer-form').hidden = false;
     $('#chat-composer-text').placeholder = 'Message CornGrid Support…';
     $('#chat-messages-stream').innerHTML = '<div class="chat-empty-state"><p class="muted">Loading your support conversation…</p></div>';
-    $('#chat-support-btn').disabled = true;
-    $('#chat-support-btn').textContent = 'Opening support…';
     $('#chat-support-entry').disabled = true;
     $('#chat-support-entry').textContent = 'Opening support…';
     setChatMobileView(true);
@@ -338,8 +391,6 @@
       $('#chat-messages-stream').innerHTML = `<div class="chat-empty-state"><h3>Unable to load support</h3><p class="muted">${escapeHtml(error.message)}</p></div>`;
       toast(error.message || 'Unable to load support conversation.', 'error');
     } finally {
-      $('#chat-support-btn').disabled = false;
-      $('#chat-support-btn').textContent = 'Contact support';
       $('#chat-support-entry').disabled = false;
       $('#chat-support-entry').textContent = 'Contact CornGrid Support';
     }
@@ -371,9 +422,26 @@
     }
   }
 
+  function showChatSearch(open) {
+    const wrap = $('#chat-search-wrap');
+    const toggle = $('#chat-search-toggle');
+    if (!wrap || !toggle) return;
+    wrap.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.classList.toggle('is-active', open);
+  }
+
+  function setChatSearchOpen(open) {
+    showChatSearch(open);
+    if (open) $('#chat-user-search').focus();
+    else if (state.chat.mode === 'search') setChatMode('conversations');
+    else $('#chat-user-search').value = '';
+  }
+
   function setChatMode(mode, fetch = true) {
     if (state.chat.mode !== mode && mode === 'conversations') state.chat.conversationSignature = '';
     state.chat.mode = mode;
+    showChatSearch(mode === 'search');
     state.chat.searchRequestId += 1;
     $('#subtab-convos').classList.toggle('is-active', mode === 'conversations');
     $('#subtab-search').classList.toggle('is-active', mode === 'search');
@@ -784,9 +852,160 @@
       $('#created-at').textContent = dateTime(data.created_at);
       const name = data.username || data.email || 'Account';
       $('#user-name').textContent = name;
-      $('#user-avatar').textContent = name.charAt(0).toUpperCase();
+      CornGridAvatar.fill($('#user-avatar'), { username: name, avatarUrl: data.avatarUrl });
+      renderAvatarSettings();
       if (data.preferences) applyPreferences(data.preferences);
     } catch (error) { toast(error.message, 'error'); }
+  }
+
+  // ---- Profile photo: client-side crop/resize (also strips EXIF), then validated again server-side ----
+  const avatarDraft = { blob: null, previewUrl: null, busy: false };
+  const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const AVATAR_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+  function setAvatarStatus(message, tone = '') {
+    const status = $('#avatar-status');
+    status.textContent = message;
+    status.className = `small ${tone === 'error' ? 'negative' : 'muted'}`;
+  }
+
+  function clearAvatarDraft() {
+    if (avatarDraft.previewUrl) URL.revokeObjectURL(avatarDraft.previewUrl);
+    avatarDraft.blob = null;
+    avatarDraft.previewUrl = null;
+    $('#avatar-file').value = '';
+  }
+
+  function renderAvatarSettings() {
+    const preview = $('#avatar-preview');
+    if (!preview) return;
+    const username = (state.profile && (state.profile.username || state.profile.email)) || '?';
+    CornGridAvatar.fill(preview, { username, avatarUrl: state.profile && state.profile.avatarUrl }, 'xl');
+    if (avatarDraft.previewUrl) {
+      const image = document.createElement('img');
+      image.alt = '';
+      image.src = avatarDraft.previewUrl;
+      preview.append(image);
+    }
+    const hasDraft = Boolean(avatarDraft.blob);
+    $('#avatar-save').disabled = !hasDraft || avatarDraft.busy;
+    $('#avatar-cancel').hidden = !hasDraft;
+    $('#avatar-choose').disabled = avatarDraft.busy;
+    $('#avatar-remove').hidden = hasDraft || !(state.profile && state.profile.avatarUrl);
+    $('#avatar-remove').disabled = avatarDraft.busy;
+  }
+
+  async function prepareAvatar(file) {
+    if (!AVATAR_TYPES.includes(file.type)) throw new Error('Choose a JPEG, PNG, or WebP image.');
+    if (file.size > AVATAR_SOURCE_LIMIT) throw new Error('That image is too large. Choose one under 20 MB.');
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      throw new Error('That file could not be read as an image.');
+    }
+    const side = Math.min(bitmap.width, bitmap.height);
+    if (side < 64) { bitmap.close?.(); throw new Error('The image must be at least 64x64 pixels.'); }
+    const target = Math.min(512, side);
+    const canvas = document.createElement('canvas');
+    canvas.width = target;
+    canvas.height = target;
+    canvas.getContext('2d').drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, target, target);
+    bitmap.close?.();
+    const toBlob = (type, quality) => new Promise(resolve => canvas.toBlob(resolve, type, quality));
+    let blob = await toBlob('image/webp', 0.88);
+    if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg', 0.9);
+    if (!blob) throw new Error('The image could not be processed in this browser.');
+    return blob;
+  }
+
+  function uploadAvatar(blob) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', `${API}/user/avatar`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Content-Type', blob.type);
+      xhr.timeout = 30000;
+      xhr.upload.onprogress = event => {
+        if (event.lengthComputable) $('#avatar-progress').value = Math.round((event.loaded / event.total) * 100);
+      };
+      xhr.onerror = () => reject(new Error('The upload failed. Check your connection and try again.'));
+      xhr.ontimeout = () => reject(new Error('The upload timed out. Please try again.'));
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* handled below */ }
+        if (xhr.status === 401 || xhr.status === 403) { void expireSession(); return reject(new Error('Your session has expired. Please sign in again.')); }
+        if (xhr.status >= 200 && xhr.status < 300 && data.avatarUrl) return resolve(data);
+        return reject(new Error(data.error || 'The photo could not be saved.'));
+      };
+      xhr.send(blob);
+    });
+  }
+
+  function applyAvatarEverywhere(url) {
+    if (state.profile) state.profile.avatarUrl = url;
+    const name = (state.profile && (state.profile.username || state.profile.email)) || 'Account';
+    CornGridAvatar.setUser(name, url);
+    state.chat.avatarSignature = null;
+    renderAvatarSettings();
+  }
+
+  async function chooseAvatar(file) {
+    if (!file) return;
+    setAvatarStatus('Preparing photo…');
+    try {
+      const blob = await prepareAvatar(file);
+      clearAvatarDraft();
+      avatarDraft.blob = blob;
+      avatarDraft.previewUrl = URL.createObjectURL(blob);
+      setAvatarStatus('Preview ready. Save to use this photo, or cancel.');
+    } catch (error) {
+      clearAvatarDraft();
+      setAvatarStatus(error.message, 'error');
+    }
+    renderAvatarSettings();
+  }
+
+  async function saveAvatar() {
+    if (!avatarDraft.blob || avatarDraft.busy) return;
+    avatarDraft.busy = true;
+    $('#avatar-progress').hidden = false;
+    $('#avatar-progress').value = 0;
+    renderAvatarSettings();
+    setAvatarStatus('Uploading…');
+    try {
+      const result = await uploadAvatar(avatarDraft.blob);
+      clearAvatarDraft();
+      avatarDraft.busy = false;
+      applyAvatarEverywhere(result.avatarUrl);
+      setAvatarStatus('Profile photo updated.');
+      toast('Profile photo updated.', 'success');
+    } catch (error) {
+      avatarDraft.busy = false;
+      setAvatarStatus(error.message, 'error');
+      toast(error.message, 'error');
+      renderAvatarSettings();
+    } finally {
+      $('#avatar-progress').hidden = true;
+    }
+  }
+
+  async function removeAvatar() {
+    if (avatarDraft.busy || !window.confirm('Remove your profile photo?')) return;
+    avatarDraft.busy = true;
+    renderAvatarSettings();
+    try {
+      await request('/user/avatar', { method: 'DELETE' });
+      avatarDraft.busy = false;
+      applyAvatarEverywhere(null);
+      setAvatarStatus('Profile photo removed.');
+      toast('Profile photo removed.', 'success');
+    } catch (error) {
+      avatarDraft.busy = false;
+      setAvatarStatus(error.message, 'error');
+      toast(error.message, 'error');
+      renderAvatarSettings();
+    }
   }
 
   async function loadPortfolioSharing() {
@@ -932,7 +1151,7 @@
   $('#retry-overview-accounts').addEventListener('click', () => loadOverview());
   $('#refresh-positions').addEventListener('click', loadPositions);
   $('#refresh-chat-btn').addEventListener('click', () => refreshChat());
-  $('#chat-support-btn').addEventListener('click', selectSupportChat);
+  $('#chat-search-toggle')?.addEventListener('click', () => setChatSearchOpen($('#chat-search-wrap').hidden));
   $('#chat-support-entry').addEventListener('click', selectSupportChat);
   $('#subtab-convos').addEventListener('click', () => setChatMode('conversations'));
   $('#subtab-search').addEventListener('click', () => setChatMode('search'));
@@ -953,8 +1172,8 @@
     const peerId = Number(button.dataset.chatPeer);
     if (!Number.isSafeInteger(peerId) || peerId <= 0) return;
     const current = state.chat.mode === 'conversations'
-      ? { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.dataset.chatBio || '' }
-      : { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.querySelector('.chat-snippet')?.textContent || '' };
+      ? { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.dataset.chatBio || '', avatarUrl: button.dataset.chatAvatar || null }
+      : { id: peerId, username: button.querySelector('.chat-username')?.textContent || 'Trader', bio: button.querySelector('.chat-snippet')?.textContent || '', avatarUrl: button.dataset.chatAvatar || null };
     selectChatPeer(current);
   });
   $('#chat-mobile-back').addEventListener('click', () => setChatMobileView(false));
@@ -1049,6 +1268,36 @@
     } catch (error) { toast(error.message, 'error'); }
   });
   $('#save-portfolio-visibility').addEventListener('click', savePortfolioSharing);
+  $('#avatar-choose').addEventListener('click', () => $('#avatar-file').click());
+  $('#avatar-file').addEventListener('change', event => chooseAvatar(event.target.files[0]));
+  $('#avatar-save').addEventListener('click', saveAvatar);
+  $('#avatar-remove').addEventListener('click', removeAvatar);
+  $('#clear-cache-btn').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = 'Clearing…';
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(registration => registration.unregister()));
+      }
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+      }
+      toast('Cache cleared. Reloading…', 'success');
+      window.setTimeout(() => window.location.reload(), 600);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Clear cache';
+      toast('The cache could not be cleared. Try your browser settings instead.', 'error');
+    }
+  });
+  $('#avatar-cancel').addEventListener('click', () => {
+    clearAvatarDraft();
+    setAvatarStatus('');
+    renderAvatarSettings();
+  });
   $('#public-account-selection-list').addEventListener('change', event => {
     if (!event.target.matches('input[name="public-account"]')) return;
     const selectedCount = selectedPublicAccountIds().length;

@@ -9,3 +9,5 @@ Corngrid@ v37.mq5
 *.keystore
 keystore.properties
 android/app/keystore.properties
+# Uploaded profile photos
+storage/
