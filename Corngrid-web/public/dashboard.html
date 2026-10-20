@@ -258,7 +258,7 @@
 
         <section class="page" id="page-market">
           <div class="page-heading">
-            <div><p class="eyebrow">GLOBAL MARKETS</p><h1>Market Overview</h1><p class="muted">Professional candlestick charts for gold and major currency pairs, powered by live provider data.</p></div>
+            <div><p class="eyebrow">GLOBAL MARKETS</p><h1>Market Overview</h1><p class="muted">Candlestick charts for gold and major currency pairs, fed by the CornGrid EA broker feed. Source and freshness are always shown.</p></div>
             <div class="market-head-status"><span class="pill pill-muted" id="market-data-status">Loading…</span><span class="muted small" id="market-last-update">Last update: N/A</span></div>
           </div>
 
@@ -274,6 +274,8 @@
               <div class="market-quote">
                 <div class="market-quote-head"><span class="market-quote-symbol" id="market-quote-symbol">XAUUSD</span><span class="market-quote-label muted" id="market-quote-label">Gold / US Dollar</span></div>
                 <div class="market-quote-price"><strong id="market-price">—</strong><span id="market-change" class="market-change">—</span></div>
+                <div class="market-quote-meta muted small" id="market-quote-meta" aria-live="off">Bid — · Ask — · Spread —</div>
+                <div class="market-quote-meta muted small" id="market-source">Source: waiting for data…</div>
               </div>
               <div class="market-toolbar">
                 <div class="market-timeframes" id="market-timeframes" role="group" aria-label="Chart timeframe">
@@ -310,6 +312,9 @@
             <section class="panel market-info-panel">
               <div class="panel-header"><div><p class="eyebrow">INSTRUMENT</p><h2>Market information</h2></div></div>
               <div class="market-info-grid" id="market-info-grid">
+                <div><span>Bid</span><strong id="info-bid">N/A</strong></div>
+                <div><span>Ask</span><strong id="info-ask">N/A</strong></div>
+                <div><span>Spread</span><strong id="info-spread">N/A</strong></div>
                 <div><span>Open</span><strong id="info-open">N/A</strong></div>
                 <div><span>High</span><strong id="info-high">N/A</strong></div>
                 <div><span>Low</span><strong id="info-low">N/A</strong></div>
@@ -317,7 +322,7 @@
                 <div><span>Previous close</span><strong id="info-prev-close">N/A</strong></div>
                 <div><span>Change</span><strong id="info-change">N/A</strong></div>
               </div>
-              <p class="method-note" id="market-status-note">Prices come from the selected provider and may be delayed. CornGrid does not generate or estimate market prices.</p>
+              <p class="method-note" id="market-status-note">Prices come from the CornGrid EA broker feed when it is publishing. A fallback provider is used only if the site operator enabled it and is always labeled. CornGrid does not generate or estimate market prices.</p>
             </section>
             <section class="panel market-drawings-panel">
               <div class="panel-header"><div><p class="eyebrow">CHART TOOLS</p><h2>Saved drawings</h2></div></div>

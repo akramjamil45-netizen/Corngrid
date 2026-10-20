@@ -106,3 +106,177 @@ The dashboard/API integration can be checked without live MT5 data by running an
 - Email notifications, avatar uploads, personal-data export/deletion workflows, and logout-from-all-sessions UI are not implemented.
 - The existing JWT bearer login is preserved and its token remains in browser storage for compatibility. Password changes/recovery revoke earlier JWTs, but migration to HttpOnly cookie sessions is a separate security change and remains outstanding.
 - Built-in API rate limiting is in-memory and per Node process. Enforce complementary edge-level limits for multi-worker or multi-instance deployments.
+
+## Live Market Feed (CornGrid EA to Market Overview)
+
+### Architecture
+
+```
+MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (installation credential)
+  -> market-feed.js (validate, in-memory latest quotes + SQLite candles)
+  -> SSE /api/market/stream (HTTP polling /api/market/quote as fallback) -> Market Overview chart
+```
+
+- The EA reuses the dashboard pairing credential (per-installation bearer secret, stored hashed server-side). No new secret exists and nothing privileged reaches the browser. Account passwords are never transmitted.
+- Quotes (bid, ask, optional last, spread in points, digits, UTC tick time) are kept in memory only. Candles (M1-W1) are stored in the `market_candles` SQLite table, capped at 1,500 bars per feed/symbol/timeframe. Ticks are never stored.
+- Freshness uses the server's receipt time, never the EA clock: LIVE (<= 10 s), DELAYED (<= 30 s), STALE (<= 120 s), OFFLINE (older). A connected EA with no new broker tick is still LIVE but flagged "market quiet". A faster update interval is not evidence of zero latency or exchange-grade real-time data.
+- Replay/out-of-order protection: each request carries a strictly increasing `sentAtMs`; replays and older ticks are ignored (HTTP 202), and `sentAtMs` more than 5 minutes from server time is rejected (HTTP 422).
+- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
+- Candle times are broker server time (as on the MT5 chart) and the UTC offset is sent with each request. History is limited to what the EA transmitted (default 300 bars per timeframe on start); nothing is invented.
+- Source order: fresh EA feed, then the external provider only if `MARKET_FALLBACK_PROVIDER=external` (labeled FALLBACK, never "CornGrid EA"), then an honest unavailable/OFFLINE state. **The fallback is off by default**; set `MARKET_FALLBACK_PROVIDER=external` to keep the previous Twelve Data/Yahoo behavior while no EA publishes.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MARKET_LIVE_MAX_AGE_SECONDS` | 10 | Max update age for LIVE |
+| `MARKET_DELAYED_MAX_AGE_SECONDS` | 30 | Max age for DELAYED |
+| `MARKET_STALE_MAX_AGE_SECONDS` | 120 | Max age for STALE; older is OFFLINE |
+| `MARKET_QUIET_TICK_SECONDS` | 90 | No new tick for this long shows the "market quiet" flag |
+| `MARKET_PREFERRED_FEED` | empty | Preferred broker feed (lowercase slug of the broker server name) |
+| `MARKET_FALLBACK_PROVIDER` | empty | `external` enables the labeled fallback |
+| `MARKET_SYMBOL_ALIASES` | empty | `BROKERNAME=XAUUSD,...` for names such as `GOLD` |
+| `MARKET_PUBLISHER_TAKEOVER_SECONDS` | 15 | Silence before a standby publisher takes over |
+| `MARKET_CLOCK_TOLERANCE_SECONDS` | 300 | Allowed EA clock skew |
+| `MARKET_SSE_MAX_CLIENTS` / `MARKET_SSE_MAX_PER_USER` | 300 / 3 | Stream connection caps |
+| `MARKET_STREAM_MIN_INTERVAL_MS` | 250 | Stream flush interval (update throttle) |
+
+No new secrets are required. Website symbols: XAUUSD, EURUSD, GBPUSD, USDJPY; prefixes/suffixes such as `XAUUSD.a` or `m.EURUSD` are mapped automatically.
+
+### Enable it in CornGrid EA
+
+1. In MT5: Tools > Options > Expert Advisors > tick "Allow WebRequest for listed URL" and add `https://corngrid.com` (the origin used by Dashboard Sync).
+2. Pair the EA as usual (generate a pairing code, set `Enable account data sync to CornGrid` = true and the code). The market feed requires this pairing and uses its credential.
+3. Set `Publish broker prices/candles to the website` = true, then `Broker symbols` (comma separated, broker spelling; empty = chart symbol) and timeframes. The minimum quote interval is 2 s (the existing timer period). Defaults: timeout 1000 ms, 10 s base retry with exponential backoff, 5 consecutive failures then a 5-minute pause.
+4. Only one chart per account publishes (terminal global-variable lock); other charts stay idle.
+5. WebRequest is synchronous, so a request can delay `OnTick` by up to the timeout. The EA only sends when due, backs off after slow or failed responses, and never retries inline. If that is unacceptable on a live trading chart, run a second EA copy on another chart of the same account with trading disabled.
+
+### Sample payload (example values only, not real market prices)
+
+```json
+{
+  "schema": 1,
+  "sentAtMs": 1893499200000,
+  "serverUtcOffsetSec": 10800,
+  "eaVersion": "2.60",
+  "quotes": [
+    { "symbol": "XAUUSD.a", "bid": 1000.10, "ask": 1000.30, "last": null, "spreadPoints": 20,
+      "digits": 2, "tickTimeMs": 1893499199500, "tickVolume": null, "volume": null }
+  ],
+  "candles": [
+    { "symbol": "XAUUSD.a", "tf": "M1",
+      "bars": [ { "t": 1893510000, "o": 1000.0, "h": 1000.5, "l": 999.8, "c": 1000.1, "tv": 42, "v": null } ] }
+  ]
+}
+```
+
+Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited.
+
+### Test the feed
+
+- Automated: `npm test`. `test/market-feed.test.js` covers auth, validation, replay protection, state transitions, standby/primary, multi-broker selection, fallback labeling, candles, and SSE.
+- Manual: with the EA running the Experts log prints `CornGrid market feed: connected`. Market Overview shows LIVE and names the broker feed. Stop the EA: the pill goes DELAYED, STALE, then OFFLINE; restart it and updates resume without a page refresh.
+
+### Diagnose stale or offline data
+
+- OFFLINE and no EA log line: the input is off, pairing is missing, or the EA is stopped.
+- "request failed (MT5 error 4014)": the website URL is not in the WebRequest allow-list.
+- HTTP 401: credential revoked, re-pair. HTTP 422 about `sentAtMs`: fix the EA computer's clock. `202 standby`: another EA owns the feed.
+- LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
+- Missing candles for a timeframe: history is sent one timeframe per request; wait for "initial candle history sent".
+- If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works unchanged; for IIS ARR disable response buffering for `/api/market/stream`.
+
+### Security notes
+
+HTTPS only (the EA refuses non-HTTPS URLs). Request size is capped (256 KB, at most 16 quotes, 12 series, 2,000 bars), with a per-installation limit of 90 requests/min. SSE connections are capped globally and per user and recycled every 30 minutes. In-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local; multi-instance deployments need gateway limits. Stream and quote endpoints require the existing dashboard login; the existing `cors()` setup is unchanged.
+
+### Rollback
+
+Set the EA input `Publish broker prices/candles to the website` = false (trading behavior is unaffected either way) and `MARKET_FALLBACK_PROVIDER=external`; Market Overview then serves the previous provider data, labeled as fallback. To remove entirely, revert `market-feed.js` and the edits in `server.js`, `market-api.js`, `mt5-api.js`, `public/market.js`, `public/dashboard.*`; the `market_candles` table can stay.
+
+## Live Market Feed (CornGrid EA to Market Overview)
+
+### Architecture
+
+```
+MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (installation credential)
+  -> market-feed.js (validate, in-memory latest quotes + SQLite candles)
+  -> SSE /api/market/stream (HTTP polling /api/market/quote as fallback) -> Market Overview chart
+```
+
+- The EA reuses the dashboard pairing credential (per-installation bearer secret, stored hashed server-side). No new secret exists and nothing privileged reaches the browser. Account passwords are never transmitted.
+- Quotes (bid, ask, optional last, spread in points, digits, UTC tick time) are kept in memory only. Candles (M1-W1) are stored in the `market_candles` SQLite table, capped at 1,500 bars per feed/symbol/timeframe. Ticks are never stored.
+- Freshness uses the server's receipt time, never the EA clock: LIVE (<= 10 s), DELAYED (<= 30 s), STALE (<= 120 s), OFFLINE (older). A connected EA with no new broker tick is still LIVE but flagged "market quiet". Thresholds are configurable (see below). A faster update interval is not evidence of zero latency or exchange-grade real-time data.
+- Replay/out-of-order protection: each request carries a strictly increasing `sentAtMs`; replays and older ticks are ignored (HTTP 202), and `sentAtMs` more than 5 minutes from server time is rejected (HTTP 422).
+- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
+- Candle times are broker server time (as on the MT5 chart) and the UTC offset is sent with each request. History is limited to what the EA transmitted (default 300 bars per timeframe on start); there is no invented history.
+- Source order: fresh EA feed, then the external provider only if `MARKET_FALLBACK_PROVIDER=external` (labeled FALLBACK, never "CornGrid EA"), then an honest unavailable/OFFLINE state. **Default is off**, so set `MARKET_FALLBACK_PROVIDER=external` to keep the old Twelve Data/Yahoo behavior while no EA publishes.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MARKET_LIVE_MAX_AGE_SECONDS` | 10 | Max update age for LIVE |
+| `MARKET_DELAYED_MAX_AGE_SECONDS` | 30 | Max age for DELAYED |
+| `MARKET_STALE_MAX_AGE_SECONDS` | 120 | Max age for STALE, beyond it OFFLINE |
+| `MARKET_QUIET_TICK_SECONDS` | 90 | No new tick for this long shows the "market quiet" flag |
+| `MARKET_PREFERRED_FEED` | empty | Preferred broker feed (slug of the broker server name) |
+| `MARKET_FALLBACK_PROVIDER` | empty | `external` enables the labeled fallback |
+| `MARKET_SYMBOL_ALIASES` | empty | `BROKERNAME=XAUUSD,...` for names such as `GOLD` |
+| `MARKET_PUBLISHER_TAKEOVER_SECONDS` | 15 | Silence before a standby publisher takes over |
+| `MARKET_CLOCK_TOLERANCE_SECONDS` | 300 | Allowed EA clock skew |
+| `MARKET_SSE_MAX_CLIENTS` / `MARKET_SSE_MAX_PER_USER` | 300 / 3 | Stream connection caps |
+| `MARKET_STREAM_MIN_INTERVAL_MS` | 250 | Stream flush interval (update throttle) |
+
+No new secrets are required. Symbols recognised by the website: XAUUSD, EURUSD, GBPUSD, USDJPY; prefixes/suffixes such as `XAUUSD.a`, `m.EURUSD` are mapped automatically.
+
+### Enable it in CornGrid EA
+
+1. In MT5 allow the website: Tools > Options > Expert Advisors > tick "Allow WebRequest for listed URL" and add `https://corngrid.com` (the same origin used by Dashboard Sync).
+2. Pair the EA with the dashboard as usual (generate a pairing code, set `Enable account data sync to CornGrid` = true and the code). The market feed requires this pairing.
+3. Set `Publish broker prices/candles to the website` = true. Set `Broker symbols` (comma separated, broker spelling, empty = chart symbol) and the timeframes. Quote interval minimum is 2 s (the existing timer period). Defaults: timeout 1000 ms, retry 10 s base with exponential backoff, 5 failures then a 5-minute pause.
+4. Only one chart per account publishes (terminal global-variable lock). Attach the EA to other charts freely; they stay idle.
+5. Recommended for production: run the publishing instance on a quiet chart. WebRequest is synchronous, so a timer-triggered request can delay `OnTick` by up to the timeout. The EA skips publishing when it is not due, backs off after slow or failed responses, and never retries inline. If this is unacceptable on a live trading chart, run a second EA copy with trading disabled on another chart of the same account.
+
+### Sample payload (example values only, not real market prices)
+
+```json
+{
+  "schema": 1,
+  "sentAtMs": 1893499200000,
+  "serverUtcOffsetSec": 10800,
+  "eaVersion": "2.60",
+  "quotes": [
+    { "symbol": "XAUUSD.a", "bid": 1000.10, "ask": 1000.30, "last": null, "spreadPoints": 20,
+      "digits": 2, "tickTimeMs": 1893499199500, "tickVolume": null, "volume": null }
+  ],
+  "candles": [
+    { "symbol": "XAUUSD.a", "tf": "M1",
+      "bars": [ { "t": 1893510000, "o": 1000.0, "h": 1000.5, "l": 999.8, "c": 1000.1, "tv": 42, "v": null } ] }
+  ]
+}
+```
+
+Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited.
+
+### Test the feed
+
+- Automated: `npm test` (`test/market-feed.test.js` covers auth, validation, replay protection, state transitions, standby/primary, multi-broker selection, fallback labeling, candles, and SSE).
+- Manual: with the EA running, the Experts log prints `CornGrid market feed: connected`. Open Market Overview: the pill shows LIVE and the source line names the broker feed. Stop the EA or disconnect it: the pill goes DELAYED, STALE, then OFFLINE; restart it and updates resume without a page refresh.
+
+### Diagnose stale or offline data
+
+- OFFLINE and no log line: the EA input is off, sync/pairing is missing, or the chart's EA is stopped.
+- Experts log "request failed (MT5 error 4014)": the website URL is not in the WebRequest allow-list.
+- HTTP 401: credential revoked, re-pair. HTTP 422 `sentAtMs`: fix the EA PC clock. `202 standby`: another EA owns the feed.
+- LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
+- No candles for a timeframe: history is still being sent one timeframe per request; wait for "initial candle history sent".
+- If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works without changes; for IIS ARR disable response buffering for `/api/market/stream`.
+
+### Security notes
+
+HTTPS only (the EA refuses non-HTTPS URLs); credential only server-side hashed and in the MT5 `MQL5/Files` key file; request size capped (256 KB, at most 16 quotes, 12 series, 2,000 bars); per-installation rate limit of 90 requests/min; SSE connections capped globally and per user and recycled every 30 minutes; in-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local, so multi-instance deployments need gateway limits. The existing `cors()` setup is unchanged; the stream and quote endpoints require the existing dashboard login.
+
+### Rollback
+
+Set the EA input `Publish broker prices/candles to the website` = false (EA behavior is otherwise unchanged) and set `MARKET_FALLBACK_PROVIDER=external`; Market Overview then serves the previous provider data, labeled as fallback. To remove entirely, revert `market-feed.js`, the `server.js`/`market-api.js`/`mt5-api.js`/`public/market.js` edits, and drop the `market_candles` table (harmless to keep).

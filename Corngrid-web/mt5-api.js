@@ -498,7 +498,7 @@ function registerMt5Api(app, db, verifyToken) {
     const secretHash = crypto.createHash('sha256').update(suppliedSecret).digest('hex');
     try {
       const installation = await get(db, `
-        SELECT i.id AS installation_id, i.account_id, a.user_id, a.last_heartbeat
+        SELECT i.id AS installation_id, i.account_id, a.user_id, a.last_heartbeat, a.broker_server
         FROM mt5_installations i
         JOIN mt5_accounts a ON a.id = i.account_id
         WHERE i.secret_hash = ? AND i.revoked_at IS NULL
@@ -1160,6 +1160,8 @@ function registerMt5Api(app, db, verifyToken) {
       return res.status(500).json({ error: 'Unable to load trade history.' });
     }
   });
+
+  return { authenticateInstallation };
 }
 
 async function getPublicPortfolio(db, shareId) {
