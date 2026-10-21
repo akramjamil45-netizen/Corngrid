@@ -550,8 +550,6 @@
       renderConnection(selectedAccount ? [selectedAccount] : []);
       const update = portfolio.lastUpdate ? dateTime(portfolio.lastUpdate) : 'N/A';
       $('#last-update').textContent = `Last update: ${update}`;
-      $('#sidebar-connection').textContent = selectedAccount?.status === 'Online' ? 'Selected EA online' : selectedAccount?.status || 'No selected account';
-      $('.sidebar-status .status-dot').classList.toggle('status-dot-muted', selectedAccount?.status !== 'Online');
       $('#live-label').textContent = selectedAccount?.status === 'Online' ? 'LIVE MONITORING' : 'NO LIVE FEED';
       $('#live-indicator').classList.toggle('is-live', selectedAccount?.status === 'Online');
       $('#data-notice').className = 'notice notice-info';
@@ -582,8 +580,6 @@
       $('#data-notice').hidden = false;
       $('#live-label').textContent = 'STATUS UNKNOWN';
       $('#live-indicator').classList.remove('is-live');
-      $('#sidebar-connection').textContent = 'Status unavailable';
-      $('.sidebar-status .status-dot').classList.add('status-dot-muted');
       toast(error.message, 'error');
     }
   }

@@ -97,6 +97,8 @@ html {
     scroll-behavior: smooth;
     /* Keep find-in-page / focus targets clear of the sticky header. */
     scroll-padding-top: 96px;
+    /* Stop the wide hero mock from scrolling the whole page sideways on small phones. */
+    overflow-x: clip;
 }
 
 ::selection {
@@ -1117,8 +1119,8 @@ header.header-scrolled .logo-text {
     display: none;
 }
 
-/* Khas untuk Skrin Telefon Bimbit & Tablet (<= 768px) */
-@media (max-width: 768px) {
+/* Khas untuk Skrin Telefon Bimbit & Tablet (<= 1100px) */
+@media (max-width: 1100px) {
     .menu-toggle {
         display: block; /* Paparkan butang hamburger */
     }
@@ -3840,7 +3842,7 @@ footer {
 }
 
 /* Responsif untuk Mobile Navigation Menu */
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
     .lang-switch-box {
         margin-left: 0;
         margin-top: 15px;
@@ -3890,7 +3892,7 @@ footer {
     padding: 10px 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
     #mainHeader {
         padding: 12px 0;
     }

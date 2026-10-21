@@ -77,6 +77,13 @@ const navMenu = document.querySelector("#navMenu");
 const navLinks = document.querySelectorAll(".nav-link");
 
 if (menuToggle && navMenu) {
+    const closeMenu = () => {
+        menuToggle.classList.remove("active");
+        navMenu.classList.remove("active");
+        menuToggle.setAttribute("aria-expanded", "false");
+        menuToggle.setAttribute("aria-label", "Open navigation");
+    };
+
     menuToggle.addEventListener("click", () => {
         const isOpen = menuToggle.classList.toggle("active");
         navMenu.classList.toggle("active", isOpen);
@@ -85,21 +92,22 @@ if (menuToggle && navMenu) {
     });
 
     navLinks.forEach((link) => {
-        link.addEventListener("click", () => {
-            menuToggle.classList.remove("active");
-            navMenu.classList.remove("active");
-            menuToggle.setAttribute("aria-expanded", "false");
-            menuToggle.setAttribute("aria-label", "Open navigation");
-        });
+        link.addEventListener("click", closeMenu);
     });
 
     document.addEventListener("click", (e) => {
         if (!navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
-            menuToggle.classList.remove("active");
-            navMenu.classList.remove("active");
-            menuToggle.setAttribute("aria-expanded", "false");
-            menuToggle.setAttribute("aria-label", "Open navigation");
+            closeMenu();
         }
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeMenu();
+    });
+
+    // Leaving the drawer breakpoint must not strand an open drawer.
+    window.addEventListener("resize", () => {
+        if (window.innerWidth > 1100) closeMenu();
     });
 }
 
@@ -228,6 +236,7 @@ const translations = {
         nav_features: "Features",
         nav_setup: "Setup",
         nav_presets: "Preset Files",
+        nav_terminal_app: "Terminal App",
         nav_support: "Support",
         nav_portfolios: "Portfolios",
         nav_login: "Login",
@@ -437,6 +446,7 @@ const translations = {
         nav_features: "Ciri-Ciri",
         nav_setup: "Cara Setup",
         nav_presets: "Fail Preset",
+        nav_terminal_app: "Aplikasi Terminal",
         nav_support: "Bantuan",
         nav_portfolios: "Portfolio",
         nav_login: "Log Masuk",
