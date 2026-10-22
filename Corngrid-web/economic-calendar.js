@@ -509,6 +509,7 @@ function createEconomicCalendar({ db, fetchImpl, now = () => Date.now(), config 
       const events = normalizeEvents(parseCalendarFeed(text));
       if (!events.length) throw new Error('The economic calendar feed did not contain any events.');
       cache = { events, fetchedAt: now() };
+      console.info(`Economic calendar feed refreshed: ${events.length} events from ${feedUrl}.`);
       lastError = null;
       blockedUntil = 0;
       await persist();

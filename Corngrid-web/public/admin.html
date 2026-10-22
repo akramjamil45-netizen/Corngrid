@@ -14,12 +14,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261017-6">
-  <link rel="stylesheet" href="admin.css?v=20261018-1">
-  <script src="admin.js?v=20261018-1" defer></script>
+  <link rel="stylesheet" href="admin.css?v=20261023-1">
+  <script src="admin.js?v=20261023-1" defer></script>
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="admin-sidebar">
       <a class="brand" href="/admin.html" aria-label="CornGrid administrator dashboard">
         <img src="images/Corngrid logo 4k.jpg" alt="" class="brand-mark">
         <span>CORNGRID<small>ADMINISTRATION</small></span>
@@ -28,6 +28,7 @@
       <nav class="main-nav" aria-label="Administrator navigation">
         <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
         <a class="nav-item admin-nav-link" href="#support" data-admin-page="support"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>Support <span class="admin-unread-badge" id="admin-support-unread" hidden>0</span></a>
+        <a class="nav-item admin-nav-link" href="#reports" data-admin-page="reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>Reports <span class="admin-unread-badge" id="admin-reports-unread" hidden>0</span></a>
         <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
       </nav>
       <div class="sidebar-bottom">
@@ -39,6 +40,7 @@
 
     <main class="main-content">
       <header class="topbar">
+        <button class="mobile-menu" id="admin-mobile-menu" type="button" aria-label="Open navigation" aria-controls="admin-sidebar" aria-expanded="false">☰</button>
         <div class="breadcrumb"><span>Administration</span><b>/</b><strong id="admin-breadcrumb-page">Overview</strong></div>
         <div class="topbar-actions"><span class="admin-user-label">Administrator</span><button class="button button-secondary" id="admin-refresh" type="button">↻ Refresh</button></div>
       </header>
@@ -81,6 +83,14 @@
           </div>
         </section>
 
+        <section class="page" id="reports" hidden>
+          <div class="page-heading"><div><p class="eyebrow">COMMUNITY MODERATION</p><h1>Reported content</h1><p class="muted">Posts and comments flagged by community members. Review each report and take action if the content breaks the rules.</p></div><button class="button button-secondary" id="admin-reports-refresh" type="button">↻ Refresh</button></div>
+          <section class="panel">
+            <div class="panel-header"><div><p class="eyebrow">OPEN REPORTS</p><h2>Pending moderation queue</h2></div><span class="muted small" id="admin-reports-count">0 open</span></div>
+            <div class="admin-reports-list" id="admin-reports-list" aria-live="polite"><p class="table-empty">Loading reports…</p></div>
+          </section>
+        </section>
+
         <section class="page" id="announcements" hidden>
           <div class="page-heading"><div><p class="eyebrow">COMMUNITY BROADCAST</p><h1>Announcements</h1><p class="muted">Publish official notices that appear pinned at the top of the community Live Feed.</p></div></div>
           <div class="admin-ann-layout">
@@ -105,6 +115,7 @@
         <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
       </div>
     </main>
+    <div class="overlay" id="admin-overlay" hidden></div>
   </div>
 
   <dialog class="admin-dialog" id="admin-trading-dialog">

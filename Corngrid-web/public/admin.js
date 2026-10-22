@@ -221,6 +221,127 @@
     }
   }
 
+  // ---- Mobile sidebar (matches the dashboard shell behaviour) ----
+  const SIDEBAR_BREAKPOINT = '(max-width: 850px)';
+
+  function setSidebarOpen(open) {
+    const sidebar = $('#admin-sidebar');
+    const menu = $('#admin-mobile-menu');
+    const overlay = $('#admin-overlay');
+    if (!sidebar || !menu || !overlay) return;
+    const mobile = window.matchMedia(SIDEBAR_BREAKPOINT).matches;
+    sidebar.classList.toggle('is-open', open);
+    // Keep the closed drawer out of the tab order and the accessibility tree.
+    sidebar.inert = mobile && !open;
+    sidebar.setAttribute('aria-hidden', String(mobile && !open));
+    menu.setAttribute('aria-expanded', String(open));
+    menu.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    overlay.hidden = !open;
+  }
+
+  function closeSidebarOnNavigation() {
+    if (window.matchMedia(SIDEBAR_BREAKPOINT).matches) setSidebarOpen(false);
+  }
+
+  $('#admin-mobile-menu').addEventListener('click', () => {
+    setSidebarOpen(!$('#admin-sidebar').classList.contains('is-open'));
+  });
+  $('#admin-overlay').addEventListener('click', () => {
+    setSidebarOpen(false);
+    $('#admin-mobile-menu').focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && $('#admin-sidebar').classList.contains('is-open')) {
+      setSidebarOpen(false);
+      $('#admin-mobile-menu').focus();
+    }
+  });
+  window.matchMedia(SIDEBAR_BREAKPOINT).addEventListener('change', () => setSidebarOpen(false));
+  setSidebarOpen(false);
+
+  // ---- Reported content moderation queue ----
+  // Lightweight poll used only to keep the sidebar badge accurate.
+  async function refreshReportsBadge() {
+    const badge = $('#admin-reports-unread');
+    if (!badge) return;
+    try {
+      const data = await api('/api/feed/admin/reports');
+      const count = (data.reports || []).length;
+      badge.hidden = count === 0;
+      badge.textContent = count > 99 ? '99+' : String(count);
+    } catch {
+      // A badge refresh must never interrupt the admin workflow.
+    }
+  }
+
+  async function loadReports() {
+    const list = $('#admin-reports-list');
+    const counter = $('#admin-reports-count');
+    const badge = $('#admin-reports-unread');
+    list.innerHTML = '<p class="table-empty">Loading reports…</p>';
+    try {
+      const data = await api('/api/feed/admin/reports');
+      const reports = data.reports || [];
+      counter.textContent = `${reports.length} open`;
+      badge.hidden = reports.length === 0;
+      badge.textContent = reports.length > 99 ? '99+' : String(reports.length);
+      if (!reports.length) {
+        list.innerHTML = '<p class="table-empty">No open reports. The community queue is clear.</p>';
+        return;
+      }
+      list.innerHTML = reports.map(report => `
+        <div class="admin-report-item" data-report-id="${escapeHtml(report.id)}">
+          <div class="admin-report-head">
+            <strong>${report.targetType === 'comment' ? 'Comment' : 'Post'} #${escapeHtml(report.targetId)}</strong>
+            <span class="muted small">Reported by ${escapeHtml(report.reporter || 'Unknown')} · ${escapeHtml(formatDateTime(report.createdAt))}</span>
+          </div>
+          <p class="admin-report-reason"><span class="eyebrow">REASON</span>${escapeHtml(report.reason)}</p>
+          <blockquote class="admin-report-preview">${escapeHtml(report.preview || 'The reported content is no longer available.')}</blockquote>
+          <div class="admin-report-actions">
+            <button class="button button-small button-danger" type="button" data-report-remove="${escapeHtml(report.targetType)}" data-report-target="${escapeHtml(report.targetId)}">Remove content</button>
+            <button class="button button-small button-secondary" type="button" data-report-resolve="${escapeHtml(report.id)}">Mark as handled</button>
+          </div>
+        </div>`).join('');
+    } catch (error) {
+      list.innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  $('#admin-reports-refresh').addEventListener('click', loadReports);
+
+  $('#admin-reports-list').addEventListener('click', async event => {
+    const resolveButton = event.target.closest('[data-report-resolve]');
+    const removeButton = event.target.closest('[data-report-remove]');
+    try {
+      if (resolveButton) {
+        resolveButton.disabled = true;
+        await api(`/api/feed/admin/reports/${encodeURIComponent(resolveButton.dataset.reportResolve)}/resolve`, { method: 'POST' });
+        toast('Report marked as handled.', 'success');
+        loadReports();
+        return;
+      }
+      if (removeButton) {
+        const kind = removeButton.dataset.reportRemove === 'comment' ? 'comments' : 'posts';
+        if (!window.confirm('Remove this reported content from the Live Feed?')) return;
+        removeButton.disabled = true;
+        await api(`/api/feed/admin/content/${encodeURIComponent(kind)}/${encodeURIComponent(removeButton.dataset.reportTarget)}`, { method: 'DELETE' });
+        toast('Reported content removed from the feed.', 'success');
+        // Close out every open report that points at the removed content so the
+        // queue does not keep showing already-handled items.
+        const item = removeButton.closest('[data-report-id]');
+        const reportId = item && item.dataset.reportId;
+        if (reportId) {
+          await api(`/api/feed/admin/reports/${encodeURIComponent(reportId)}/resolve`, { method: 'POST' }).catch(() => {});
+        }
+        loadReports();
+      }
+    } catch (error) {
+      toast(error.message, 'error');
+      if (resolveButton) resolveButton.disabled = false;
+      if (removeButton) removeButton.disabled = false;
+    }
+  });
+
   // ---- Community announcements (Live Feed) ----
   let editingAnnouncementId = null;
 
@@ -332,7 +453,7 @@
   });
 
   function showAdminPage(name) {
-    const pages = ['overview', 'support', 'announcements'];
+    const pages = ['overview', 'support', 'reports', 'announcements'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -345,14 +466,17 @@
       if (link.dataset.adminPage === active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const labels = { overview: 'Overview', support: 'Support', announcements: 'Announcements' };
+    const labels = { overview: 'Overview', support: 'Support', reports: 'Reports', announcements: 'Announcements' };
     $('#admin-breadcrumb-page').textContent = labels[active];
     if (active === 'support') loadSupportConversations();
+    if (active === 'reports') loadReports();
     if (active === 'announcements') loadAnnouncements();
+    closeSidebarOnNavigation();
   }
 
   $('#admin-refresh').addEventListener('click', () => {
     if (!$('#support').hidden) loadSupportConversations();
+    else if (!$('#reports').hidden) loadReports();
     else if (!$('#announcements').hidden) loadAnnouncements();
     else loadOverview();
   });
@@ -471,18 +595,22 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['support', 'announcements'].includes(hash) ? hash : 'overview');
+    showAdminPage(['support', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
-    if (!document.hidden && !$('#support').hidden) {
+    if (document.hidden) return;
+    if (!$('#support').hidden) {
       if (selectedSupportUserId) loadSupportMessages(selectedSupportUserId);
       else loadSupportConversations();
     }
+    refreshReportsBadge();
   }, 10000);
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
   if (location.hash === '#support') showAdminPage('support');
+  else if (location.hash === '#reports') showAdminPage('reports');
   else if (location.hash === '#announcements') showAdminPage('announcements');
   loadOverview();
+  refreshReportsBadge();
 })();

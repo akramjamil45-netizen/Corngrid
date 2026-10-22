@@ -109,20 +109,22 @@
   function statusFor(ev) {
     var now = nowMs();
     if (ev.startMs == null) return { key: 'unknown', label: 'TIME N/A', tone: 'status-past' };
+    // A published result always wins over the time slot, even when released early.
+    if (released(ev)) return { key: 'released', label: 'RELEASED', tone: 'status-released' };
     var diff = ev.startMs - now;
     if (diff > 0) {
       if (diff <= 5 * 60 * 1000) return { key: 'imminent', label: 'IMMINENT', tone: 'status-soon' };
       if (diff <= 60 * 60 * 1000) return { key: 'approaching', label: 'APPROACHING', tone: 'status-soon' };
       return { key: 'upcoming', label: 'UPCOMING', tone: 'status-upcoming' };
     }
-    if (released(ev)) return { key: 'released', label: 'RELEASED', tone: 'status-released' };
     return { key: 'waiting', label: 'WAITING FOR RESULT', tone: 'status-past' };
   }
 
   function countdownLabel(ev) {
     if (ev.startMs == null) return 'N/A';
+    if (released(ev)) return 'Released';
     var diff = ev.startMs - nowMs();
-    if (diff <= 0) return released(ev) ? 'Released' : 'Awaiting result';
+    if (diff <= 0) return 'Awaiting result';
     if (diff <= 60 * 1000) return 'Releasing soon';
     return formatCountdown(diff);
   }
@@ -170,6 +172,8 @@
   function matchesRange(ev) {
     var range = state.filters.range;
     if (range === 'upcoming') {
+      // Released results are no longer upcoming and must never be listed as such.
+      if (released(ev)) return false;
       if (ev.startMs != null) return ev.startMs >= nowMs();
       return ev.dateKey != null && ev.dateKey >= mytDateKey(nowMs());
     }
@@ -216,6 +220,7 @@
     if (ev.startMs != null) row.dataset.startMs = String(ev.startMs);
 
     var timeCell = cell(null, 'econ-time-cell');
+    timeCell.dataset.label = 'Time (MYT)';
     var timeText = document.createElement('span');
     if (ev.startMs != null) {
       timeText.textContent = formatClock(ev.startMs);
@@ -233,6 +238,7 @@
     row.appendChild(timeCell);
 
     var curCell = cell(null);
+    curCell.dataset.label = 'Currency';
     var cur = document.createElement('span');
     cur.className = 'econ-cur';
     cur.textContent = ev.currency || 'ALL';
@@ -240,6 +246,7 @@
     row.appendChild(curCell);
 
     var impCell = cell(null);
+    impCell.dataset.label = 'Impact';
     var imp = document.createElement('span');
     imp.className = 'econ-impact ' + impactClass(ev.impact);
     imp.textContent = impactLabel(ev.impact);
@@ -247,6 +254,7 @@
     row.appendChild(impCell);
 
     var titleCell = cell(null);
+    titleCell.dataset.label = 'Event';
     var titleWrap = document.createElement('div');
     titleWrap.className = 'econ-title';
     var titleText = document.createElement('span');
@@ -267,14 +275,18 @@
     row.appendChild(titleCell);
 
     var cmp = compareToForecast(ev);
-    var actualCell = cell(null, 'econ-actual-cell');
+    var actualCell = cell(null, 'econ-actual-cell econ-col-num');
+    actualCell.dataset.label = 'Actual';
     actualCell.dataset.compare = cmp;
     actualCell.textContent = ev.actual != null ? ev.actual : 'N/A';
     if (ev.actual == null) actualCell.classList.add('muted');
     row.appendChild(actualCell);
 
-    row.appendChild(cell(ev.forecast != null ? ev.forecast : 'N/A', ev.forecast == null ? 'muted' : null));
-    var prevCell = cell(null);
+    var forecastCell = cell(ev.forecast != null ? ev.forecast : 'N/A', (ev.forecast == null ? 'muted' : '') + ' econ-col-num');
+    forecastCell.dataset.label = 'Forecast';
+    row.appendChild(forecastCell);
+    var prevCell = cell(null, 'econ-col-num');
+    prevCell.dataset.label = 'Previous';
     prevCell.textContent = ev.previous != null ? ev.previous : 'N/A';
     if (ev.previous == null) prevCell.classList.add('muted');
     if (ev.revised != null) {
@@ -286,6 +298,7 @@
     row.appendChild(prevCell);
 
     var statusCell = cell(null, 'econ-status-cell');
+    statusCell.dataset.label = 'Status';
     var badge = document.createElement('span');
     var st = statusFor(ev);
     badge.className = 'econ-status ' + st.tone;
@@ -301,10 +314,122 @@
     return row;
   }
 
+  // Mobile counterpart of buildRow: the same data presented as a card so the
+  // table never has to be compressed on narrow screens.
+  function buildCard(ev) {
+    var card = document.createElement('article');
+    card.className = 'econ-card';
+    card.setAttribute('role', 'listitem');
+    card.dataset.eventId = ev.id;
+    if (ev.startMs != null) card.dataset.startMs = String(ev.startMs);
+
+    var head = document.createElement('div');
+    head.className = 'econ-card-head';
+
+    var time = document.createElement('div');
+    time.className = 'econ-card-time';
+    var timeText = document.createElement('span');
+    if (ev.startMs != null) timeText.textContent = formatClock(ev.startMs);
+    else {
+      timeText.textContent = ev.dateKey ? ev.dateKey : 'TIME N/A';
+      timeText.className = 'muted';
+    }
+    time.appendChild(timeText);
+    if (ev.startMs != null && ev.dateKey) {
+      var dateSub = document.createElement('small');
+      dateSub.textContent = ev.dateKey;
+      time.appendChild(dateSub);
+    }
+    head.appendChild(time);
+
+    var tags = document.createElement('div');
+    tags.className = 'econ-card-tags';
+    var cur = document.createElement('span');
+    cur.className = 'econ-cur';
+    cur.textContent = ev.currency || 'ALL';
+    tags.appendChild(cur);
+    var imp = document.createElement('span');
+    imp.className = 'econ-impact ' + impactClass(ev.impact);
+    imp.textContent = impactLabel(ev.impact);
+    tags.appendChild(imp);
+    head.appendChild(tags);
+    card.appendChild(head);
+
+    var title = document.createElement('div');
+    title.className = 'econ-card-title';
+    title.appendChild(document.createTextNode(ev.title || ''));
+    var link = safeUrl(ev.url);
+    if (link) {
+      var a = document.createElement('a');
+      a.className = 'econ-card-link';
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = ' ↗';
+      a.setAttribute('aria-label', 'Open Forex Factory event page');
+      title.appendChild(a);
+    }
+    card.appendChild(title);
+
+    var values = document.createElement('div');
+    values.className = 'econ-card-values';
+    var actual = document.createElement('div');
+    actual.className = 'econ-card-value' + (ev.actual == null ? ' is-muted' : ' is-actual');
+    actual.appendChild(valueLabel('Actual'));
+    actual.appendChild(valueText(ev.actual == null ? 'N/A' : ev.actual));
+    values.appendChild(actual);
+    values.appendChild(valueBox('Forecast', ev.forecast == null ? 'N/A' : ev.forecast, ev.forecast == null));
+    var prevBox = valueBox('Previous', ev.previous == null ? 'N/A' : ev.previous, ev.previous == null);
+    if (ev.revised != null) {
+      var rev = document.createElement('span');
+      rev.className = 'muted';
+      rev.textContent = 'revised ' + ev.revised;
+      prevBox.appendChild(rev);
+    }
+    values.appendChild(prevBox);
+    card.appendChild(values);
+
+    var foot = document.createElement('div');
+    foot.className = 'econ-card-foot';
+    var badge = document.createElement('span');
+    var st = statusFor(ev);
+    badge.className = 'econ-status ' + st.tone;
+    badge.textContent = st.label;
+    foot.appendChild(badge);
+    var cd = document.createElement('span');
+    cd.className = 'econ-card-countdown';
+    cd.textContent = countdownLabel(ev);
+    foot.appendChild(cd);
+    card.appendChild(foot);
+
+    return card;
+  }
+
+  function valueLabel(text) {
+    var el = document.createElement('span');
+    el.textContent = text;
+    return el;
+  }
+
+  function valueText(text) {
+    var el = document.createElement('strong');
+    el.textContent = text;
+    return el;
+  }
+
+  function valueBox(label, text, muted) {
+    var box = document.createElement('div');
+    box.className = 'econ-card-value' + (muted ? ' is-muted' : '');
+    box.appendChild(valueLabel(label));
+    box.appendChild(valueText(text));
+    return box;
+  }
+
   function renderRows() {
     var host = $('#econ-rows');
-    if (!host) return;
-    host.textContent = '';
+    var cardHost = $('#econ-cards');
+    if (host) host.textContent = '';
+    if (cardHost) cardHost.textContent = '';
     state.filtered = state.events.filter(passesFilters).sort(function (a, b) { return sortMs(a) - sortMs(b); });
 
     var count = $('#econ-event-count');
@@ -315,20 +440,25 @@
     if (state.filtered.length === 0) {
       if (empty) empty.hidden = false;
       if (table) table.style.display = 'none';
+      if (cardHost) cardHost.style.display = 'none';
       return;
     }
     if (empty) empty.hidden = true;
     if (table) table.style.display = '';
+    if (cardHost) cardHost.style.display = '';
 
     var frag = document.createDocumentFragment();
+    var cardFrag = document.createDocumentFragment();
     for (var i = 0; i < state.filtered.length && i < 400; i += 1) {
       frag.appendChild(buildRow(state.filtered[i]));
+      cardFrag.appendChild(buildCard(state.filtered[i]));
     }
-    host.appendChild(frag);
+    if (host) host.appendChild(frag);
+    if (cardHost) cardHost.appendChild(cardFrag);
   }
 
   function tickCountdowns() {
-    var rows = $$('.econ-row');
+    var rows = $$('.econ-row, .econ-card');
     for (var i = 0; i < rows.length; i += 1) {
       var row = rows[i];
       var startMs = row.dataset.startMs ? Number(row.dataset.startMs) : null;
@@ -339,7 +469,7 @@
       }
       if (!ev) continue;
       var diff = startMs - nowMs();
-      var cd = $('.econ-countdown', row);
+      var cd = $('.econ-countdown', row) || $('.econ-card-countdown', row);
       if (cd) cd.textContent = diff > 0 ? (diff <= 60000 ? 'Releasing soon' : formatCountdown(diff)) : (released(ev) ? 'Released' : 'Awaiting result');
       var badge = $('.econ-status', row);
       if (badge) {
@@ -359,7 +489,8 @@
       var ev = state.events[i];
       if (ev.impact === 'high') {
         if (ev.dateKey === todayKey) highToday += 1;
-        if (ev.startMs != null && ev.startMs >= now) {
+        // A released event is never counted as upcoming, even if its slot has passed.
+        if (!released(ev) && ev.startMs != null && ev.startMs >= now) {
           highUpcoming += 1;
           if (!nextHigh || ev.startMs < nextHigh.startMs) nextHigh = ev;
         }
@@ -421,6 +552,8 @@
     for (var i = 0; i < state.events.length; i += 1) {
       var ev = state.events[i];
       if (ev.impact !== 'high' || ev.startMs == null) continue;
+      // A released event is never a valid alert target.
+      if (released(ev)) continue;
       if (state.prefs.relevance !== 'all' && (ev.relevance || []).indexOf(state.prefs.relevance) === -1) continue;
       var diff = ev.startMs - now;
       if (diff <= 0 || diff > windowMs) continue;
@@ -514,6 +647,8 @@
     if (panel) panel.hidden = false;
     var table = $('#econ-table');
     if (table && state.events.length === 0) table.style.display = 'none';
+    var cards = $('#econ-cards');
+    if (cards && state.events.length === 0) cards.style.display = 'none';
   }
 
   function hideError() {
@@ -548,13 +683,24 @@
   }
 
   async function request(path, options) {
-    var res = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}));
-    if (!res.ok) {
-      var msg = 'Request failed (' + res.status + ')';
-      try { var body = await res.json(); if (body && body.error) msg = body.error; } catch (e) { /* ignore */ }
-      throw new Error(msg);
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 15000);
+    try {
+      var res = await fetch(path, Object.assign({ credentials: 'same-origin', signal: controller.signal }, options || {}));
+      if (!res.ok) {
+        var msg = 'Request failed (' + res.status + ')';
+        try { var body = await res.json(); if (body && body.error) msg = body.error; } catch (e) { /* ignore */ }
+        throw new Error(msg);
+      }
+      return res.json();
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('The calendar request timed out. Please check your connection and try again.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    return res.json();
   }
 
   // Applies a calendar payload once: keeps the actual-result baseline from the
@@ -581,11 +727,27 @@
   }
 
   async function fetchCalendar(force) {
+    var table = $('#econ-table');
+    var rows = $('#econ-rows');
+    var cards = $('#econ-cards');
+    var error = $('#econ-error');
+    if (!state.loaded && table) {
+      table.style.display = 'none';
+      if (cards) cards.style.display = 'none';
+    }
+    if (error) error.hidden = true;
     try {
       var url = '/api/economic-calendar' + (force ? '?refresh=1' : '');
       var data = await request(url);
       applyCalendar(data);
+      if (table) table.style.display = '';
+      if (cards) cards.style.display = '';
     } catch (error) {
+      console.warn('Economic calendar request failed:', error.message);
+      if (rows) rows.textContent = '';
+      if (cards) cards.textContent = '';
+      if (table) table.style.display = 'none';
+      if (cards) cards.style.display = 'none';
       if (state.events.length === 0) showError(error.message);
       else if (state.meta) {
         state.meta.stale = true;
@@ -607,7 +769,7 @@
 
   async function loadPreferences() {
     try {
-      var data = await request('/me');
+      var data = await request('/api/me');
       var saved = data && data.preferences && data.preferences.economicNews;
       if (saved && typeof saved === 'object') {
         if (typeof saved.enabled === 'boolean') state.prefs.enabled = saved.enabled;
@@ -640,7 +802,7 @@
 
   async function savePreferences() {
     try {
-      await request('/user/preferences', {
+      await request('/api/user/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ economicNews: state.prefs })

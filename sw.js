@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-static-v7';
+const CACHE_NAME = 'corngrid-static-v9';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
   '/style.css',
@@ -67,9 +67,17 @@ const STATIC_ASSETS = new Set([
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(CORE_ASSETS.map(url => new Request(url, { cache: 'reload' })))
-    ).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => {
+      // Add assets individually so one missing file (e.g. economic-news.js
+      // returning 404 on a deployment that hasn't been updated) does not fail
+      // the entire service worker installation.
+      const addPromises = CORE_ASSETS.map(url =>
+        cache.add(new Request(url, { cache: 'reload' })).catch(error => {
+          console.warn('[CornGrid SW] Could not cache asset:', url, error.message);
+        })
+      );
+      return Promise.all(addPromises);
+    }).then(() => self.skipWaiting())
   );
 });
 

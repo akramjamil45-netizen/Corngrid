@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261021-5">
+  <link rel="stylesheet" href="dashboard.css?v=20261022-1">
 </head>
 <body>
   <div class="app-shell">
@@ -336,10 +336,9 @@
               <p class="muted">Macro events in Malaysia time with live countdowns, forecasts, and released results when the source publishes them.</p>
             </div>
             <div class="econ-head-actions">
-              <button class="button button-secondary" id="econ-refresh" type="button"><span aria-hidden="true">↻</span> Refresh</button>
+              <span class="econ-head-clock" id="econ-clock">— MYT</span>
               <span class="pill pill-muted" id="econ-feed-status">Loading…</span>
-              <span class="muted small" id="econ-clock">— MYT</span>
-              <span class="muted small" id="econ-last-update">Last update: N/A</span>
+              <button class="button button-secondary" id="econ-refresh" type="button"><span aria-hidden="true">↻</span> Refresh</button>
             </div>
           </div>
 
@@ -357,30 +356,27 @@
             <button class="button button-secondary button-small" id="econ-alert-dismiss" type="button">Dismiss</button>
           </div>
 
-          <div class="econ-summary-grid">
-            <article class="stat-card econ-stat-card">
-              <div class="stat-top"><span>High impact today</span><span class="stat-icon econ-icon-accent" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span></div>
-              <strong class="stat-value" id="econ-stat-high-today">—</strong>
-              <small>Events scheduled today in MYT</small>
-            </article>
-            <article class="stat-card econ-stat-card">
-              <div class="stat-top"><span>Upcoming high impact</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span></div>
-              <strong class="stat-value" id="econ-stat-high-upcoming">—</strong>
-              <small>Still ahead on the calendar</small>
-            </article>
-            <article class="stat-card econ-stat-card">
-              <div class="stat-top"><span>Results released</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4 13 5 5L20 7"/></svg></span></div>
-              <strong class="stat-value" id="econ-stat-released">—</strong>
-              <small>Actual values provided by the source</small>
-            </article>
-            <article class="stat-card econ-stat-card">
-              <div class="stat-top"><span>Next high-impact</span><span class="stat-icon econ-icon-accent" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4.5"/></svg></span></div>
-              <strong class="stat-value econ-next-countdown" id="econ-stat-next">—</strong>
-              <small id="econ-stat-next-label">No upcoming high-impact event</small>
-            </article>
-          </div>
+          <section class="panel econ-metrics" aria-label="Calendar summary">
+            <div class="econ-metric">
+              <span class="econ-metric-label">High impact today</span>
+              <strong class="econ-metric-value" id="econ-stat-high-today">—</strong>
+            </div>
+            <div class="econ-metric">
+              <span class="econ-metric-label">Upcoming high impact</span>
+              <strong class="econ-metric-value" id="econ-stat-high-upcoming">—</strong>
+            </div>
+            <div class="econ-metric">
+              <span class="econ-metric-label">Results released</span>
+              <strong class="econ-metric-value" id="econ-stat-released">—</strong>
+            </div>
+            <div class="econ-metric econ-metric-next">
+              <span class="econ-metric-label">Next high impact</span>
+              <strong class="econ-metric-value econ-next-countdown" id="econ-stat-next">—</strong>
+              <span class="econ-metric-note" id="econ-stat-next-label">No upcoming high-impact event</span>
+            </div>
+          </section>
 
-          <section class="panel econ-controls-panel">
+          <section class="panel econ-controls-panel" aria-label="Calendar filters">
             <div class="econ-controls-top">
               <div class="econ-range-group" role="group" aria-label="Calendar date range">
                 <button type="button" class="econ-filter is-active" data-econ-range="today" aria-pressed="true">Today</button>
@@ -389,8 +385,9 @@
                 <button type="button" class="econ-filter" data-econ-range="upcoming" aria-pressed="false">All upcoming</button>
               </div>
               <div class="econ-search-wrap">
+                <svg class="econ-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                 <label class="sr-only" for="econ-search">Search economic events</label>
-                <input id="econ-search" class="input-control" type="search" placeholder="Search event or currency…" autocomplete="off">
+                <input id="econ-search" class="input-control econ-search" type="search" placeholder="Search event or currency…" autocomplete="off">
               </div>
             </div>
             <div class="econ-controls-bottom">
@@ -433,19 +430,22 @@
           <section class="panel econ-table-panel">
             <div class="panel-header econ-table-heading">
               <div><p class="eyebrow">RELEASED &amp; UPCOMING</p><h2>Calendar events</h2></div>
-              <span class="muted small" id="econ-event-count">—</span>
+              <div class="econ-table-meta">
+                <span class="econ-event-count" id="econ-event-count">—</span>
+                <span class="muted small" id="econ-last-update">Last update: N/A</span>
+              </div>
             </div>
             <p class="econ-source-note muted small" id="econ-source-note"></p>
             <div class="econ-table" id="econ-table" role="table" aria-label="Economic calendar events">
               <div class="econ-table-head" role="row">
-                <span role="columnheader">Time (MYT)</span>
-                <span role="columnheader">Currency</span>
-                <span role="columnheader">Impact</span>
-                <span role="columnheader">Event</span>
-                <span role="columnheader">Actual</span>
-                <span role="columnheader">Forecast</span>
-                <span role="columnheader">Previous</span>
-                <span role="columnheader">Status</span>
+                <span role="columnheader" class="econ-col-time">Time</span>
+                <span role="columnheader" class="econ-col-cur">Currency</span>
+                <span role="columnheader" class="econ-col-impact">Impact</span>
+                <span role="columnheader" class="econ-col-event">Event</span>
+                <span role="columnheader" class="econ-col-num">Actual</span>
+                <span role="columnheader" class="econ-col-num">Forecast</span>
+                <span role="columnheader" class="econ-col-num">Previous</span>
+                <span role="columnheader" class="econ-col-status">Status</span>
               </div>
               <div id="econ-rows" class="econ-rows" role="rowgroup">
                 <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
@@ -455,6 +455,7 @@
                 <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
               </div>
             </div>
+            <div class="econ-cards" id="econ-cards" role="list" aria-label="Economic calendar events (cards)"></div>
             <div class="econ-empty" id="econ-empty" hidden>
               <span class="econ-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
               <strong>No events match these filters</strong>
@@ -571,7 +572,7 @@
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="dashboard.js?v=20261022-1"></script>
   <script src="market.js?v=20261021-1"></script>
-  <script src="economic-news.js?v=20261022-1"></script>
+  <script src="economic-news.js?v=20261022-3"></script>
   <script src="feed.js?v=20261021-2"></script>
 </body>
 </html>

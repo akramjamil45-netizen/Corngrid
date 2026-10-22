@@ -54,6 +54,22 @@
 .admin-ann-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .admin-ann-body { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
 
+/* Reported content moderation queue */
+.admin-reports-list { display: grid; gap: 12px; }
+.admin-report-item { padding: 15px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); display: grid; gap: 10px; }
+.admin-report-item.is-resolving { opacity: .55; }
+.admin-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.admin-report-head strong { color: var(--text); font-size: 13.5px; }
+.admin-report-reason { margin: 0; color: var(--text); font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+.admin-report-reason .eyebrow { display: block; margin-bottom: 3px; }
+.admin-report-preview { margin: 0; padding: 11px 13px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--surface-raised, var(--surface)); color: var(--muted); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+.admin-report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-report-actions .button { margin: 0; }
+
+/* Admin mobile drawer: the shared .sidebar rules in dashboard.css hide the
+   drawer below 850px, so the admin shell needs its own toggle button and
+   overlay. Both are wired up in admin.js. */
+
 @media (max-width: 900px) {
   .admin-ann-layout { grid-template-columns: minmax(0, 1fr); }
 }
