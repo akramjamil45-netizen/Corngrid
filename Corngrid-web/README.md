@@ -177,6 +177,13 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 - Automated: `npm test`. `test/market-feed.test.js` covers auth, validation, replay protection, state transitions, standby/primary, multi-broker selection, fallback labeling, candles, and SSE.
 - Manual: with the EA running the Experts log prints `CornGrid market feed: connected`. Market Overview shows LIVE and names the broker feed. Stop the EA: the pill goes DELAYED, STALE, then OFFLINE; restart it and updates resume without a page refresh.
 
+### Chart drawings (Market Overview)
+
+- Horizontal lines and trend lines are saved per user and per symbol. Pick a tool (`— Line`, `／ Trend`), then click or tap the chart. A trend line needs two points. The `✕` button in "Saved drawings" removes one drawing; `Clear` removes them all.
+- Drawings survive a timeframe change and a symbol change. A trend line keeps its two prices and is re-anchored onto the nearest bar of the new timeframe, so it stays visible instead of disappearing.
+- Only one line is drawn per saved drawing. Changing the timeframe or reloading the page clears the previous lines first, so a saved line can never be duplicated on the chart or left behind as a line that cannot be removed.
+- Automated: `test/market-drawings.test.js` locks in the drawing lifecycle (clear before re-apply, no double apply, delete before re-render, trend re-anchoring, clean teardown).
+
 ### Diagnose stale or offline data
 
 - OFFLINE and no EA log line: the input is off, pairing is missing, or the EA is stopped.
@@ -185,6 +192,7 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 - LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
 - Missing candles for a timeframe: history is sent one timeframe per request; wait for "initial candle history sent".
 - If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works unchanged; for IIS ARR disable response buffering for `/api/market/stream`.
+- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms); the candle rows are now written in batched statements so the largest allowed payload (2,000 bars) is stored in well under that limit. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
 
 ### Security notes
 
@@ -284,6 +292,7 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 - LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
 - No candles for a timeframe: history is still being sent one timeframe per request; wait for "initial candle history sent".
 - If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works without changes; for IIS ARR disable response buffering for `/api/market/stream`.
+- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms); the candle rows are now written in batched statements so the largest allowed payload (2,000 bars) is stored in well under that limit. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
 
 ### Security notes
 

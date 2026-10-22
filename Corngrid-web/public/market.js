@@ -162,16 +162,48 @@
 
   // Trend lines are stored as two {time, price} points and drawn on an HTML overlay
   // because lightweight-charts does not provide trend drawing primitives.
+  //
+  // A saved point keeps the timestamp of the bar it was placed on. After the
+  // timeframe changes that timestamp no longer falls on a bar, so the point is
+  // re-anchored onto the nearest bar of the current timeframe. That keeps the
+  // line visible and in the right place instead of disappearing.
+  function anchorTrendPoints(drawing) {
+    const points = (drawing.data && drawing.data.points) || [];
+    if (points.length !== 2 || !state.candleSeries) return null;
+    const bars = state.candleSeries.data() || [];
+    if (!bars.length) return null;
+    const anchored = points.map(point => {
+      const time = snapToBarTime(point.time, bars);
+      return time == null ? null : { time, price: point.price };
+    });
+    if (anchored.some(point => point == null)) return null;
+    return anchored;
+  }
+
+  // Finds the bar whose time is closest to the given timestamp.
+  function snapToBarTime(time, bars) {
+    if (!Number.isFinite(time) || !bars.length) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const bar of bars) {
+      const distance = Math.abs(bar.time - time);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = bar.time;
+      }
+    }
+    return best;
+  }
+
   function renderTrendLines() {
     const overlay = state.trendOverlay;
     if (!overlay || !state.chart) return;
     overlay.innerHTML = '';
-    const wrapRect = $('market-chart-wrap').getBoundingClientRect();
     const scale = state.chart.timeScale();
     const trends = state.drawings.filter(drawing => drawing.kind === 'trend');
     for (const drawing of trends) {
-      const points = (drawing.data && drawing.data.points) || [];
-      if (points.length !== 2) continue;
+      const points = anchorTrendPoints(drawing);
+      if (!points) continue;
       const coords = points.map(point => ({
         x: scale.timeToCoordinate(point.time),
         y: state.candleSeries.priceToCoordinate(point.price)
@@ -213,6 +245,9 @@
   }
 
   function addDrawingToChart(drawing) {
+    // Never apply the same drawing twice: a second price line for the same id
+    // would be orphaned on the chart and could not be removed later.
+    if (state.priceLines.has(drawing.id)) return;
     if (drawing.kind === 'hline' && state.candleSeries) {
       const line = state.candleSeries.createPriceLine(priceLineOptions(drawing));
       state.priceLines.set(drawing.id, line);
@@ -226,6 +261,20 @@
       state.priceLines.delete(drawing.id);
     }
     renderTrendLines();
+  }
+
+  // Drops every price line currently on the chart. Used before the series is
+  // re-filled (timeframe or symbol change) so lines are never duplicated and
+  // never left behind as orphans that cannot be deleted.
+  function clearChartPriceLines() {
+    if (!state.candleSeries) {
+      state.priceLines.clear();
+      return;
+    }
+    for (const line of state.priceLines.values()) {
+      try { state.candleSeries.removePriceLine(line); } catch { /* line already detached */ }
+    }
+    state.priceLines.clear();
   }
 
   function describeDrawing(drawing) {
@@ -555,6 +604,11 @@
           : []);
       }
       state.chart.timeScale().fitContent();
+      // The series was just re-filled, so every price line drawn on the old data
+      // must be removed first. Re-adding them without clearing would stack a new
+      // line on every timeframe change and leave the previous ones behind as
+      // orphans that the delete button can no longer remove.
+      clearChartPriceLines();
       // Restore this symbol's saved drawings onto the fresh series.
       state.drawings.forEach(addDrawingToChart);
       setChartState('hidden');
@@ -568,18 +622,23 @@
 
 
   async function loadDrawings() {
-    // Clear chart-side drawings from the previous symbol before loading the new set.
-    for (const drawing of state.drawings) removeDrawingFromChart(drawing);
+    // Drop the chart-side drawings of the previous symbol before loading the new set.
+    // Trend lines are re-rendered from state, so only the price lines need removing.
+    clearChartPriceLines();
     try {
       const payload = await request(`/market/drawings?symbol=${encodeURIComponent(state.symbol)}`);
-      state.drawings = Array.isArray(payload.drawings) ? payload.drawings : [];
+      // Normalise the id to a number so it matches the id used by the price-line
+      // map and by the delete button.
+      state.drawings = (Array.isArray(payload.drawings) ? payload.drawings : [])
+        .map(drawing => ({ ...drawing, id: Number(drawing.id) }));
     } catch (error) {
       state.drawings = [];
       toast(error.message, 'error');
     }
     renderDrawingsList();
-    // Re-apply once candles exist; if the chart is not ready they are applied after loadCandles.
-    if (state.candleSeries && state.drawings.length) state.drawings.forEach(addDrawingToChart);
+    // Apply only the drawings that are not on the chart yet. loadCandles() may
+    // already have applied them; adding them twice would stack duplicate lines.
+    if (state.candleSeries) state.drawings.forEach(addDrawingToChart);
   }
 
   async function saveDrawing(kind, data) {
@@ -588,7 +647,9 @@
         method: 'POST',
         body: JSON.stringify({ symbol: state.symbol, kind, data })
       });
-      const drawing = { id: created.id, kind, data };
+      // The server returns a numeric id; keep the same type everywhere so the
+      // price-line map and the saved-drawings list agree on the key.
+      const drawing = { id: Number(created.id), kind, data };
       state.drawings.push(drawing);
       addDrawingToChart(drawing);
       renderDrawingsList();
@@ -607,8 +668,10 @@
       toast(error.message, 'error');
       return;
     }
-    removeDrawingFromChart(drawing);
+    // The drawing leaves the state first, so the re-render inside
+    // removeDrawingFromChart no longer paints the line that is being deleted.
     state.drawings = state.drawings.filter(item => item.id !== id);
+    removeDrawingFromChart(drawing);
     renderDrawingsList();
   }
 
@@ -735,12 +798,17 @@
     if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
     state.pageOpen = false;
     if (state.resizeObserver) { state.resizeObserver.disconnect(); state.resizeObserver = null; }
+    // Remove the trend overlay from the DOM as well; leaving it behind would
+    // stack a second overlay on top of the chart the next time it is created.
+    if (state.trendOverlay && state.trendOverlay.parentNode) state.trendOverlay.parentNode.removeChild(state.trendOverlay);
     if (state.chart) { state.chart.remove(); state.chart = null; }
     state.candleSeries = null;
     state.volumeSeries = null;
     state.trendOverlay = null;
     state.priceLines.clear();
     state.drawings = [];
+    state.activeTool = null;
+    state.trendStart = null;
     state.loaded = false;
     state.chartClickBound = false;
     state.requestSeq += 1;

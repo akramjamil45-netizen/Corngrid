@@ -23,6 +23,12 @@ const MAX_CANDLE_SERIES = 12;
 const MAX_BARS_PER_SERIES = 1000;
 const MAX_BARS_PER_REQUEST = 2000;
 const MAX_STORED_BARS = 1500;
+// One candle row binds 11 columns, and SQLite limits the number of bound
+// parameters per statement. Chunking the writes keeps each statement well under
+// the classic 999-parameter ceiling while still using a single round trip.
+const CANDLE_COLUMNS = 11;
+const MAX_BIND_PARAMS = 900;
+const ROWS_PER_INSERT = Math.floor(MAX_BIND_PARAMS / CANDLE_COLUMNS);
 
 function intFromEnv(name, fallback, min, max) {
   const raw = process.env[name];
@@ -87,6 +93,17 @@ function exec(db, sql) {
 
 const isNum = value => typeof value === 'number' && Number.isFinite(value);
 const isPositive = value => isNum(value) && value > 0;
+
+// True while the client is still on the line. `req.destroyed` cannot be used for
+// this: Node destroys the request stream as soon as a healthy body has been read,
+// so it is true for successful requests too. The response socket is the reliable
+// signal - it is destroyed only when the peer really went away.
+function clientConnected(res) {
+  if (res.writableEnded) return false;
+  const socket = res.socket;
+  if (!socket) return true;
+  return !socket.destroyed;
+}
 
 function parseTimeMs(value) {
   if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : null;
@@ -391,14 +408,25 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     await run(db, 'BEGIN IMMEDIATE');
     try {
       for (const series of seriesList) {
-        for (const bar of series.bars) {
+        // Batch the rows into multi-row INSERT statements. One statement per bar
+        // was the main reason a backfill could take longer than the EA's 1000 ms
+        // WebRequest timeout, which made the EA abort the upload mid-body and the
+        // server log the request as "client-aborted".
+        for (let offset = 0; offset < series.bars.length; offset += ROWS_PER_INSERT) {
+          const chunk = series.bars.slice(offset, offset + ROWS_PER_INSERT);
+          const values = [];
+          const params = [];
+          for (const bar of chunk) {
+            values.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            params.push(feed, series.symbol, series.tf, bar.t, bar.o, bar.h, bar.l, bar.c, bar.tv, bar.v, receivedAt);
+          }
           await run(db, `
             INSERT INTO market_candles (feed, symbol, tf, t, o, h, l, c, tv, v, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ${values.join(', ')}
             ON CONFLICT(feed, symbol, tf, t) DO UPDATE SET
               o = excluded.o, h = excluded.h, l = excluded.l, c = excluded.c,
               tv = excluded.tv, v = excluded.v, updated_at = excluded.updated_at
-          `, [feed, series.symbol, series.tf, bar.t, bar.o, bar.h, bar.l, bar.c, bar.tv, bar.v, receivedAt]);
+          `, params);
         }
         await run(db, `
           DELETE FROM market_candles WHERE feed = ? AND symbol = ? AND tf = ?
@@ -545,9 +573,15 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     app.post('/api/mt5/market', ipLimit, authenticateInstallation, publishLimit, async (req, res) => {
       try {
         const result = await ingest(req.installation, req.body);
+        // The EA gives up after its WebRequest timeout. If the socket is already
+        // gone there is nobody left to answer, so the response is skipped.
+        // Note: `req.destroyed` is NOT usable here - Node destroys the request
+        // stream once a healthy body has been read, so it is true either way.
+        if (res.headersSent || !clientConnected(res)) return undefined;
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error('Market ingest failed:', error.message);
+        if (res.headersSent || !clientConnected(res)) return undefined;
         return res.status(500).json({ accepted: false, error: 'Unable to process market data.' });
       }
     });

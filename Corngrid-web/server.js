@@ -662,7 +662,15 @@ app.use((err, req, res, next) => {
     const now = Date.now();
     if (now - lastAbortedRequestLogAt > 30000) {
       lastAbortedRequestLogAt = now;
-      console.warn(`Ignored a client-aborted request (${req.method} ${req.path}).`);
+      const expected = Number.isFinite(err.expected) ? err.expected : null;
+      const received = Number.isFinite(err.received) ? err.received : null;
+      // The bytes that never arrived are the useful part: a body that stopped
+      // short usually means the client gave up waiting (an EA WebRequest
+      // timeout, for example) rather than a genuine network drop.
+      const detail = expected !== null && received !== null
+        ? ` (${received}/${expected} bytes received before the client disconnected)`
+        : '';
+      console.warn(`Ignored a client-aborted request (${req.method} ${req.path})${detail}.`);
     }
     return;
   }

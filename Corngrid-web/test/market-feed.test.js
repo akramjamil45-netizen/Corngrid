@@ -196,6 +196,88 @@ test('historical candles and live tail updates are stored and bounded', async ()
   feed.close();
 });
 
+test('a full-size backfill is stored correctly and answered well inside the EA timeout', async () => {
+  // The EA aborts its WebRequest after 1000 ms. A backfill of the maximum payload
+  // (2,000 bars) used to be written one row per SQL statement, which took longer
+  // than that timeout, so the EA dropped the upload mid-body and the server
+  // logged the request as client-aborted. The rows are now written in batches.
+  const clock = makeClock(Date.now());
+  const db = new sqlite3.Database(':memory:');
+  const feed = createMarketFeed({ db, symbols: SYMBOLS, config: { now: clock.now } });
+  await feed.ready;
+
+  const base = Math.floor(clock.value / 1000 / 60) * 60 - 60 * 1000;
+  const series = tf => Array.from({ length: 1000 }, (_, i) => bar(base + i * 60, { c: 2000 + (i % 50) * 0.01 }));
+  const body = payload(clock, {
+    quotes: undefined,
+    candles: [
+      { symbol: 'XAUUSD.a', tf: 'M1', bars: series('M1') },
+      { symbol: 'XAUUSD.a', tf: 'M5', bars: series('M5') }
+    ]
+  });
+
+  const started = Date.now();
+  const result = await feed.ingest(installation(1), body);
+  const elapsed = Date.now() - started;
+  assert.equal(result.status, 200);
+  assert.equal(result.body.candles.accepted, 2000);
+  assert.ok(elapsed < 1000, `ingest of the maximum payload took ${elapsed} ms and must stay under the EA timeout`);
+
+  // Every bar of both series is present and correct - batching must not lose rows.
+  const m1 = await feed.getCandles('brokera-live', 'XAUUSD', '1m', 1200);
+  assert.equal(m1.length, 1000);
+  assert.equal(m1[0].time, base);
+  assert.equal(m1[999].close, 2000 + (999 % 50) * 0.01);
+  const m5 = await feed.getCandles('brokera-live', 'XAUUSD', '5m', 1200);
+  assert.equal(m5.length, 1000);
+  assert.ok(m1.every(candle => candle.open === 2000 && candle.high === 2002 && candle.low === 1999));
+
+  // Re-sending the same history updates in place instead of duplicating rows.
+  clock.advance(2000);
+  const again = await feed.ingest(installation(1), payload(clock, { quotes: undefined, candles: body.candles }));
+  assert.equal(again.status, 200);
+  assert.equal((await feed.getCandles('brokera-live', 'XAUUSD', '1m', 1200)).length, 1000);
+
+  feed.close();
+  db.close();
+});
+
+test('a client that disconnects mid-upload does not break the server or the next request', async () => {
+  const clock = makeClock(Date.now());
+  const db = new sqlite3.Database(':memory:');
+  const app = express();
+  app.use(express.json({ limit: '256kb' }));
+  const verifyToken = (req, res, next) => { req.user = { id: 1 }; next(); };
+  const feed = createMarketFeed({ db, symbols: SYMBOLS, config: { now: clock.now } });
+  feed.registerRoutes(app, { verifyToken, authenticateInstallation: (req, res, next) => { req.installation = installation(1); next(); } });
+  const { server, base } = await listen(app);
+  try {
+    // Send a truncated body and drop the socket, like an EA that gives up waiting.
+    const aborted = new Promise(resolve => {
+      const request = http.request({
+        host: '127.0.0.1', port: server.address().port, path: '/api/mt5/market', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': '5000' }
+      });
+      request.on('error', () => resolve());
+      request.write('{"schema":1,"sentAtMs":');
+      setTimeout(() => { request.destroy(); resolve(); }, 30);
+    });
+    await aborted;
+
+    // The server stays healthy and keeps accepting EA updates afterwards.
+    const response = await fetch(`${base}/api/mt5/market`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload(clock))
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await feed.currentView('XAUUSD')).bid, 2000.10);
+  } finally {
+    feed.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 function listen(app) {
   return new Promise(resolve => {
     const server = app.listen(0, '127.0.0.1', () => resolve({ server, base: `http://127.0.0.1:${server.address().port}` }));
