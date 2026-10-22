@@ -588,3 +588,102 @@ test('data retention cleanup prunes old snapshots and expired pairing codes', as
 
   await new Promise(resolve => db.close(resolve));
 });
+
+test('economic news preferences are validated, merged, and served by /api/me', async () => {
+  const db = new sqlite3.Database(':memory:');
+  const app = express();
+  const jwtSecret = 'test-signing-secret-for-economic-news';
+  app.use(express.json());
+  await new Promise((resolve, reject) => db.exec(`
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, bio TEXT, created_at TEXT
+    );
+  `, error => error ? reject(error) : resolve()));
+  await new Promise((resolve, reject) => db.run(
+    `INSERT INTO users (id, username, email, password, bio, created_at)
+     VALUES (1, 'Alice', 'alice@example.test', 'x', '', CURRENT_TIMESTAMP)`,
+    error => error ? reject(error) : resolve()
+  ));
+
+  const verifyToken = createUserAuth({ db, jwtSecret });
+  registerMt5Api(app, db, verifyToken);
+  const server = await new Promise(resolve => { const instance = app.listen(0, () => resolve(instance)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const token = jwt.sign({ id: 1, authVersion: 0 }, jwtSecret);
+  const request = (path, options = {}) => fetch(origin + path, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  try {
+    // Defaults are returned even before anything is saved.
+    let me = await (await request('/api/me')).json();
+    assert.equal(typeof me.preferences, 'object');
+    assert.equal(me.preferences.economicNews, undefined, 'no economic news block until saved');
+
+    // A valid economic news object is accepted.
+    let response = await request('/api/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ economicNews: { enabled: true, alertWindow: 30, browserNotifications: false, relevance: 'XAUUSD' } })
+    });
+    assert.equal(response.status, 200);
+
+    me = await (await request('/api/me')).json();
+    assert.equal(me.preferences.economicNews.alertWindow, 30);
+    assert.equal(me.preferences.economicNews.relevance, 'XAUUSD');
+
+    // Saving an unrelated preference must not wipe the economic news block.
+    response = await request('/api/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ theme: 'light' })
+    });
+    assert.equal(response.status, 200);
+    me = await (await request('/api/me')).json();
+    assert.equal(me.preferences.theme, 'light');
+    assert.equal(me.preferences.economicNews.alertWindow, 30, 'economic news block survives other updates');
+
+    // Partial economic news updates merge over the stored block.
+    response = await request('/api/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ economicNews: { alertWindow: 5 } })
+    });
+    assert.equal(response.status, 200);
+    me = await (await request('/api/me')).json();
+    assert.equal(me.preferences.economicNews.alertWindow, 5);
+    assert.equal(me.preferences.economicNews.relevance, 'XAUUSD', 'unspecified fields keep their previous values');
+
+    // Invalid values are rejected without touching the stored preferences.
+    const bad = [
+      { economicNews: null },
+      { economicNews: 'yes' },
+      { economicNews: [] },
+      { economicNews: { alertWindow: 7 } },
+      { economicNews: { alertWindow: 'fifteen' } },
+      { economicNews: { enabled: 'true' } },
+      { economicNews: { browserNotifications: 1 } },
+      { economicNews: { relevance: 'DOGEUSD' } },
+      { economicNews: { unknownKey: true } },
+      { economicNews: { alertWindow: 0 } }
+    ];
+    for (const body of bad) {
+      response = await request('/api/user/preferences', { method: 'PATCH', body: JSON.stringify(body) });
+      assert.equal(response.status, 400, `rejects ${JSON.stringify(body)}`);
+    }
+    me = await (await request('/api/me')).json();
+    assert.equal(me.preferences.economicNews.alertWindow, 5, 'invalid patches leave stored preferences untouched');
+
+    // Unknown top-level preference keys are still rejected (existing behaviour).
+    response = await request('/api/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ somethingElse: true })
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await new Promise(resolve => db.close(resolve));
+  }
+});

@@ -11,6 +11,7 @@ const ROOT_DIR = path.join(__dirname, '..');
 const registerMt5Api = require('./mt5-api');
 const registerMarketApi = require('./market-api');
 const createMarketFeed = require('./market-feed');
+const createEconomicCalendar = require('./economic-calendar');
 const registerAvatarApi = require('./avatar-api');
 const registerFeedApi = require('./feed-api');
 const registerChatApi = require('./chat-api');
@@ -162,6 +163,8 @@ registerChatApi(app, db, verifyToken);
 const marketFeed = createMarketFeed({ db, symbols: registerMarketApi.SYMBOLS });
 marketFeed.registerRoutes(app, { verifyToken, authenticateInstallation });
 registerMarketApi(app, db, verifyToken, marketFeed);
+const economicCalendar = createEconomicCalendar({ db });
+economicCalendar.registerRoutes(app, { verifyToken });
 registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
 registerAdminApi(
   app,
@@ -645,11 +648,26 @@ app.post('/api/reset-password', recoveryRateLimit, async (req, res) => {
 
 // ------------------- FALLBACK HANDLER & SERVER LISTEN -------------------
 
+let lastAbortedRequestLogAt = 0;
+
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request payload is too large.' });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body contains invalid JSON.' });
-  console.error('Unhandled request error:', err.message);
+
+  // The client disconnected before the request body finished arriving (page
+  // navigation, closed tab, client timeout, unstable EA connection, etc.).
+  // This is not a server fault and there is no one left to respond to.
+  if (err.type === 'request.aborted' || err.code === 'ECONNABORTED' || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+    const now = Date.now();
+    if (now - lastAbortedRequestLogAt > 30000) {
+      lastAbortedRequestLogAt = now;
+      console.warn(`Ignored a client-aborted request (${req.method} ${req.path}).`);
+    }
+    return;
+  }
+
+  console.error(`Unhandled request error (${req.method} ${req.path}):`, err.message);
   return res.status(500).json({ error: 'An internal server error occurred.' });
 });
 

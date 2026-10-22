@@ -51,7 +51,7 @@
 
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', feed: 'Live Feed', settings: 'Settings' };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
 
   function renderOverviewAccountSelector() {
@@ -226,6 +226,8 @@
     }
     if (name !== 'market' && window.CornGridMarket) window.CornGridMarket.onClose();
     if (name === 'market' && window.CornGridMarket) window.CornGridMarket.onOpen();
+    if (name !== 'economic' && window.CornGridEconomic) window.CornGridEconomic.onClose();
+    if (name === 'economic' && window.CornGridEconomic) window.CornGridEconomic.onOpen();
     if (name === 'feed' && window.CornGridFeed) window.CornGridFeed.onOpen();
   }
 

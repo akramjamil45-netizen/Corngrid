@@ -342,10 +342,32 @@ function registerMt5Api(app, db, verifyToken) {
 
   app.patch('/api/user/preferences', authenticated, async (req, res) => {
     const input = req.body || {};
-    const allowed = new Set(['theme', 'currency', 'timezone', 'dateFormat']);
+    const allowed = new Set(['theme', 'currency', 'timezone', 'dateFormat', 'economicNews']);
     if (Object.keys(input).some(key => !allowed.has(key))) return res.status(400).json({ error: 'Unsupported preference provided.' });
     if (input.theme !== undefined && !['dark', 'light', 'system'].includes(input.theme)) return res.status(400).json({ error: 'Theme must be dark, light, or system.' });
     if (input.currency !== undefined && !['account', 'USD', 'EUR', 'GBP'].includes(input.currency)) return res.status(400).json({ error: 'Unsupported display currency.' });
+    if (input.economicNews !== undefined) {
+      const economicNews = input.economicNews;
+      if (!economicNews || typeof economicNews !== 'object' || Array.isArray(economicNews)) {
+        return res.status(400).json({ error: 'Economic news preferences must be an object.' });
+      }
+      const allowedNews = new Set(['enabled', 'alertWindow', 'browserNotifications', 'relevance']);
+      if (Object.keys(economicNews).some(key => !allowedNews.has(key))) {
+        return res.status(400).json({ error: 'Unsupported economic news preference provided.' });
+      }
+      if (economicNews.enabled !== undefined && typeof economicNews.enabled !== 'boolean') {
+        return res.status(400).json({ error: 'Economic news alerts must be enabled or disabled.' });
+      }
+      if (economicNews.browserNotifications !== undefined && typeof economicNews.browserNotifications !== 'boolean') {
+        return res.status(400).json({ error: 'Browser notification preference must be enabled or disabled.' });
+      }
+      if (economicNews.alertWindow !== undefined && ![5, 15, 30, 60].includes(economicNews.alertWindow)) {
+        return res.status(400).json({ error: 'Alert window must be 5, 15, 30, or 60 minutes.' });
+      }
+      if (economicNews.relevance !== undefined && !['all', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY'].includes(economicNews.relevance)) {
+        return res.status(400).json({ error: 'Unsupported market relevance filter.' });
+      }
+    }
     if (input.timezone !== undefined) {
       if (!validText(input.timezone, 64)) return res.status(400).json({ error: 'Time zone must be between 1 and 64 characters.' });
       try { new Intl.DateTimeFormat('en', { timeZone: input.timezone }); }
@@ -356,14 +378,17 @@ function registerMt5Api(app, db, verifyToken) {
     try {
       const existing = await get(db, 'SELECT preferences_json FROM user_preferences WHERE user_id = ?', [ownerId(req)]);
       const preferences = existing ? JSON.parse(existing.preferences_json) : {};
-      Object.assign(preferences, input);
+      const nextPreferences = { ...preferences, ...input };
+      if (input.economicNews) {
+        nextPreferences.economicNews = { ...(preferences.economicNews || {}), ...input.economicNews };
+      }
       await run(
         db,
         `INSERT INTO user_preferences (user_id, preferences_json, updated_at) VALUES (?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET preferences_json = excluded.preferences_json, updated_at = excluded.updated_at`,
-        [ownerId(req), JSON.stringify(preferences), Date.now()]
+        [ownerId(req), JSON.stringify(nextPreferences), Date.now()]
       );
-      return res.json({ preferences });
+      return res.json({ preferences: nextPreferences });
     } catch (databaseError) {
       console.error('Failed to save user preferences:', databaseError.message);
       return res.status(500).json({ error: 'Unable to save preferences.' });

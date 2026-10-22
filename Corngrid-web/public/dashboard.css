@@ -1226,3 +1226,74 @@ td { font-size: 13px; }
 @media (hover: none) {
   .button-primary:hover:not(:disabled), .button-secondary:hover:not(:disabled), .button-small:hover:not(:disabled) { transform: none; }
 }
+
+
+/* Economic News */
+.econ-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.econ-head-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.econ-summary-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.econ-summary-grid .econ-stat-card { grid-column: span 12; }
+@media (min-width: 720px) { .econ-summary-grid .econ-stat-card { grid-column: span 6; } }
+@media (min-width: 1100px) { .econ-summary-grid .econ-stat-card { grid-column: span 3; } }
+.econ-icon-accent { color: var(--accent); }
+.econ-next-countdown { font-variant-numeric: tabular-nums; }
+.econ-alert-banner { display: flex; align-items: center; gap: 14px; border-radius: 16px; border: 1px solid rgba(255, 179, 71, 0.45); background: radial-gradient(circle at top, rgba(255, 196, 77, 0.18), transparent 70%), var(--surface); padding: 14px 18px; box-shadow: var(--shadow); }
+.econ-alert-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 8px rgba(255, 196, 77, 0.12); }
+.econ-alert-copy p { margin: 4px 0 0; color: var(--muted); }
+.econ-controls-panel { display: flex; flex-direction: column; gap: 16px; }
+.econ-controls-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.econ-range-group { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 8px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.01); }
+.econ-filter { border: none; background: transparent; color: var(--muted); padding: 8px 14px; border-radius: 999px; font-weight: 600; }
+.econ-filter.is-active { background: linear-gradient(135deg, rgba(255, 196, 77, 0.9), rgba(255, 179, 71, 0.9)); color: #1a1200; }
+.econ-search-wrap { min-width: min(320px, 100%); }
+.econ-controls-bottom { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.econ-select { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.econ-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--border); }
+.econ-settings { display: flex; flex-direction: column; gap: 14px; }
+.econ-settings summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; }
+.econ-settings summary::-webkit-details-marker { display: none; }
+.econ-settings-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.econ-notification-status { margin-left: auto; }
+.econ-table-panel { display: flex; flex-direction: column; gap: 16px; }
+.econ-table-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.econ-table { display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; }
+.econ-table-head { display: grid; grid-template-columns: 1.2fr 0.6fr 0.6fr 2fr 0.8fr 0.8fr 0.8fr 1fr; background: rgba(255, 255, 255, 0.01); border-bottom: 1px solid var(--border); }
+.econ-table-head span { padding: 12px 16px; text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.78rem; color: var(--subtle); }
+.econ-rows { display: flex; flex-direction: column; }
+.econ-row { display: grid; grid-template-columns: 1.2fr 0.6fr 0.6fr 2fr 0.8fr 0.8fr 0.8fr 1fr; align-items: center; border-bottom: 1px solid var(--border); }
+.econ-row:last-child { border-bottom: none; }
+.econ-row span[role='cell'] { padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+.econ-title { display: flex; align-items: center; gap: 8px; }
+.econ-link { color: var(--accent); }
+.econ-cur { font-weight: 600; }
+.econ-impact { display: inline-flex; align-items: center; justify-content: center; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; letter-spacing: 0.12em; }
+.impact-high { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.impact-med { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+.impact-low { background: rgba(59, 130, 246, 0.16); color: #60a5fa; }
+.impact-holiday { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
+.econ-status { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; }
+.status-released { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+.status-past { background: rgba(148, 163, 184, 0.18); color: var(--muted); }
+.status-soon { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
+.status-upcoming { background: rgba(59, 130, 246, 0.16); color: #60a5fa; }
+.econ-skeleton-row { display: grid; grid-template-columns: 1.2fr 0.6fr 0.6fr 2fr 0.8fr 0.8fr 0.8fr 1fr; border-bottom: 1px solid var(--border); }
+.econ-skeleton-row span { height: 18px; margin: 14px 16px; border-radius: 999px; background: linear-gradient(90deg, rgba(255,255,255,0.02) 25%, rgba(255,255,255,0.05) 37%, rgba(255,255,255,0.02) 63%); background-size: 400% 100%; animation: econ-shimmer 1.4s ease infinite; }
+@keyframes econ-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+.econ-empty, .econ-error { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 40px 20px; }
+.econ-empty-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--border); }
+.econ-disclaimer { margin-top: -4px; }
+@media (max-width: 1080px) { .econ-table-head, .econ-row, .econ-skeleton-row { grid-template-columns: 1fr 0.6fr 0.6fr 1.6fr 0.8fr 0.8fr 0.8fr 0.8fr; } }
+@media (max-width: 920px) { .econ-table { overflow-x: auto; } .econ-table-head, .econ-row, .econ-skeleton-row { min-width: 920px; } }
+
+/* Economic News: stat icon strokes (econ icons rely on CSS stroke) + actual vs forecast */
+.econ-stat-card .stat-icon svg { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.econ-actual-cell[data-compare='above'] { color: var(--green); }
+.econ-actual-cell[data-compare='below'] { color: var(--red); }
+.econ-actual-cell[data-compare='inline'] { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .econ-skeleton-row span { animation: none; }
+  .econ-alert-pulse { box-shadow: none; }
+}
+.econ-countdown { font-variant-numeric: tabular-nums; }
+.econ-time-cell { font-variant-numeric: tabular-nums; }
+.econ-source-note { margin: -6px 0 0; }

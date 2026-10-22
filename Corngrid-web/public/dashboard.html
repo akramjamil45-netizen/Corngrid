@@ -28,6 +28,7 @@
         <button class="nav-item" data-page="chat"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5a7.5 7.5 0 1 1 17-3Z"/><path d="M8 11h8M8 14h5"/></svg></span>Chat <span class="nav-chat-badge" id="chat-nav-badge" hidden>0</span></button>
         <button class="nav-item is-active" data-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
         <button class="nav-item" data-page="market"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4.5" y="7" width="5" height="10" rx="1"/><path d="M7 4v3M7 17v3"/><rect x="14.5" y="9.5" width="5" height="7" rx="1"/><path d="M17 6.5v3M17 16.5v3"/></svg></span>Market Overview</button>
+        <button class="nav-item" data-page="economic"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/><path d="M7 13h3M7 17h6M14 13h3M16 17h1"/></svg></span>Economic News</button>
         <button class="nav-item" data-page="positions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 17 9 12l4 3 7-8"/><path d="M14 7h6v6"/></svg></span>Open Positions</button>
         <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
         <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
@@ -327,6 +328,149 @@
           </div>
         </section>
 
+        <section class="page" id="page-economic">
+          <div class="page-heading econ-heading">
+            <div>
+              <p class="eyebrow">ECONOMIC NEWS</p>
+              <h1>Economic Calendar</h1>
+              <p class="muted">Macro events in Malaysia time with live countdowns, forecasts, and released results when the source publishes them.</p>
+            </div>
+            <div class="econ-head-actions">
+              <button class="button button-secondary" id="econ-refresh" type="button"><span aria-hidden="true">↻</span> Refresh</button>
+              <span class="pill pill-muted" id="econ-feed-status">Loading…</span>
+              <span class="muted small" id="econ-clock">— MYT</span>
+              <span class="muted small" id="econ-last-update">Last update: N/A</span>
+            </div>
+          </div>
+
+          <div class="notice notice-warning" id="econ-stale-notice" role="status" hidden>
+            <span class="notice-icon">!</span>
+            <span id="econ-stale-text"></span>
+          </div>
+
+          <div class="econ-alert-banner" id="econ-alert-banner" role="status" aria-live="polite" hidden>
+            <span class="econ-alert-pulse" aria-hidden="true"></span>
+            <div class="econ-alert-copy">
+              <strong id="econ-alert-title">High-impact event approaching</strong>
+              <p id="econ-alert-text"></p>
+            </div>
+            <button class="button button-secondary button-small" id="econ-alert-dismiss" type="button">Dismiss</button>
+          </div>
+
+          <div class="econ-summary-grid">
+            <article class="stat-card econ-stat-card">
+              <div class="stat-top"><span>High impact today</span><span class="stat-icon econ-icon-accent" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></span></div>
+              <strong class="stat-value" id="econ-stat-high-today">—</strong>
+              <small>Events scheduled today in MYT</small>
+            </article>
+            <article class="stat-card econ-stat-card">
+              <div class="stat-top"><span>Upcoming high impact</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span></div>
+              <strong class="stat-value" id="econ-stat-high-upcoming">—</strong>
+              <small>Still ahead on the calendar</small>
+            </article>
+            <article class="stat-card econ-stat-card">
+              <div class="stat-top"><span>Results released</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4 13 5 5L20 7"/></svg></span></div>
+              <strong class="stat-value" id="econ-stat-released">—</strong>
+              <small>Actual values provided by the source</small>
+            </article>
+            <article class="stat-card econ-stat-card">
+              <div class="stat-top"><span>Next high-impact</span><span class="stat-icon econ-icon-accent" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4.5"/></svg></span></div>
+              <strong class="stat-value econ-next-countdown" id="econ-stat-next">—</strong>
+              <small id="econ-stat-next-label">No upcoming high-impact event</small>
+            </article>
+          </div>
+
+          <section class="panel econ-controls-panel">
+            <div class="econ-controls-top">
+              <div class="econ-range-group" role="group" aria-label="Calendar date range">
+                <button type="button" class="econ-filter is-active" data-econ-range="today" aria-pressed="true">Today</button>
+                <button type="button" class="econ-filter" data-econ-range="tomorrow" aria-pressed="false">Tomorrow</button>
+                <button type="button" class="econ-filter" data-econ-range="week" aria-pressed="false">This week</button>
+                <button type="button" class="econ-filter" data-econ-range="upcoming" aria-pressed="false">All upcoming</button>
+              </div>
+              <div class="econ-search-wrap">
+                <label class="sr-only" for="econ-search">Search economic events</label>
+                <input id="econ-search" class="input-control" type="search" placeholder="Search event or currency…" autocomplete="off">
+              </div>
+            </div>
+            <div class="econ-controls-bottom">
+              <label class="econ-select"><span>Impact</span><select id="econ-impact-filter" class="select-control">
+                <option value="all">All impacts</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="holiday">Holiday</option>
+              </select></label>
+              <label class="econ-select"><span>Currency</span><select id="econ-currency-filter" class="select-control">
+                <option value="all">All currencies</option>
+              </select></label>
+              <label class="econ-select"><span>Relevance</span><select id="econ-relevance-filter" class="select-control">
+                <option value="all">All markets</option>
+                <option value="XAUUSD">XAUUSD</option>
+                <option value="EURUSD">EURUSD</option>
+                <option value="GBPUSD">GBPUSD</option>
+                <option value="USDJPY">USDJPY</option>
+              </select></label>
+              <label class="econ-toggle"><input type="checkbox" id="econ-hide-low"> <span>Hide low impact</span></label>
+            </div>
+          </section>
+
+          <details class="panel econ-settings" id="econ-settings">
+            <summary><span class="econ-settings-title">Alert settings</span><span class="muted small">Notifications are in-terminal unless you enable browser alerts.</span></summary>
+            <div class="econ-settings-grid">
+              <label class="econ-toggle"><input type="checkbox" id="econ-alerts-enabled" checked> <span>Enable high-impact alerts</span></label>
+              <label class="econ-select"><span>Alert window</span><select id="econ-alert-window" class="select-control">
+                <option value="5">5 minutes before</option>
+                <option value="15" selected>15 minutes before</option>
+                <option value="30">30 minutes before</option>
+                <option value="60">60 minutes before</option>
+              </select></label>
+              <label class="econ-toggle"><input type="checkbox" id="econ-browser-notifications"> <span>Browser notifications</span></label>
+              <p class="muted small econ-notification-status" id="econ-notification-status" role="status"></p>
+            </div>
+          </details>
+
+          <section class="panel econ-table-panel">
+            <div class="panel-header econ-table-heading">
+              <div><p class="eyebrow">RELEASED &amp; UPCOMING</p><h2>Calendar events</h2></div>
+              <span class="muted small" id="econ-event-count">—</span>
+            </div>
+            <p class="econ-source-note muted small" id="econ-source-note"></p>
+            <div class="econ-table" id="econ-table" role="table" aria-label="Economic calendar events">
+              <div class="econ-table-head" role="row">
+                <span role="columnheader">Time (MYT)</span>
+                <span role="columnheader">Currency</span>
+                <span role="columnheader">Impact</span>
+                <span role="columnheader">Event</span>
+                <span role="columnheader">Actual</span>
+                <span role="columnheader">Forecast</span>
+                <span role="columnheader">Previous</span>
+                <span role="columnheader">Status</span>
+              </div>
+              <div id="econ-rows" class="econ-rows" role="rowgroup">
+                <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="econ-skeleton-row"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+              </div>
+            </div>
+            <div class="econ-empty" id="econ-empty" hidden>
+              <span class="econ-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
+              <strong>No events match these filters</strong>
+              <p class="muted small">Try a wider date range, another currency, or clear the search.</p>
+              <button class="button button-secondary button-small" id="econ-empty-reset" type="button">Reset filters</button>
+            </div>
+            <div class="econ-error" id="econ-error" hidden>
+              <strong>The calendar could not be loaded</strong>
+              <p class="muted small" id="econ-error-text">The economic calendar source is temporarily unavailable.</p>
+              <button class="button button-secondary button-small" id="econ-retry" type="button">Try again</button>
+            </div>
+          </section>
+
+          <p class="econ-disclaimer muted small">Economic events and values come from the Forex Factory calendar feed supplied through FairEconomy. CornGrid does not create, estimate, or backfill results. Event awareness is not financial advice and does not predict market direction.</p>
+        </section>
+
         <section class="page" id="page-feed">
           <div class="page-heading">
             <div><p class="eyebrow">TRADING COMMUNITY</p><h1>Live Feed</h1><p class="muted">Share ideas with fellow CornGrid traders. Follow official announcements and community discussion in one place.</p></div>
@@ -425,8 +569,9 @@
   </div>
   <div class="overlay" id="overlay" hidden></div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
-  <script src="dashboard.js?v=20261021-6"></script>
+  <script src="dashboard.js?v=20261022-1"></script>
   <script src="market.js?v=20261021-1"></script>
+  <script src="economic-news.js?v=20261022-1"></script>
   <script src="feed.js?v=20261021-2"></script>
 </body>
 </html>
