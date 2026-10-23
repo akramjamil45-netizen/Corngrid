@@ -90,6 +90,17 @@ app.use('/images', express.static(path.join(ROOT_DIR, 'images')));
 // Community feed uploads (written by feed-api.js with validated random filenames).
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
+// A rejected EA request or a dropped socket must never take the whole backend
+// down. Without these handlers Node exits on the first unhandled rejection,
+// which is exactly the "server down" symptom seen while EA clients were
+// posting market data.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason instanceof Error ? reason.stack : reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error instanceof Error ? error.stack : error);
+});
+
 // Connect to the SQLite database
 const db = new sqlite3.Database(DATABASE_PATH, (err) => {
   if (err) {

@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
+const { exclusive } = require('./db-write');
 
 const configuredHeartbeatTimeout = process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS === undefined
   ? 180
@@ -13,6 +14,13 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MAX_POSITION_COUNT = 2000;
 const MAX_DEAL_COUNT = 500;
+// A position row binds 14 columns. Chunking the writes keeps every statement
+// well under SQLite's bound-parameter ceiling while using a single round trip.
+const POSITION_COLUMNS = 14;
+const DEAL_COLUMNS = 17;
+const MAX_BIND_PARAMS = 900;
+const POSITION_ROWS_PER_INSERT = Math.floor(MAX_BIND_PARAMS / POSITION_COLUMNS);
+const DEAL_ROWS_PER_INSERT = Math.floor(MAX_BIND_PARAMS / DEAL_COLUMNS);
 
 const schema = `
   PRAGMA foreign_keys = ON;
@@ -309,7 +317,12 @@ function registerMt5Api(app, db, verifyToken) {
   const pairingLimit = rateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, key: req => `pair:${ownerId(req)}` });
   const passwordLimit = rateLimiter({ limit: 5, windowMs: 15 * 60 * 1000, key: req => `password:${ownerId(req)}` });
   const eaPairLimit = rateLimiter({ limit: 20, windowMs: 60 * 1000, key: req => `pair-ip:${req.ip}` });
-  const eaDataLimit = rateLimiter({ limit: 120, windowMs: 60 * 1000, key: req => `ea-ip:${req.ip}` });
+  // Behind a reverse proxy every EA shares one IP, so the EA data limit is
+  // keyed by the installation instead of the IP. A few busy accounts could
+  // otherwise lock every other account out with HTTP 429. The coarse IP cap
+  // still guards the unauthenticated request path.
+  const eaIpLimit = rateLimiter({ limit: 600, windowMs: 60 * 1000, key: req => `ea-ip:${req.ip}` });
+  const eaDataLimit = rateLimiter({ limit: 120, windowMs: 60 * 1000, key: req => `ea:${req.installation ? req.installation.installation_id : req.ip}` });
   const publicReadLimit = rateLimiter({ limit: 60, windowMs: 60 * 1000, key: req => `public-portfolio:${req.ip}` });
 
   app.get('/api/me', authenticated, async (req, res) => {
@@ -540,7 +553,7 @@ function registerMt5Api(app, db, verifyToken) {
     }
   }
 
-  app.post('/api/mt5/heartbeat', eaDataLimit, authenticateInstallation, async (req, res) => {
+  app.post('/api/mt5/heartbeat', eaIpLimit, authenticateInstallation, eaDataLimit, async (req, res) => {
     const body = req.body || {};
     const balance = body.balance;
     const equity = body.equity;
@@ -585,42 +598,61 @@ function registerMt5Api(app, db, verifyToken) {
     }
     try {
       const now = Date.now();
-      const accountUpdate = await run(db, `
-        UPDATE mt5_accounts
-        SET balance = ?, equity = ?, margin = ?, free_margin = ?, floating_profit = ?,
-            ea_name = COALESCE(?, ea_name), ea_version = COALESCE(?, ea_version),
-            last_heartbeat = ?, last_sync = ?, auth_error_at = NULL
-        WHERE id = ? AND (last_heartbeat IS NULL OR last_heartbeat <= ?)
-      `, [balance, equity, margin, freeMargin, floatingProfit, eaName, eaVersion, capturedAt, now, req.installation.account_id, capturedAt]);
-      if (accountUpdate.changes !== 1) return res.status(202).json({ accepted: false, message: 'Out-of-order heartbeat ignored.' });
-      await run(db, `
-        INSERT OR IGNORE INTO mt5_snapshots (account_id, captured_at, balance, equity, floating_profit)
-        VALUES (?, ?, ?, ?, ?)
-      `, [req.installation.account_id, capturedAt, balance, equity, floatingProfit]);
-      if (positions !== undefined) {
-        for (const position of validatedPositions) {
-          await run(db, `
-            INSERT INTO mt5_positions
-              (account_id, ticket, symbol, direction, volume, entry_price, current_price, stop_loss, take_profit, profit, swap, commission, opened_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(account_id, ticket) DO UPDATE SET
-              symbol = excluded.symbol, direction = excluded.direction, volume = excluded.volume,
-              entry_price = excluded.entry_price, current_price = excluded.current_price,
-              stop_loss = excluded.stop_loss, take_profit = excluded.take_profit, profit = excluded.profit,
-              swap = excluded.swap, commission = excluded.commission, opened_at = excluded.opened_at,
-              updated_at = excluded.updated_at
-          `, [req.installation.account_id, position.ticket, position.symbol.trim(), position.direction, position.volume, position.entryPrice,
-            position.currentPrice ?? null, position.stopLoss ?? null, position.takeProfit ?? null, position.profit, position.swap ?? null,
-            position.commission ?? null, position.openedAt, now]);
+      // The whole heartbeat write runs through the shared write queue so it can
+      // never be absorbed into another module's open transaction on the same
+      // sqlite connection.
+      const outOfOrder = await exclusive(db, async () => {
+        const accountUpdate = await run(db, `
+          UPDATE mt5_accounts
+          SET balance = ?, equity = ?, margin = ?, free_margin = ?, floating_profit = ?,
+              ea_name = COALESCE(?, ea_name), ea_version = COALESCE(?, ea_version),
+              last_heartbeat = ?, last_sync = ?, auth_error_at = NULL
+          WHERE id = ? AND (last_heartbeat IS NULL OR last_heartbeat <= ?)
+        `, [balance, equity, margin, freeMargin, floatingProfit, eaName, eaVersion, capturedAt, now, req.installation.account_id, capturedAt]);
+        if (accountUpdate.changes !== 1) return true;
+        await run(db, `
+          INSERT OR IGNORE INTO mt5_snapshots (account_id, captured_at, balance, equity, floating_profit)
+          VALUES (?, ?, ?, ?, ?)
+        `, [req.installation.account_id, capturedAt, balance, equity, floatingProfit]);
+        if (positions !== undefined) {
+          // Positions are written in batches. One statement per position meant up
+          // to 2,000 sequential round trips on the shared sqlite connection, which
+          // delayed the EA's market post past its timeout.
+          for (let offset = 0; offset < validatedPositions.length; offset += POSITION_ROWS_PER_INSERT) {
+            const chunk = validatedPositions.slice(offset, offset + POSITION_ROWS_PER_INSERT);
+            const values = [];
+            const params = [];
+            for (const position of chunk) {
+              values.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+              params.push(req.installation.account_id, position.ticket, position.symbol.trim(), position.direction, position.volume,
+                position.entryPrice, position.currentPrice ?? null, position.stopLoss ?? null, position.takeProfit ?? null,
+                position.profit, position.swap ?? null, position.commission ?? null, position.openedAt, now);
+            }
+            await run(db, `
+              INSERT INTO mt5_positions
+                (account_id, ticket, symbol, direction, volume, entry_price, current_price, stop_loss, take_profit, profit, swap, commission, opened_at, updated_at)
+              VALUES ${values.join(', ')}
+              ON CONFLICT(account_id, ticket) DO UPDATE SET
+                symbol = excluded.symbol, direction = excluded.direction, volume = excluded.volume,
+                entry_price = excluded.entry_price, current_price = excluded.current_price,
+                stop_loss = excluded.stop_loss, take_profit = excluded.take_profit, profit = excluded.profit,
+                swap = excluded.swap, commission = excluded.commission, opened_at = excluded.opened_at,
+                updated_at = excluded.updated_at
+            `, params);
+          }
+          if (validatedPositions.length === 0) {
+            await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [req.installation.account_id]);
+          } else {
+            // The kept tickets travel as one JSON array instead of thousands of
+            // bound parameters, so the statement stays valid at any position count.
+            const keptTickets = JSON.stringify(validatedPositions.map(position => position.ticket));
+            await run(db, 'DELETE FROM mt5_positions WHERE account_id = ? AND ticket NOT IN (SELECT value FROM json_each(?))',
+              [req.installation.account_id, keptTickets]);
+          }
         }
-        if (validatedPositions.length === 0) {
-          await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [req.installation.account_id]);
-        } else {
-          const placeholders = validatedPositions.map(() => '?').join(', ');
-          await run(db, `DELETE FROM mt5_positions WHERE account_id = ? AND ticket NOT IN (${placeholders})`,
-            [req.installation.account_id, ...validatedPositions.map(position => position.ticket)]);
-        }
-      }
+        return false;
+      });
+      if (outOfOrder) return res.status(202).json({ accepted: false, message: 'Out-of-order heartbeat ignored.' });
       return res.json({ accepted: true, serverTime: new Date(now).toISOString() });
     } catch (databaseError) {
       console.error('Failed to store authenticated MT5 heartbeat:', databaseError.message);
@@ -628,7 +660,7 @@ function registerMt5Api(app, db, verifyToken) {
     }
   });
 
-  app.post('/api/mt5/trades', eaDataLimit, authenticateInstallation, async (req, res) => {
+  app.post('/api/mt5/trades', eaIpLimit, authenticateInstallation, eaDataLimit, async (req, res) => {
     const deals = req.body && req.body.deals;
     if (!Array.isArray(deals) || deals.length > MAX_DEAL_COUNT) return res.status(400).json({ error: `Deals must be an array of no more than ${MAX_DEAL_COUNT} entries.` });
     const validated = [];
@@ -653,15 +685,24 @@ function registerMt5Api(app, db, verifyToken) {
     }
     try {
       let inserted = 0;
-      for (const deal of validated) {
+      // Deals are written in batches for the same reason as positions: one
+      // statement per deal meant hundreds of sequential round trips.
+      for (let offset = 0; offset < validated.length; offset += DEAL_ROWS_PER_INSERT) {
+        const chunk = validated.slice(offset, offset + DEAL_ROWS_PER_INSERT);
+        const values = [];
+        const params = [];
+        for (const deal of chunk) {
+          values.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          params.push(req.installation.account_id, deal.dealId, deal.positionId == null ? null : String(deal.positionId).slice(0, 64),
+            deal.symbol.trim(), deal.direction, deal.volume, deal.entryPrice ?? null, deal.exitPrice ?? null,
+            deal.stopLoss ?? null, deal.takeProfit ?? null, deal.profit, deal.commission ?? null, deal.swap ?? null,
+            deal.closedAt, deal.durationSeconds ?? null, deal.magicNumber == null ? null : String(deal.magicNumber), deal.eaVersion ?? null);
+        }
         const result = await run(db, `
           INSERT OR IGNORE INTO mt5_deals
             (account_id, deal_id, position_id, symbol, direction, volume, entry_price, exit_price, stop_loss, take_profit, profit, commission, swap, closed_at, duration_seconds, magic_number, ea_version)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [req.installation.account_id, deal.dealId, deal.positionId == null ? null : String(deal.positionId).slice(0, 64),
-          deal.symbol.trim(), deal.direction, deal.volume, deal.entryPrice ?? null, deal.exitPrice ?? null,
-          deal.stopLoss ?? null, deal.takeProfit ?? null, deal.profit, deal.commission ?? null, deal.swap ?? null, deal.closedAt, deal.durationSeconds ?? null,
-          deal.magicNumber == null ? null : String(deal.magicNumber), deal.eaVersion ?? null]);
+          VALUES ${values.join(', ')}
+        `, params);
         inserted += result.changes;
       }
       await run(db, 'UPDATE mt5_accounts SET last_sync = ? WHERE id = ?', [Date.now(), req.installation.account_id]);
@@ -678,23 +719,25 @@ function registerMt5Api(app, db, verifyToken) {
     try {
       const owned = await get(db, 'SELECT id FROM mt5_accounts WHERE id = ? AND user_id = ?', [accountId, ownerId(req)]);
       if (!owned) return res.status(404).json({ error: 'MT5 account not found.' });
-      const unlinkTransaction = `
-        BEGIN IMMEDIATE;
-        DELETE FROM public_portfolio_accounts WHERE account_id = ${accountId};
-        DELETE FROM mt5_installations WHERE account_id = ${accountId};
-        DELETE FROM mt5_snapshots WHERE account_id = ${accountId};
-        DELETE FROM mt5_positions WHERE account_id = ${accountId};
-        DELETE FROM mt5_deals WHERE account_id = ${accountId};
-        DELETE FROM mt5_accounts WHERE id = ${accountId};
-        COMMIT;
-      `;
-      await new Promise((resolve, reject) => db.exec(unlinkTransaction, error => {
-        if (!error) return resolve();
-        db.exec('ROLLBACK;', rollbackError => {
-          if (rollbackError) console.error('Failed to roll back MT5 account unlink:', rollbackError.message);
-          reject(error);
-        });
-      }));
+      // The unlink removes rows from six tables, so it must be atomic. The
+      // transaction runs through the shared write queue: the sqlite connection
+      // is shared with the market feed, and two open transactions on one
+      // connection fail with "cannot start a transaction within a transaction".
+      await exclusive(db, async () => {
+        await run(db, 'BEGIN IMMEDIATE');
+        try {
+          await run(db, 'DELETE FROM public_portfolio_accounts WHERE account_id = ?', [accountId]);
+          await run(db, 'DELETE FROM mt5_installations WHERE account_id = ?', [accountId]);
+          await run(db, 'DELETE FROM mt5_snapshots WHERE account_id = ?', [accountId]);
+          await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [accountId]);
+          await run(db, 'DELETE FROM mt5_deals WHERE account_id = ?', [accountId]);
+          await run(db, 'DELETE FROM mt5_accounts WHERE id = ?', [accountId]);
+          await run(db, 'COMMIT');
+        } catch (transactionError) {
+          await run(db, 'ROLLBACK').catch(() => {});
+          throw transactionError;
+        }
+      });
       return res.json({ message: 'MT5 account unlinked.' });
     } catch (databaseError) {
       console.error('Failed to unlink MT5 account:', databaseError.message);
@@ -773,28 +816,29 @@ function registerMt5Api(app, db, verifyToken) {
       }
       const now = Date.now();
       const shareId = crypto.randomBytes(16).toString('hex');
-      const selectedValues = selectedIds.map(id => `(${ownerId(req)}, ${id})`).join(', ');
-      const insertSelected = selectedValues
-        ? `INSERT INTO public_portfolio_accounts (user_id, account_id) VALUES ${selectedValues};`
-        : '';
-      const transaction = `
-        BEGIN IMMEDIATE;
-        DELETE FROM public_portfolio_accounts WHERE user_id = ${ownerId(req)};
-        ${insertSelected}
-        INSERT INTO public_portfolios (user_id, share_id, is_public, updated_at)
-        VALUES (${ownerId(req)}, '${shareId}', ${req.body.isPublic ? 1 : 0}, ${now})
-        ON CONFLICT(user_id) DO UPDATE SET
-          is_public = excluded.is_public,
-          updated_at = excluded.updated_at;
-        COMMIT;
-      `;
-      await new Promise((resolve, reject) => db.exec(transaction, error => {
-        if (!error) return resolve();
-        db.exec('ROLLBACK;', rollbackError => {
-          if (rollbackError) console.error('Failed to roll back portfolio sharing update:', rollbackError.message);
-          reject(error);
-        });
-      }));
+      // The sharing update touches three tables, so it must be atomic. It runs
+      // through the shared write queue so it can never overlap another module's
+      // transaction on the same sqlite connection.
+      await exclusive(db, async () => {
+        await run(db, 'BEGIN IMMEDIATE');
+        try {
+          await run(db, 'DELETE FROM public_portfolio_accounts WHERE user_id = ?', [ownerId(req)]);
+          for (const id of selectedIds) {
+            await run(db, 'INSERT INTO public_portfolio_accounts (user_id, account_id) VALUES (?, ?)', [ownerId(req), id]);
+          }
+          await run(db, `
+            INSERT INTO public_portfolios (user_id, share_id, is_public, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              is_public = excluded.is_public,
+              updated_at = excluded.updated_at;
+          `, [ownerId(req), shareId, req.body.isPublic ? 1 : 0, now]);
+          await run(db, 'COMMIT');
+        } catch (transactionError) {
+          await run(db, 'ROLLBACK').catch(() => {});
+          throw transactionError;
+        }
+      });
       const sharing = await get(db, 'SELECT share_id FROM public_portfolios WHERE user_id = ?', [ownerId(req)]);
       return res.json({
         isPublic: req.body.isPublic,

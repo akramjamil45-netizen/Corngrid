@@ -26,7 +26,7 @@ The dashboard extends the existing Express, SQLite, and JWT application. It keep
 6. Confirm that the existing proxy forwards `/api/*`, `/admin`, `/portfolios`, `/portfolio/*`, and serves the dashboard and public portfolio assets (`/admin.html`, `/admin.css`, `/admin.js`, `/dashboard.html`, `/dashboard.css`, `/dashboard.js`, `/public-portfolios*`, `/public-portfolio*`, and `/images/*`) from the Express public directory. Do not publish `/Corngrid-web/database.sqlite`.
 7. After deployment, test registration/login, password reset, dashboard access, public/private portfolio visibility, and the EA pairing/heartbeat flow over HTTPS. Use the local integration checks described below before enabling real account linking.
 
-`database.sqlite` receives backward-compatible `CREATE TABLE IF NOT EXISTS` additions at startup. Back it up before deploying and ensure the service account can write to its directory. The included rate limits are process-local; deployments with multiple Node workers or instances must also enforce limits at the gateway.
+`database.sqlite` receives backward-compatible `CREATE TABLE IF NOT EXISTS` additions at startup, plus the `idx_market_candles_symbol_feed` index on the candle table (an index build on an existing production database happens once, on the first start after this update). Back it up before deploying and ensure the service account can write to its directory. The included rate limits are process-local; deployments with multiple Node workers or instances must also enforce limits at the gateway.
 
 ## API contract
 
@@ -121,7 +121,7 @@ MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (in
 - Quotes (bid, ask, optional last, spread in points, digits, UTC tick time) are kept in memory only. Candles (M1-W1) are stored in the `market_candles` SQLite table, capped at 1,500 bars per feed/symbol/timeframe. Ticks are never stored.
 - Freshness uses the server's receipt time, never the EA clock: LIVE (<= 10 s), DELAYED (<= 30 s), STALE (<= 120 s), OFFLINE (older). A connected EA with no new broker tick is still LIVE but flagged "market quiet". A faster update interval is not evidence of zero latency or exchange-grade real-time data.
 - Replay/out-of-order protection: each request carries a strictly increasing `sentAtMs`; replays and older ticks are ignored (HTTP 202), and `sentAtMs` more than 5 minutes from server time is rejected (HTTP 422).
-- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
+- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Quotes and candles are owned separately, so an account that publishes only candles still keeps its stream. Ownership stays with the account that is actually publishing, so several accounts on the same broker server no longer make the visible price flip between them. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
 - Candle times are broker server time (as on the MT5 chart) and the UTC offset is sent with each request. History is limited to what the EA transmitted (default 300 bars per timeframe on start); nothing is invented.
 - Source order: fresh EA feed, then the external provider only if `MARKET_FALLBACK_PROVIDER=external` (labeled FALLBACK, never "CornGrid EA"), then an honest unavailable/OFFLINE state. **The fallback is off by default**; set `MARKET_FALLBACK_PROVIDER=external` to keep the previous Twelve Data/Yahoo behavior while no EA publishes.
 
@@ -170,7 +170,7 @@ No new secrets are required. Website symbols: XAUUSD, EURUSD, GBPUSD, USDJPY; pr
 }
 ```
 
-Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited.
+Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited, `503` temporary storage failure (retry after the `Retry-After` seconds).
 
 ### Test the feed
 
@@ -192,7 +192,8 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 - LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
 - Missing candles for a timeframe: history is sent one timeframe per request; wait for "initial candle history sent".
 - If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works unchanged; for IIS ARR disable response buffering for `/api/market/stream`.
-- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms); the candle rows are now written in batched statements so the largest allowed payload (2,000 bars) is stored in well under that limit. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
+- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms). The server now keeps every request inside that budget: candles are written in batched statements, the candle table carries an index on `symbol` so feed discovery never scans it, open positions and trades are written in batches instead of one statement per row, and all writes share one queue so a candle write can never collide with a heartbeat or an account unlink. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
+- The market feed appears dead while the site itself is up: the EA gives up after 1000 ms and closes the socket, so the server logs an aborted request. The backend stays up; what stalls is the shared SQLite connection. A failed candle write now answers `503` with `Retry-After` so the EA retries shortly instead of backing off for minutes, and the process survives an unexpected error instead of exiting and taking the whole site down.
 
 ### Security notes
 
@@ -228,7 +229,7 @@ MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (in
 - Quotes (bid, ask, optional last, spread in points, digits, UTC tick time) are kept in memory only. Candles (M1-W1) are stored in the `market_candles` SQLite table, capped at 1,500 bars per feed/symbol/timeframe. Ticks are never stored.
 - Freshness uses the server's receipt time, never the EA clock: LIVE (<= 10 s), DELAYED (<= 30 s), STALE (<= 120 s), OFFLINE (older). A connected EA with no new broker tick is still LIVE but flagged "market quiet". Thresholds are configurable (see below). A faster update interval is not evidence of zero latency or exchange-grade real-time data.
 - Replay/out-of-order protection: each request carries a strictly increasing `sentAtMs`; replays and older ticks are ignored (HTTP 202), and `sentAtMs` more than 5 minutes from server time is rejected (HTTP 422).
-- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
+- Feeds are identified by the broker server name of the paired account. Brokers are never merged. Per feed/symbol one publisher owns the stream; other EAs get `202 standby` until the owner is silent for 15 s. Quotes and candles are owned separately, so an account that publishes only candles still keeps its stream. Ownership stays with the account that is actually publishing, so several accounts on the same broker server no longer make the visible price flip between them. Across feeds the healthiest feed wins; `MARKET_PREFERRED_FEED` wins while it is LIVE/DELAYED.
 - Candle times are broker server time (as on the MT5 chart) and the UTC offset is sent with each request. History is limited to what the EA transmitted (default 300 bars per timeframe on start); there is no invented history.
 - Source order: fresh EA feed, then the external provider only if `MARKET_FALLBACK_PROVIDER=external` (labeled FALLBACK, never "CornGrid EA"), then an honest unavailable/OFFLINE state. **Default is off**, so set `MARKET_FALLBACK_PROVIDER=external` to keep the old Twelve Data/Yahoo behavior while no EA publishes.
 
@@ -277,7 +278,7 @@ No new secrets are required. Symbols recognised by the website: XAUUSD, EURUSD, 
 }
 ```
 
-Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited.
+Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400` malformed, `401` bad credential, `422` clock skew or unmappable symbols, `429` rate limited, `503` temporary storage failure (retry after the `Retry-After` seconds).
 
 ### Test the feed
 
@@ -292,7 +293,8 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 - LIVE with "market quiet": connected but the broker sent no new tick (market closed or illiquid).
 - No candles for a timeframe: history is still being sent one timeframe per request; wait for "initial candle history sent".
 - If the browser stays on polling, a proxy is buffering Server-Sent Events. Polling works without changes; for IIS ARR disable response buffering for `/api/market/stream`.
-- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms); the candle rows are now written in batched statements so the largest allowed payload (2,000 bars) is stored in well under that limit. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
+- `Ignored a client-aborted request (POST /api/mt5/market)`: the EA gave up waiting and closed the connection before the body finished arriving. The log shows how many bytes arrived, e.g. `(30/9000 bytes received ...)` means the upload was cut short. The usual cause is a request that took longer than the EA's WebRequest timeout (default 1000 ms). The server now keeps every request inside that budget: candles are written in batched statements, the candle table carries an index on `symbol` so feed discovery never scans it, open positions and trades are written in batches instead of one statement per row, and all writes share one queue so a candle write can never collide with a heartbeat or an account unlink. If it still happens, raise `InpMarketRequestTimeoutMs` in the EA and check the server's own load.
+- The market feed appears dead while the site itself is up: the EA gives up after 1000 ms and closes the socket, so the server logs an aborted request. The backend stays up; what stalls is the shared SQLite connection. A failed candle write now answers `503` with `Retry-After` so the EA retries shortly instead of backing off for minutes, and the process survives an unexpected error instead of exiting and taking the whole site down.
 
 ### Security notes
 

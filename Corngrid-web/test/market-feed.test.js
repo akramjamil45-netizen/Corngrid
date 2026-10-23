@@ -15,7 +15,7 @@ function makeClock(start = Date.UTC(2030, 0, 1, 12, 0, 0)) {
   return clock;
 }
 
-function installation(id, broker = EXAMPLE.feedA) {
+function installation(id, broker = 'BrokerA-Live') {
   return { installation_id: id, account_id: id, user_id: 1, broker_server: broker };
 }
 

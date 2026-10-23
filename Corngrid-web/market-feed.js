@@ -5,6 +5,8 @@
 // Latest quotes are kept in memory only; candles are stored in SQLite (bounded per series).
 // Quotes are never persisted tick-by-tick. Freshness is judged from SERVER receipt time, not EA clocks.
 
+const { exclusive } = require('./db-write');
+
 const TIMEFRAMES = Object.freeze({
   M1: { key: '1m', seconds: 60 },
   M5: { key: '5m', seconds: 300 },
@@ -148,6 +150,11 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (feed, symbol, tf, t)
     ) WITHOUT ROWID;
+    -- The table is keyed by (feed, symbol, tf, t), so a lookup by symbol alone
+    -- (the feed discovery query) had no usable index and fell back to a full
+    -- table scan on every read. This covering index keeps that lookup cheap.
+    CREATE INDEX IF NOT EXISTS idx_market_candles_symbol_feed
+      ON market_candles(symbol, feed, updated_at);
   `).catch(error => console.error('Unable to initialize market candle storage:', error.message));
 
   // ---------------------------------------------------------------- state
@@ -189,9 +196,23 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     };
   }
 
+  // Feed discovery runs on every SSE tick for every connected client, so the
+  // result is cached for a few seconds. The lookup itself is indexed, and the
+  // cache keeps the shared connection free for the EA requests.
+  const feedCache = new Map(); // symbol -> { rows, expiresAt }
+  const FEED_CACHE_TTL_MS = 5000;
+
+  function invalidateFeedCache(symbol) {
+    feedCache.delete(symbol);
+  }
+
   async function dbFeedsFor(symbol) {
     await ready;
-    return all(db, 'SELECT feed, MAX(updated_at) AS updated_at FROM market_candles WHERE symbol = ? GROUP BY feed ORDER BY updated_at DESC', [symbol]);
+    const cached = feedCache.get(symbol);
+    if (cached && cached.expiresAt > now()) return cached.rows;
+    const rows = await all(db, 'SELECT feed, MAX(updated_at) AS updated_at FROM market_candles WHERE symbol = ? GROUP BY feed ORDER BY updated_at DESC', [symbol]);
+    feedCache.set(symbol, { rows, expiresAt: now() + FEED_CACHE_TTL_MS });
+    return rows;
   }
 
   // Picks the single feed to show for a symbol. Never merges brokers.
@@ -296,10 +317,40 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     return { value: { brokerSymbol: raw.symbol, tf: raw.tf, bars } };
   }
 
-  function ownerAllows(feed, symbol, installationId, receivedAt) {
-    const existing = quotes.get(`${feed}|${symbol}`);
-    if (!existing || existing.publisherId === installationId) return true;
-    return receivedAt - existing.receivedAt > config.takeoverSeconds * 1000;
+  // One publisher owns a feed/symbol at a time, and quotes and candles are
+// tracked separately. Ownership is kept in its own map instead of being derived
+// from the visible quote, because a publisher which is alive but sends an
+// unchanged tick (or only candles) must still hold the stream. Deriving it
+// from the quote record made the visible price flap between two accounts that
+// share a broker server, because a publisher that only sent candles was never
+// recognised as the owner.
+  const owners = new Map(); // `${feed}|${symbol}` -> { installationId, lastQuoteAt, lastCandleAt }
+
+  function ownerAllows(feed, symbol, installationId, receivedAt, kind) {
+    const owner = owners.get(`${feed}|${symbol}`);
+    if (!owner) return true;
+    if (owner.installationId === installationId) return true;
+    const lastSeen = kind === 'candle' ? owner.lastCandleAt : owner.lastQuoteAt;
+    // The current owner must be genuinely silent before another publisher may take over.
+    if (!lastSeen) return true;
+    return receivedAt - lastSeen > config.takeoverSeconds * 1000;
+  }
+
+  function claimOwnership(feed, symbol, installationId, receivedAt, kind) {
+    const key = `${feed}|${symbol}`;
+    let owner = owners.get(key);
+    if (!owner) {
+      owner = { installationId, lastQuoteAt: 0, lastCandleAt: 0 };
+      owners.set(key, owner);
+    }
+    if (owner.installationId !== installationId) {
+      // A publisher that takes over a stream replaces the previous owner.
+      owner.installationId = installationId;
+      owner.lastQuoteAt = 0;
+      owner.lastCandleAt = 0;
+    }
+    if (kind === 'candle') owner.lastCandleAt = receivedAt;
+    else owner.lastQuoteAt = receivedAt;
   }
 
   async function ingest(installation, body) {
@@ -354,7 +405,8 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     for (const quote of parsedQuotes) {
       const symbol = mapSymbol(quote.brokerSymbol, symbolKeys, config.aliases);
       if (!symbol) { outcome.quotes.unmapped.push(quote.brokerSymbol); continue; }
-      if (!ownerAllows(feed, symbol, installation.installation_id, receivedAt)) { outcome.quotes.ignored += 1; continue; }
+      if (!ownerAllows(feed, symbol, installation.installation_id, receivedAt, 'quote')) { outcome.quotes.ignored += 1; continue; }
+      claimOwnership(feed, symbol, installation.installation_id, receivedAt, 'quote');
       const key = `${feed}|${symbol}`;
       const existing = quotes.get(key);
       const sameOwner = existing && existing.publisherId === installation.installation_id;
@@ -374,7 +426,8 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     for (const series of parsedSeries) {
       const symbol = mapSymbol(series.brokerSymbol, symbolKeys, config.aliases);
       if (!symbol) { outcome.candles.ignored += series.bars.length; continue; }
-      if (!ownerAllows(feed, symbol, installation.installation_id, receivedAt)) { outcome.candles.ignored += series.bars.length; continue; }
+      if (!ownerAllows(feed, symbol, installation.installation_id, receivedAt, 'candle')) { outcome.candles.ignored += series.bars.length; continue; }
+      claimOwnership(feed, symbol, installation.installation_id, receivedAt, 'candle');
       storable.push({ symbol, tf: series.tf, bars: series.bars });
       outcome.candles.accepted += series.bars.length;
     }
@@ -383,7 +436,9 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
         await storeCandles(feed, storable, receivedAt);
       } catch (error) {
         console.error('Failed to store market candles:', error.message);
-        return reject(500, 'Unable to store candles.');
+        // A storage failure is temporary, not a data error. 503 tells the EA to
+        // retry shortly instead of treating the update as permanently rejected.
+        return { status: 503, retryAfterSeconds: 30, body: { ...outcome, accepted: false, error: 'Unable to store candles. Please retry.' } };
       }
     }
 
@@ -395,12 +450,16 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     return { status: 200, body: outcome };
   }
 
-  // The shared sqlite connection cannot nest transactions, so writes run one at a time.
-  let writeChain = Promise.resolve();
+  // The shared sqlite connection cannot nest transactions, so writes run one at a
+  // time. The queue is shared with the other API modules through db-write.js, so
+  // a candle write can never collide with an account unlink or a heartbeat.
   function storeCandles(feed, seriesList, receivedAt) {
-    const task = writeChain.then(() => storeCandlesNow(feed, seriesList, receivedAt));
-    writeChain = task.catch(() => {});
-    return task;
+    return exclusive(db, async () => {
+      await storeCandlesNow(feed, seriesList, receivedAt);
+      // A stored series can introduce a new feed for its symbol, so the cached
+      // feed list for those symbols must be recomputed.
+      for (const series of seriesList) invalidateFeedCache(series.symbol);
+    });
   }
 
   async function storeCandlesNow(feed, seriesList, receivedAt) {
@@ -529,6 +588,7 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     const cutoff = now() - 24 * 3600 * 1000;
     for (const [id, publisher] of publishers) if (publisher.lastReceivedAt < cutoff) publishers.delete(id);
     for (const [key, record] of quotes) if (record.receivedAt < cutoff) quotes.delete(key);
+    for (const [key, owner] of owners) if (Math.max(owner.lastQuoteAt, owner.lastCandleAt) < cutoff) owners.delete(key);
   }
   const sweepTimer = setInterval(sweep, 3600 * 1000);
   if (sweepTimer.unref) sweepTimer.unref();
@@ -578,6 +638,11 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
         // Note: `req.destroyed` is NOT usable here - Node destroys the request
         // stream once a healthy body has been read, so it is true either way.
         if (res.headersSent || !clientConnected(res)) return undefined;
+        // A rejected payload must not be retried immediately: the EA reads
+        // Retry-After and backs off instead of hammering the endpoint.
+        if (result.status === 429 || result.status === 503) {
+          res.set('Retry-After', String(result.retryAfterSeconds || 30));
+        }
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error('Market ingest failed:', error.message);
