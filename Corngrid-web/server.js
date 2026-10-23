@@ -94,6 +94,16 @@ app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
+  const timeoutMs = Number(process.env.REQUEST_TIMEOUT_MS) > 0 ? Number(process.env.REQUEST_TIMEOUT_MS) : 25000;
+  res.setTimeout(timeoutMs, () => {
+    if (!res.headersSent) {
+      res.status(504).json({ error: 'Request timed out. Please try again.' });
+    }
+  });
+  next();
+});
+
+app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/') ||
     ['/admin', '/admin.html', '/dashboard', '/dashboard.html', '/index.html', '/login', '/login.html', '/reset-password.html'].includes(req.path)

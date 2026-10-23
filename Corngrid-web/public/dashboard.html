@@ -3,6 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('corngrid-sw-reset') === 'v13') return;
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          return Promise.all(regs.map(function (r) { return r.unregister(); }));
+        }).then(function () {
+          if (window.caches) {
+            return caches.keys().then(function (names) {
+              return Promise.all(names.map(function (n) { return caches.delete(n); }));
+            });
+          }
+        }).then(function () {
+          localStorage.setItem('corngrid-sw-reset', 'v13');
+          location.reload();
+        }).catch(function () {});
+      } catch (e) {}
+    })();
+  </script>
   <meta name="theme-color" content="#080a0f">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>CornGrid | Trading Dashboard</title>
@@ -570,9 +590,9 @@
   </div>
   <div class="overlay" id="overlay" hidden></div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
-  <script src="dashboard.js?v=20261022-1"></script>
+  <script src="dashboard.js?v=20261024-3"></script>
   <script src="market.js?v=20261023-1"></script>
   <script src="economic-news.js?v=20261022-3"></script>
-  <script src="feed.js?v=20261021-2"></script>
+  <script src="feed.js?v=20261024-2"></script>
 </body>
 </html>

@@ -17,7 +17,8 @@
     profilePosts: [],
     profileActivity: [],
     profileTab: 'posts',
-    openComments: new Map() // postId -> { comments, loading }
+    openComments: new Map(), // postId -> { comments, loading }
+    abortController: null
   };
 
   const $ = id => document.getElementById(id);
@@ -37,10 +38,24 @@
   }
 
   async function request(path, options = {}) {
+    let signal = options.signal;
+    if (!signal) {
+      const controllerSignal = state.abortController && state.abortController.signal;
+      const timeoutSignal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+        ? AbortSignal.timeout(30000)
+        : null;
+      if (controllerSignal && timeoutSignal && typeof AbortSignal.any === 'function') {
+        signal = AbortSignal.any([controllerSignal, timeoutSignal]);
+      } else if (controllerSignal) {
+        signal = controllerSignal;
+      } else if (timeoutSignal) {
+        signal = timeoutSignal;
+      }
+    }
     const response = await fetch(`${API}${path}`, {
       ...options,
       credentials: 'same-origin',
-      signal: options.signal || AbortSignal.timeout(20000),
+      signal,
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     let data = {};
@@ -153,6 +168,8 @@
       loadWrap.hidden = !state.cursor;
       state.loaded = true;
     } catch (error) {
+      if (error && error.name === 'AbortError') { state.loading = false; return; }
+      if (state.abortController && state.abortController.signal.aborted) { state.loading = false; return; }
       if (!append) {
         list.innerHTML = `<div class="panel empty-state feed-empty"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><h2>Unable to load the feed</h2><p>${escapeHtml(error.message)}</p><button type="button" class="button button-primary" id="feed-retry">Try again</button></div>`;
         const retry = $('feed-retry');
@@ -508,6 +525,8 @@
       // Re-render any loaded cards so Edit/Delete controls match the viewer.
       if (state.loaded) loadFeed();
     } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      if (state.abortController && state.abortController.signal.aborted) return;
       console.error('Unable to load feed profile summary:', error.message);
     }
   }
@@ -606,6 +625,8 @@
 
   window.CornGridFeed = {
     onOpen() {
+      if (state.abortController) state.abortController.abort();
+      state.abortController = new AbortController();
       if (!eventsBound) { bindEvents(); eventsBound = true; }
       loadMyProfileSummary();
       if (!state.loaded) loadFeed();
@@ -623,6 +644,10 @@
           }
         }, 900);
       }
+    },
+    onClose() {
+      if (state.abortController) { state.abortController.abort(); state.abortController = null; }
+      state.loading = false;
     }
   };
 })();

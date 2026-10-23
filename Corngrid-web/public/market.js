@@ -32,7 +32,8 @@
     pendingEdit: null,
     summary: null,
     loaded: false,
-    requestSeq: 0
+    requestSeq: 0,
+    abortController: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -52,10 +53,24 @@
   }
 
   async function request(path, options = {}) {
+    let signal = options.signal;
+    if (!signal) {
+      const controllerSignal = state.abortController && state.abortController.signal;
+      const timeoutSignal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+        ? AbortSignal.timeout(30000)
+        : null;
+      if (controllerSignal && timeoutSignal && typeof AbortSignal.any === 'function') {
+        signal = AbortSignal.any([controllerSignal, timeoutSignal]);
+      } else if (controllerSignal) {
+        signal = controllerSignal;
+      } else if (timeoutSignal) {
+        signal = timeoutSignal;
+      }
+    }
     const response = await fetch(`${API}${path}`, {
       ...options,
       credentials: 'same-origin',
-      signal: options.signal || AbortSignal.timeout(20000),
+      signal,
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     let data = {};
@@ -402,6 +417,8 @@
       applySummary(summary);
       if (summary.source && summary.source.kind === 'corngrid-ea') startLive();
     } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      if (state.abortController && state.abortController.signal.aborted) return;
       if (symbol !== state.symbol) return;
       const live = state.live;
       const unavailable = error.data && error.data.state === 'OFFLINE';
@@ -614,6 +631,8 @@
       setChartState('hidden');
       state.loaded = true;
     } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      if (state.abortController && state.abortController.signal.aborted) return;
       if (seq !== state.requestSeq) return;
       setChartState('error', error.message);
     }
@@ -632,6 +651,8 @@
       state.drawings = (Array.isArray(payload.drawings) ? payload.drawings : [])
         .map(drawing => ({ ...drawing, id: Number(drawing.id) }));
     } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      if (state.abortController && state.abortController.signal.aborted) return;
       state.drawings = [];
       toast(error.message, 'error');
     }
@@ -816,6 +837,8 @@
 
   window.CornGridMarket = {
     onOpen() {
+      if (state.abortController) state.abortController.abort();
+      state.abortController = new AbortController();
       state.pageOpen = true;
       if (!state.watchdogTimer) state.watchdogTimer = setInterval(watchdog, 1000);
       if (!eventsBound) { bindEvents(); document.addEventListener('visibilitychange', onVisibilityChange); eventsBound = true; }
@@ -830,7 +853,10 @@
       loadDrawings();
     },
     onClose() {
-      // Leaving the Market page: stop streaming and timers so nothing runs in the background.
+      // Leaving the Market page: abort in-flight requests, stop streaming/timers,
+      // but keep the chart instance so repeated page switches do not thrash the
+      // chart library (create/remove on every switch caused UI freezes).
+      if (state.abortController) { state.abortController.abort(); state.abortController = null; }
       state.pageOpen = false;
       stopLive();
       if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }

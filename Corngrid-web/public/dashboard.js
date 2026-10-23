@@ -89,7 +89,7 @@
     const response = await fetch(`${API}${path}`, {
       ...options,
       credentials: 'same-origin',
-      signal: options.signal || AbortSignal.timeout(15000),
+      signal: options.signal || AbortSignal.timeout(30000),
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     let data = {};
@@ -228,6 +228,7 @@
     if (name === 'market' && window.CornGridMarket) window.CornGridMarket.onOpen();
     if (name !== 'economic' && window.CornGridEconomic) window.CornGridEconomic.onClose();
     if (name === 'economic' && window.CornGridEconomic) window.CornGridEconomic.onOpen();
+    if (name !== 'feed' && window.CornGridFeed) window.CornGridFeed.onClose();
     if (name === 'feed' && window.CornGridFeed) window.CornGridFeed.onOpen();
   }
 
@@ -398,12 +399,21 @@
     }
   }
 
+  let chatUnreadPromise = null;
   async function updateChatUnread() {
-    const data = await request('/chat/unread-count');
-    const badge = $('#chat-nav-badge');
-    const count = Number(data.unreadCount) || 0;
-    badge.hidden = count === 0;
-    badge.textContent = count > 99 ? '99+' : String(count);
+    if (chatUnreadPromise) return chatUnreadPromise;
+    chatUnreadPromise = (async () => {
+      try {
+        const data = await request('/chat/unread-count');
+        const badge = $('#chat-nav-badge');
+        const count = Number(data.unreadCount) || 0;
+        badge.hidden = count === 0;
+        badge.textContent = count > 99 ? '99+' : String(count);
+      } finally {
+        chatUnreadPromise = null;
+      }
+    })();
+    return chatUnreadPromise;
   }
 
   async function refreshChat(manual = true) {

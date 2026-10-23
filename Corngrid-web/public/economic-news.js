@@ -684,7 +684,7 @@
 
   async function request(path, options) {
     var controller = new AbortController();
-    var timeout = setTimeout(function () { controller.abort(); }, 15000);
+    var timeout = setTimeout(function () { controller.abort(); }, 30000);
     try {
       var res = await fetch(path, Object.assign({ credentials: 'same-origin', signal: controller.signal }, options || {}));
       if (!res.ok) {
