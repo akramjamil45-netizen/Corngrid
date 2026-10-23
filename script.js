@@ -239,7 +239,7 @@ const translations = {
         nav_terminal_app: "Terminal App",
         nav_support: "Support",
         nav_portfolios: "Portfolios",
-        nav_login: "Login",
+        nav_login: "Sign in",
 
         // --- Hero Section ---
         hero_badge: "PREMIUM QUANT ALGORITHM v1.90",
@@ -449,7 +449,7 @@ const translations = {
         nav_terminal_app: "Aplikasi Terminal",
         nav_support: "Bantuan",
         nav_portfolios: "Portfolio",
-        nav_login: "Log Masuk",
+        nav_login: "Daftar masuk",
 
         // --- Hero Section ---
         hero_badge: "ALGORITMA TRADING PREMIUM v1.90",

@@ -326,6 +326,184 @@ html.js [data-reveal].revealed { opacity: 1; transform: none; }
 /* ---------- Footer extras (base footer styles come from mystyle.css) ---------- */
 .promo-beta-disclaimer { font-size: 12px; color: #8a8a8a; line-height: 1.6; border-top: 1px solid #1a1a1a; padding-top: 20px; margin-top: 20px; }
 
+/* ---------- Header navigation (keeps the row on one line) ---------- */
+#mainHeader .container { width: min(92%, 1280px); }
+#mainHeader .menu { gap: clamp(14px, 1.6vw, 24px); }
+#mainHeader .menu a {
+    margin-left: 0;
+    white-space: nowrap;
+}
+#mainHeader .nav-login-btn {
+    padding: 8px 20px !important;
+    white-space: nowrap;
+}
+#mainHeader .logo-container { flex: 0 0 auto; }
+
+/* ---------- Floating support widget (reuses .cg-contact styles from mystyle.css) ---------- */
+/* mystyle.css already ships the full .cg-contact widget, but the promotional page
+   keeps its own tokens so the button sits correctly over the dark promo layout. */
+.cg-contact {
+    position: fixed;
+    right: 25px;
+    bottom: 25px;
+    z-index: 9999;
+    font-family: inherit;
+}
+.cg-contact-button {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border: 2px solid #FFD400;
+    border-radius: 50%;
+    background: #111;
+    color: #FFD400;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .3s ease, background .3s ease, color .3s ease, box-shadow .3s ease;
+}
+.cg-contact-button:hover {
+    transform: scale(1.08);
+    background: #FFD400;
+    color: #000;
+    box-shadow: 0 0 30px rgba(255, 212, 0, .35), 0 15px 40px rgba(0, 0, 0, .6);
+}
+.cg-open-icon,
+.cg-close-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    transition: opacity .3s ease, transform .3s ease;
+}
+.cg-close-icon { opacity: 0; transform: translate(-50%, -50%) rotate(-90deg) scale(.5); }
+.cg-contact.open .cg-open-icon { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(.5); }
+.cg-contact.open .cg-close-icon { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+.cg-pulse {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1px solid #FFD400;
+    animation: cgPulse 2s infinite;
+    pointer-events: none;
+}
+.cg-contact.open .cg-pulse { display: none; }
+@keyframes cgPulse {
+    0% { transform: scale(.9); opacity: .8; }
+    70% { transform: scale(1.25); opacity: 0; }
+    100% { transform: scale(1.25); opacity: 0; }
+}
+.cg-contact-menu {
+    position: absolute;
+    right: 0;
+    bottom: 78px;
+    width: 320px;
+    padding: 15px;
+    background: rgba(20, 20, 20, .96);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 212, 0, .18);
+    border-radius: 20px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, .6), 0 0 40px rgba(255, 212, 0, .05);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(15px) scale(.96);
+    transform-origin: bottom right;
+    transition: opacity .3s ease, visibility .3s ease, transform .3s ease;
+}
+.cg-contact.open .cg-contact-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+.cg-contact-title {
+    padding: 10px 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, .07);
+    margin-bottom: 8px;
+}
+.cg-contact-title strong { display: block; color: #fff; font-size: 16px; }
+.cg-contact-title span { display: block; color: #888; font-size: 12px; margin-top: 3px; }
+.cg-contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #fff;
+    transition: background .25s ease, transform .25s ease;
+}
+.cg-contact-item:hover { background: rgba(255, 212, 0, .08); transform: translateX(3px); }
+.cg-contact-icon {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+}
+.cg-contact-icon.telegram { background: rgba(42, 171, 238, .15); color: #2AABEE; }
+.cg-contact-icon.whatsapp { background: rgba(37, 211, 102, .15); color: #25D366; }
+.cg-contact-icon.email { background: rgba(255, 212, 0, .15); color: #FFD400; }
+.cg-contact-item div:nth-child(2) { flex: 1; }
+.cg-contact-item strong { display: block; color: #fff; font-size: 13px; }
+.cg-contact-item span { display: block; color: #888; font-size: 11px; margin-top: 2px; }
+.cg-contact-item .arrow { color: #555; font-size: 11px; transition: color .25s ease, transform .25s ease; }
+.cg-contact-item:hover .arrow { color: #FFD400; transform: translateX(3px); }
+
+@media (max-width: 600px) {
+    .cg-contact { right: 15px; bottom: 15px; }
+    .cg-contact-button { width: 58px; height: 58px; }
+    .cg-contact-menu { width: calc(100vw - 30px); max-width: 330px; }
+}
+@media (max-width: 480px) {
+    .cg-contact { right: 15px; bottom: 15px; }
+    .cg-contact-button { width: 54px; height: 54px; font-size: 18px; }
+    .cg-contact-menu { width: calc(100vw - 30px); max-width: 300px; bottom: 68px; }
+}
+
+/* ---------- Language switcher (matches the main website control) ---------- */
+.lang-switch-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 212, 0, 0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-left: 10px;
+}
+.lang-btn {
+    background: none;
+    border: none;
+    color: #888888;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 4px;
+    transition: all 0.3s ease;
+}
+.lang-btn:hover { color: #FFFFFF; }
+.lang-btn.active { color: #FFD400; font-weight: 800; }
+.lang-divider { color: #888888; font-size: 11px; }
+
+#mainHeader .lang-switch-box { flex: 0 0 auto; margin-left: 0; }
+#mainHeader .lang-btn { white-space: nowrap; }
+
+@media (max-width: 1100px) {
+    .lang-switch-box {
+        margin-left: 0;
+        margin-top: 15px;
+        padding: 6px 18px;
+    }
+    .lang-btn { font-size: 14px; }
+    #mainHeader .lang-switch-box { margin-top: 0; }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1024px) {
     .promo-hero { padding: 140px 0 100px; }

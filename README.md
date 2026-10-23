@@ -22,3 +22,22 @@ On Android, open `https://corngrid.com` in Chrome, then use the browser’s **In
 The service worker caches only an explicit list of same-origin static assets. It never caches HTML pages, API responses, login/session data, or trading/account information. When offline, navigations show a generic offline page rather than cached financial information. New service-worker versions wait for the user to choose **Reload** before taking control.
 
 The browser UI uses an HttpOnly, SameSite=Lax session cookie. Production cookies require HTTPS; cookie-authenticated write requests are checked against the configured application origin. Existing bearer-token authentication remains available for external API and MT5 clients.
+
+## Promotional pages
+
+`promote/terminal-app/` holds the static Trading Terminal and Android App landing page. It is served by IIS through the `promote/terminal-app/?$` rewrite rule in `web.config`; Express does not mount this directory, so keep the rule when deploying to a new host.
+
+The page carries its own translation module at `promote/terminal-app/i18n.js` and its own stylesheet at `promote/terminal-app/style.css`. Both are independent of the root `script.js` and `mystyle.css` bundles, but they reuse the shared design tokens, the `.btn-hero` buttons, the header, and the footer from `mystyle.css`.
+
+### Language switching
+
+The promotional page offers an English / Bahasa Melayu switcher in the header, matching the control on the main marketing page. Both pages store the visitor's choice in the same `localStorage` key (`selectedLang`), so the language follows the visitor between the main site and the promotional page.
+
+Markup is translated through `data-i18n` attributes; `data-i18n-alt`, `data-i18n-title`, and `data-i18n-desc` cover image alt text, the document title, and the meta description. Adding a new translatable string means adding the key to both the `en` and `bm` dictionaries in `promote/terminal-app/i18n.js` — the `en` and `bm` dictionaries must stay in sync.
+
+### Floating support button
+
+The bottom-right `.cg-contact` widget is the same support launcher used on the main website, and it is also translated here. Its behaviour (open on click, close on outside click or `Escape`) is handled by the inline script at the end of the promotional page.
+
+After changing `promote/terminal-app/style.css`, bump the `?v=` query string on its `<link>` tag in `promote/terminal-app/index.html` so browsers pick up the new stylesheet.
+
