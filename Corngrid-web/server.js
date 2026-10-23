@@ -1,3 +1,10 @@
+// The libuv threadpool defaults to only 4 threads. Every SQLite query, DNS
+// lookup, and bcrypt hash on this process competes for those 4 slots, so with a
+// few hundred concurrent EA connections the database queue backs up well before
+// the CPU is busy. Raise it unless the operator set it explicitly. This must run
+// before any module performs native async work.
+if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '16';
+
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
@@ -18,6 +25,8 @@ const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
+const createBackupScheduler = require('./db-backup');
+const createDatabaseRouter = require('./db-router');
 const {
   clearAuthCookie,
   isSameOriginRequest,
@@ -27,6 +36,23 @@ const {
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+app.disable('x-powered-by');
+
+// The site is served through IIS/Cloudflare, so the socket peer is a proxy. With
+// trust proxy enabled, req.ip reflects the real client (from X-Forwarded-For),
+// which is what per-IP rate limits and logs expect. Accepted values match
+// Express: "true", a hop count like "1", or a subnet/"loopback" alias. Set
+// TRUST_PROXY=1 for a single reverse proxy in front of the app.
+const configuredTrustProxy = process.env.TRUST_PROXY;
+if (configuredTrustProxy && configuredTrustProxy !== 'false') {
+  const trustProxy = configuredTrustProxy === 'true'
+    ? true
+    : /^\d+$/.test(configuredTrustProxy) ? Number(configuredTrustProxy) : configuredTrustProxy;
+  app.set('trust proxy', trustProxy);
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('TRUST_PROXY is not set: behind IIS/Cloudflare req.ip will be the proxy address, so per-IP rate limits and audit logs will be wrong. Set TRUST_PROXY=1.');
+}
+
 const PORT = process.env.PORT || 3000;
 const DATABASE_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'database.sqlite');
 const SMTP_HOST = process.env.SMTP_HOST;
@@ -77,16 +103,34 @@ app.use((req, res, next) => {
   next();
 });
 
+// Slow-request and error logging. Only slow or failed requests are logged, so a
+// healthy 300 req/s baseline does not flood the log, but a latency regression
+// (or an endpoint starting to 5xx) shows up immediately with its path.
+const SLOW_REQUEST_LOG_MS = Number(process.env.SLOW_REQUEST_LOG_MS) > 0 ? Number(process.env.SLOW_REQUEST_LOG_MS) : 1000;
+app.use((req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    if (res.statusCode >= 500 || durationMs >= SLOW_REQUEST_LOG_MS) {
+      console.warn(`slow ${req.method} ${req.originalUrl} -> ${res.statusCode} in ${durationMs.toFixed(1)}ms`);
+    }
+  });
+  next();
+});
+
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve root marketing static assets when running standalone
 app.get('/mystyle.css', (req, res) => res.sendFile(path.join(ROOT_DIR, 'mystyle.css')));
 app.get('/script.js', (req, res) => res.sendFile(path.join(ROOT_DIR, 'script.js')));
-app.use('/download', express.static(path.join(ROOT_DIR, 'download')));
-app.use('/files', express.static(path.join(ROOT_DIR, 'files')));
-app.use('/video', express.static(path.join(ROOT_DIR, 'video')));
-app.use('/images', express.static(path.join(ROOT_DIR, 'images')));
+// Media is versioned by path and rarely changes, so let browsers reuse it for a
+// day instead of revalidating on every dashboard load. HTML/JS/CSS still send
+// no-store (above) and the API keeps its own headers.
+app.use('/download', express.static(path.join(ROOT_DIR, 'download'), { maxAge: '1h' }));
+app.use('/files', express.static(path.join(ROOT_DIR, 'files'), { maxAge: '1h' }));
+app.use('/video', express.static(path.join(ROOT_DIR, 'video'), { maxAge: '1d' }));
+app.use('/images', express.static(path.join(ROOT_DIR, 'images'), { maxAge: '1d' }));
 // Community feed uploads (written by feed-api.js with validated random filenames).
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
@@ -101,20 +145,40 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error instanceof Error ? error.stack : error);
 });
 
+// Reads run on this many dedicated read-only connections so a dashboard or
+// market-chart query never queues behind an EA write. WAL allows many readers
+// with one writer. Set to 0 to keep everything on the shared connection.
+const DB_READ_POOL_SIZE = process.env.DB_READ_POOL_SIZE === undefined
+  ? 3 : Math.min(16, Math.max(0, Number(process.env.DB_READ_POOL_SIZE) || 0));
+
 // Connect to the SQLite database
-const db = new sqlite3.Database(DATABASE_PATH, (err) => {
+const primaryDb = new sqlite3.Database(DATABASE_PATH, (err) => {
   if (err) {
     console.error('Failed to connect to SQLite:', err.message);
   } else {
     console.log('Connected to the CornGrid SQLite database.');
-    db.serialize(() => {
-      db.run('PRAGMA journal_mode = WAL;');
-      db.run('PRAGMA busy_timeout = 5000;');
-      db.run('PRAGMA synchronous = NORMAL;');
-      db.run('PRAGMA foreign_keys = ON;');
+    primaryDb.serialize(() => {
+      primaryDb.run('PRAGMA journal_mode = WAL;');
+      primaryDb.run('PRAGMA busy_timeout = 5000;');
+      primaryDb.run('PRAGMA synchronous = NORMAL;');
+      primaryDb.run('PRAGMA foreign_keys = ON;');
+      // Keep a larger page cache (~32 MB) and build temporary tables in memory;
+      // both cut disk I/O on the read-heavy market/dashboard queries.
+      primaryDb.run('PRAGMA cache_size = -32000;');
+      primaryDb.run('PRAGMA temp_store = MEMORY;');
+      // Cap WAL growth and checkpoint automatically so a long-running server does
+      // not let the -wal file grow without bound between restarts.
+      primaryDb.run('PRAGMA journal_size_limit = 67108864;');
+      primaryDb.run('PRAGMA wal_autocheckpoint = 1000;');
     });
+    // The database file now exists and WAL is active, so the read pool can open.
+    db.enableReads();
   }
 });
+
+// `db` is the rest of the application's entry point to storage: reads go to the
+// read pool, writes to the shared primary connection.
+const db = createDatabaseRouter({ primary: primaryDb, dbPath: DATABASE_PATH, readSize: DB_READ_POOL_SIZE });
 
 function rateLimit({ limit, windowMs }) {
   const buckets = new Map();
@@ -695,7 +759,64 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Page not found.' });
 });
 
+// Periodically fold the WAL back into the main database file so it does not grow
+// indefinitely under continuous writes. PASSIVE never blocks readers/writers.
+const WAL_CHECKPOINT_INTERVAL_MS = Number(process.env.WAL_CHECKPOINT_INTERVAL_MS) > 0
+  ? Number(process.env.WAL_CHECKPOINT_INTERVAL_MS) : 5 * 60 * 1000;
+const checkpointTimer = setInterval(() => {
+  db.run('PRAGMA wal_checkpoint(PASSIVE);', error => {
+    if (error) console.error('WAL checkpoint failed:', error.message);
+  });
+}, WAL_CHECKPOINT_INTERVAL_MS);
+if (checkpointTimer.unref) checkpointTimer.unref();
+
+// Rolling database backups. Disabled when BACKUP_INTERVAL_HOURS is 0.
+const BACKUP_INTERVAL_HOURS = process.env.BACKUP_INTERVAL_HOURS === undefined
+  ? 24 : Number(process.env.BACKUP_INTERVAL_HOURS);
+const backupScheduler = createBackupScheduler({
+  dbPath: DATABASE_PATH,
+  dir: process.env.BACKUP_DIR || path.join(__dirname, 'storage', 'backups'),
+  intervalMs: Number.isFinite(BACKUP_INTERVAL_HOURS) && BACKUP_INTERVAL_HOURS > 0 ? BACKUP_INTERVAL_HOURS * 3600 * 1000 : 0,
+  keep: Number(process.env.BACKUP_KEEP) > 0 ? Number(process.env.BACKUP_KEEP) : 7
+});
+backupScheduler.start();
+
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`CornGrid backend is running at http://localhost:${PORT}`);
 });
+
+// Keep-alive must outlive the proxy's idle timeout so a reused connection is not
+// closed mid-request; requestTimeout caps a single slow request. IIS/ARR
+// defaults to a 120s idle timeout, so a slightly shorter keep-alive is used.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+server.requestTimeout = 120000;
+
+// On redeploy the process gets SIGTERM/SIGINT. Stop accepting connections, let
+// in-flight requests finish, then close the database cleanly so WAL data is
+// checkpointed instead of being recovered on next start.
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}; shutting down CornGrid backend.`);
+  const forceExit = setTimeout(() => {
+    console.error('Graceful shutdown timed out; forcing exit.');
+    process.exit(1);
+  }, 10000);
+  if (forceExit.unref) forceExit.unref();
+  clearInterval(checkpointTimer);
+  backupScheduler.stop();
+  server.close(() => {
+    try {
+      if (typeof marketFeed.close === 'function') marketFeed.close();
+    } catch (feedError) {
+      console.error('Failed to close the market feed:', feedError.message);
+    }
+    // Final checkpoint folds the WAL into the database file before exit.
+    db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
+  });
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

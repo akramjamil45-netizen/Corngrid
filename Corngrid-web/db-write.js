@@ -35,4 +35,11 @@ function exclusive(db, task) {
   return result;
 }
 
-module.exports = { exclusive };
+// True while the current async context holds the write queue (i.e. inside an
+// exclusive block). The read router uses this to send reads back through the
+// primary connection so a caller can read its own uncommitted writes.
+function inWriteTransaction() {
+  return Boolean(holders.getStore());
+}
+
+module.exports = { exclusive, inWriteTransaction };

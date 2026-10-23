@@ -253,7 +253,9 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     const secondAccountPerformance = await (await request(`/api/portfolio/performance?period=all&accountId=${aliceSecondAccountId}`, aliceToken)).json();
     assert.equal(firstAccountPerformance.closedDeals, 2);
     assert.equal(secondAccountPerformance.closedDeals, 1);
-    assert.equal(firstAccountPerformance.snapshots.length, 2);
+    // The two heartbeats above are 10s apart, which is inside the 60s balance
+    // history interval, so only the first is persisted as a snapshot.
+    assert.equal(firstAccountPerformance.snapshots.length, 1);
     assert.equal(secondAccountPerformance.snapshots.length, 1);
     assert.equal((await request(`/api/portfolio/performance?period=all&accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
 
@@ -287,7 +289,7 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     const publicPortfolio = await response.json();
     assert.equal(publicPortfolio.accountCount, 1);
     assert.equal(publicPortfolio.equity, 1010);
-    assert.equal(publicPortfolio.snapshots.length, 2, 'public equity curve only uses the selected account history');
+    assert.equal(publicPortfolio.snapshots.length, 1, 'public equity curve only uses the selected account history');
     assert.equal(publicPortfolio.positions.length, 1);
     assert.equal(publicPortfolio.trades.length, 2);
     assert.equal(publicPortfolio.accounts.some(account => account.accountName === 'OtherBroker-Live'), false);

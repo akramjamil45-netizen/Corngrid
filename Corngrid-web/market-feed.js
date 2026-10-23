@@ -51,6 +51,11 @@ function loadConfig(overrides = {}) {
     quietSeconds: intFromEnv('MARKET_QUIET_TICK_SECONDS', 90, 5, 86400),
     takeoverSeconds: intFromEnv('MARKET_PUBLISHER_TAKEOVER_SECONDS', 15, 3, 3600),
     clockToleranceSeconds: intFromEnv('MARKET_CLOCK_TOLERANCE_SECONDS', 300, 5, 86400),
+    // How often a stored series is trimmed back to MAX_STORED_BARS. Running the
+    // trim on every candle post put an extra DELETE (with an OFFSET 1500 scan) on
+    // the shared connection for the whole fleet; trimming per series at most this
+    // often keeps the table bounded while leaving the hot path to the INSERT.
+    candleCleanupIntervalMs: intFromEnv('MARKET_CANDLE_CLEANUP_INTERVAL_MS', 60000, 0, 3600000),
     maxStreamClients: intFromEnv('MARKET_SSE_MAX_CLIENTS', 300, 1, 10000),
     maxStreamPerUser: intFromEnv('MARKET_SSE_MAX_PER_USER', 3, 1, 50),
     streamIntervalMs: intFromEnv('MARKET_STREAM_MIN_INTERVAL_MS', 250, 50, 5000),
@@ -134,6 +139,7 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
   const quotes = new Map(); // `${feed}|${symbol}` -> quote record
   const clients = new Set();
   const dirtySymbols = new Set();
+  const lastCandleCleanup = new Map(); // `${feed}|${symbol}|${tf}` -> last trim time
   let revCounter = 0;
   let streamTimer = null;
   let tickCount = 0;
@@ -487,10 +493,15 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
               tv = excluded.tv, v = excluded.v, updated_at = excluded.updated_at
           `, params);
         }
-        await run(db, `
-          DELETE FROM market_candles WHERE feed = ? AND symbol = ? AND tf = ?
-            AND t < COALESCE((SELECT t FROM market_candles WHERE feed = ? AND symbol = ? AND tf = ? ORDER BY t DESC LIMIT 1 OFFSET ?), 0)
-        `, [feed, series.symbol, series.tf, feed, series.symbol, series.tf, MAX_STORED_BARS]);
+        const cleanupKey = `${feed}|${series.symbol}|${series.tf}`;
+        const lastTrim = lastCandleCleanup.get(cleanupKey) || 0;
+        if (config.candleCleanupIntervalMs <= 0 || receivedAt - lastTrim >= config.candleCleanupIntervalMs) {
+          await run(db, `
+            DELETE FROM market_candles WHERE feed = ? AND symbol = ? AND tf = ?
+              AND t < COALESCE((SELECT t FROM market_candles WHERE feed = ? AND symbol = ? AND tf = ? ORDER BY t DESC LIMIT 1 OFFSET ?), 0)
+          `, [feed, series.symbol, series.tf, feed, series.symbol, series.tf, MAX_STORED_BARS]);
+          lastCandleCleanup.set(cleanupKey, receivedAt);
+        }
       }
       await run(db, 'COMMIT');
     } catch (error) {

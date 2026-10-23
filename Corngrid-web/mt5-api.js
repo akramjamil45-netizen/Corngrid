@@ -10,6 +10,28 @@ if (!Number.isInteger(configuredHeartbeatTimeout) || configuredHeartbeatTimeout 
   throw new Error('MT5_HEARTBEAT_TIMEOUT_SECONDS must be an integer between 30 and 3600.');
 }
 const HEARTBEAT_TIMEOUT_SECONDS = configuredHeartbeatTimeout;
+
+// EA installation credentials are immutable per account (revocation deletes the
+// row), so the auth lookup result can be cached briefly. This removes a SQLite
+// query from every market/heartbeat request, which is the single hottest path
+// under a large EA fleet. Set to 0 to always hit the database.
+const configuredAuthCacheTtl = process.env.MT5_AUTH_CACHE_TTL_MS === undefined
+  ? 5000 : Number(process.env.MT5_AUTH_CACHE_TTL_MS);
+if (!Number.isInteger(configuredAuthCacheTtl) || configuredAuthCacheTtl < 0 || configuredAuthCacheTtl > 60000) {
+  throw new Error('MT5_AUTH_CACHE_TTL_MS must be an integer between 0 and 60000.');
+}
+const AUTH_CACHE_TTL_MS = configuredAuthCacheTtl;
+
+// Writing a snapshot on every heartbeat creates millions of rows a month for a
+// large fleet. This throttles history writes per account without touching the
+// live balance/equity on mt5_accounts. Set to 0 to store every heartbeat.
+const configuredSnapshotInterval = process.env.MT5_SNAPSHOT_MIN_INTERVAL_SECONDS === undefined
+  ? 60 : Number(process.env.MT5_SNAPSHOT_MIN_INTERVAL_SECONDS);
+if (!Number.isInteger(configuredSnapshotInterval) || configuredSnapshotInterval < 0 || configuredSnapshotInterval > 86400) {
+  throw new Error('MT5_SNAPSHOT_MIN_INTERVAL_SECONDS must be an integer between 0 and 86400.');
+}
+const SNAPSHOT_MIN_INTERVAL_MS = configuredSnapshotInterval * 1000;
+
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MAX_POSITION_COUNT = 2000;
@@ -56,6 +78,7 @@ const schema = `
     used_at INTEGER,
     created_at INTEGER NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS mt5_pairing_codes_user ON mt5_pairing_codes(user_id);
   CREATE TABLE IF NOT EXISTS mt5_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -76,6 +99,7 @@ const schema = `
     auth_error_at INTEGER,
     UNIQUE(account_number, broker_server)
   );
+  CREATE INDEX IF NOT EXISTS mt5_accounts_user ON mt5_accounts(user_id);
   CREATE TABLE IF NOT EXISTS public_portfolio_accounts (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     account_id INTEGER NOT NULL UNIQUE REFERENCES mt5_accounts(id) ON DELETE CASCADE,
@@ -321,9 +345,39 @@ function registerMt5Api(app, db, verifyToken) {
   // keyed by the installation instead of the IP. A few busy accounts could
   // otherwise lock every other account out with HTTP 429. The coarse IP cap
   // still guards the unauthenticated request path.
-  const eaIpLimit = rateLimiter({ limit: 600, windowMs: 60 * 1000, key: req => `ea-ip:${req.ip}` });
+  // Coarse pre-auth IP cap. Behind a proxy that does not forward the real client
+  // IP (TRUST_PROXY not set) every EA shares one address, so this must stay high
+  // enough for the whole fleet; the per-installation limit below is the real
+  // guard. Raise it further with MT5_EA_IP_LIMIT for very large fleets.
+  const eaIpLimitValue = Number(process.env.MT5_EA_IP_LIMIT) > 0 ? Number(process.env.MT5_EA_IP_LIMIT) : 600;
+  const eaIpLimit = rateLimiter({ limit: eaIpLimitValue, windowMs: 60 * 1000, key: req => `ea-ip:${req.ip}` });
   const eaDataLimit = rateLimiter({ limit: 120, windowMs: 60 * 1000, key: req => `ea:${req.installation ? req.installation.installation_id : req.ip}` });
   const publicReadLimit = rateLimiter({ limit: 60, windowMs: 60 * 1000, key: req => `public-portfolio:${req.ip}` });
+
+  // Installation auth cache (see AUTH_CACHE_TTL_MS). Keyed by the SHA-256 of the
+  // supplied secret; each entry records the account so it can be purged when the
+  // account is unlinked.
+  const authCache = new Map();
+  const MAX_AUTH_CACHE_ENTRIES = 50000;
+  function rememberInstallation(secretHash, installation) {
+    if (AUTH_CACHE_TTL_MS <= 0) return;
+    if (authCache.size >= MAX_AUTH_CACHE_ENTRIES) {
+      const now = Date.now();
+      for (const [key, entry] of authCache) if (entry.expiresAt <= now) authCache.delete(key);
+      if (authCache.size >= MAX_AUTH_CACHE_ENTRIES) authCache.clear();
+    }
+    authCache.set(secretHash, { installation, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+  }
+  function forgetAccount(accountId) {
+    for (const [key, entry] of authCache) {
+      if (entry.installation.account_id === accountId) authCache.delete(key);
+    }
+  }
+
+  // Per-account write-throttling state (see SNAPSHOT_MIN_INTERVAL_MS and the
+  // position fingerprint in the heartbeat handler).
+  const lastSnapshotAt = new Map();
+  const positionFingerprints = new Map();
 
   app.get('/api/me', authenticated, async (req, res) => {
     try {
@@ -537,6 +591,14 @@ function registerMt5Api(app, db, verifyToken) {
     const suppliedSecret = header.startsWith('Bearer ') ? header.slice(7) : '';
     if (!/^[a-f0-9]{64}$/i.test(suppliedSecret)) return res.status(401).json({ error: 'Valid EA installation credentials are required.' });
     const secretHash = crypto.createHash('sha256').update(suppliedSecret).digest('hex');
+
+    // Fast path: a valid installation was authenticated moments ago. Credentials
+    // are immutable per account and unlink purges the cache, so this is safe.
+    const cached = AUTH_CACHE_TTL_MS > 0 ? authCache.get(secretHash) : null;
+    if (cached && cached.expiresAt > Date.now()) {
+      req.installation = cached.installation;
+      return next();
+    }
     try {
       const installation = await get(db, `
         SELECT i.id AS installation_id, i.account_id, a.user_id, a.last_heartbeat, a.broker_server
@@ -545,6 +607,7 @@ function registerMt5Api(app, db, verifyToken) {
         WHERE i.secret_hash = ? AND i.revoked_at IS NULL
       `, [secretHash]);
       if (!installation) return res.status(401).json({ error: 'EA installation credentials are invalid or revoked.' });
+      rememberInstallation(secretHash, installation);
       req.installation = installation;
       next();
     } catch (databaseError) {
@@ -610,11 +673,25 @@ function registerMt5Api(app, db, verifyToken) {
           WHERE id = ? AND (last_heartbeat IS NULL OR last_heartbeat <= ?)
         `, [balance, equity, margin, freeMargin, floatingProfit, eaName, eaVersion, capturedAt, now, req.installation.account_id, capturedAt]);
         if (accountUpdate.changes !== 1) return true;
-        await run(db, `
-          INSERT OR IGNORE INTO mt5_snapshots (account_id, captured_at, balance, equity, floating_profit)
-          VALUES (?, ?, ?, ?, ?)
-        `, [req.installation.account_id, capturedAt, balance, equity, floatingProfit]);
-        if (positions !== undefined) {
+        const accountId = req.installation.account_id;
+        // Balance history is throttled: at one heartbeat every 30s for a large
+        // fleet, storing every tick would add millions of rows per month. Live
+        // balance/equity on mt5_accounts is still updated on every heartbeat.
+        const lastSnapshot = lastSnapshotAt.get(accountId);
+        if (SNAPSHOT_MIN_INTERVAL_MS <= 0 || lastSnapshot === undefined || capturedAt - lastSnapshot >= SNAPSHOT_MIN_INTERVAL_MS) {
+          await run(db, `
+            INSERT OR IGNORE INTO mt5_snapshots (account_id, captured_at, balance, equity, floating_profit)
+            VALUES (?, ?, ?, ?, ?)
+          `, [accountId, capturedAt, balance, equity, floatingProfit]);
+          lastSnapshotAt.set(accountId, capturedAt);
+        }
+        // Positions are only rewritten when the set actually changed; most
+        // heartbeats repeat an identical book, so this skips the expensive
+        // upsert + cleanup entirely.
+        const positionFingerprint = positions !== undefined
+          ? crypto.createHash('sha256').update(JSON.stringify(validatedPositions)).digest('hex')
+          : null;
+        if (positions !== undefined && positionFingerprints.get(accountId) !== positionFingerprint) {
           // Positions are written in batches. One statement per position meant up
           // to 2,000 sequential round trips on the shared sqlite connection, which
           // delayed the EA's market post past its timeout.
@@ -624,7 +701,7 @@ function registerMt5Api(app, db, verifyToken) {
             const params = [];
             for (const position of chunk) {
               values.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-              params.push(req.installation.account_id, position.ticket, position.symbol.trim(), position.direction, position.volume,
+              params.push(accountId, position.ticket, position.symbol.trim(), position.direction, position.volume,
                 position.entryPrice, position.currentPrice ?? null, position.stopLoss ?? null, position.takeProfit ?? null,
                 position.profit, position.swap ?? null, position.commission ?? null, position.openedAt, now);
             }
@@ -641,14 +718,15 @@ function registerMt5Api(app, db, verifyToken) {
             `, params);
           }
           if (validatedPositions.length === 0) {
-            await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [req.installation.account_id]);
+            await run(db, 'DELETE FROM mt5_positions WHERE account_id = ?', [accountId]);
           } else {
             // The kept tickets travel as one JSON array instead of thousands of
             // bound parameters, so the statement stays valid at any position count.
             const keptTickets = JSON.stringify(validatedPositions.map(position => position.ticket));
             await run(db, 'DELETE FROM mt5_positions WHERE account_id = ? AND ticket NOT IN (SELECT value FROM json_each(?))',
-              [req.installation.account_id, keptTickets]);
+              [accountId, keptTickets]);
           }
+          positionFingerprints.set(accountId, positionFingerprint);
         }
         return false;
       });
@@ -738,6 +816,9 @@ function registerMt5Api(app, db, verifyToken) {
           throw transactionError;
         }
       });
+      forgetAccount(accountId);
+      lastSnapshotAt.delete(accountId);
+      positionFingerprints.delete(accountId);
       return res.json({ message: 'MT5 account unlinked.' });
     } catch (databaseError) {
       console.error('Failed to unlink MT5 account:', databaseError.message);
