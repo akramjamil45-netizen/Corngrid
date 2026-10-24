@@ -73,18 +73,18 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     try {
       const summary = await get(db, `
         SELECT
-          (SELECT COUNT(*) FROM users) AS "totalUsers",
-          (SELECT COUNT(*) FROM mt5_accounts) AS "totalAccounts",
+          (SELECT COUNT(*) FROM users) AS totalUsers,
+          (SELECT COUNT(*) FROM mt5_accounts) AS totalAccounts,
           (
             SELECT COUNT(*) FROM users u
             WHERE ${publicCondition}
-          ) AS "publicPortfolios",
+          ) AS publicPortfolios,
           (
             SELECT COUNT(*) FROM mt5_accounts
             WHERE last_heartbeat IS NOT NULL
               AND last_heartbeat >= ?
               AND last_heartbeat <= ?
-          ) AS "onlineAccounts"
+          ) AS onlineAccounts
       `, [onlineSince, onlineUntil]);
       const filtered = await get(db, `
         SELECT COUNT(*) AS total
@@ -95,28 +95,28 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         SELECT
           u.id,
           u.username,
-          u.created_at AS "createdAt",
-          access_row.suspended_until AS "suspendedUntil",
-          access_row.reason AS "suspensionReason",
+          u.created_at AS createdAt,
+          access.suspended_until AS suspendedUntil,
+          access.reason AS suspensionReason,
           (
             SELECT COUNT(*) FROM mt5_accounts a
             WHERE a.user_id = u.id
-          ) AS "linkedAccounts",
+          ) AS linkedAccounts,
           (
             SELECT COUNT(*) FROM mt5_accounts a
             WHERE a.user_id = u.id
               AND a.last_heartbeat IS NOT NULL
               AND a.last_heartbeat >= ?
               AND a.last_heartbeat <= ?
-          ) AS "onlineAccounts",
+          ) AS onlineAccounts,
           (
             SELECT COUNT(*) FROM public_portfolio_accounts ppa
             WHERE ppa.user_id = u.id
-          ) AS "sharedAccounts",
-          CASE WHEN ${publicCondition} THEN 1 ELSE 0 END AS "isPublic"
+          ) AS sharedAccounts,
+          CASE WHEN ${publicCondition} THEN 1 ELSE 0 END AS isPublic
         FROM users u
-        LEFT JOIN user_account_access access_row
-          ON access_row.user_id = u.id AND access_row.suspended_until > ?
+        LEFT JOIN user_account_access access
+          ON access.user_id = u.id AND access.suspended_until > ?
         WHERE 1 = 1 ${filteredCondition}
         ORDER BY u.id DESC
         LIMIT ? OFFSET ?
@@ -157,7 +157,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     const userId = Number.parseInt(req.params.userId, 10);
     if (!Number.isSafeInteger(userId) || userId < 1) return res.status(400).json({ error: 'Invalid user ID.' });
     try {
-      const user = await get(db, 'SELECT id, username, created_at AS "createdAt" FROM users WHERE id = ?', [userId]);
+      const user = await get(db, 'SELECT id, username, created_at AS createdAt FROM users WHERE id = ?', [userId]);
       if (!user) return res.status(404).json({ error: 'User not found.' });
       const accounts = await all(db, `
         SELECT id, account_number, currency, account_name, balance, equity,
@@ -187,7 +187,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         LIMIT 50
       `, [userId]);
       const suspension = await get(db, `
-        SELECT suspended_until AS "suspendedUntil", reason
+        SELECT suspended_until AS suspendedUntil, reason
         FROM user_account_access
         WHERE user_id = ? AND suspended_until > ?
       `, [userId, Date.now()]);
@@ -307,10 +307,10 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
           FROM support_messages
           GROUP BY user_id
         )
-        SELECT u.id AS "userId", u.username, u.email, u.created_at AS "createdAt",
-          m.message AS "lastMessage", m.sender_role AS "lastSenderRole", m.created_at AS "lastMessageAt",
+        SELECT u.id AS userId, u.username, u.email, u.created_at AS createdAt,
+          m.message AS lastMessage, m.sender_role AS lastSenderRole, m.created_at AS lastMessageAt,
           (SELECT COUNT(*) FROM support_messages unread
-           WHERE unread.user_id = u.id AND unread.sender_role = 'user' AND unread.read_at IS NULL) AS "unreadCount"
+           WHERE unread.user_id = u.id AND unread.sender_role = 'user' AND unread.read_at IS NULL) AS unreadCount
         FROM latest
         JOIN users u ON u.id = latest.user_id
         JOIN support_messages m ON m.id = latest.latest_id
@@ -335,7 +335,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         WHERE user_id = ? AND sender_role = 'user' AND read_at IS NULL
       `, [Date.now(), userId]);
       const messages = await all(db, `
-        SELECT id, sender_role AS "senderRole", message, read_at AS "readAt", created_at AS "createdAt"
+        SELECT id, sender_role AS senderRole, message, read_at AS readAt, created_at AS createdAt
         FROM support_messages
         WHERE user_id = ?
         ORDER BY id DESC

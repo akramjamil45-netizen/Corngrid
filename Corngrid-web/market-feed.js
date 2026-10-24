@@ -141,6 +141,14 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
   const dirtySymbols = new Set();
   const lastCandleCleanup = new Map(); // `${feed}|${symbol}|${tf}` -> last trim time
   let revCounter = 0;
+  // Track connected SSE clients so stream ticks can skip queries for clients that
+  // already disconnected. Without this, a slow database queue can keep running
+  // queries for stale sockets long after response.end() was called.
+  const connectedClients = new WeakSet();
+  const clientExpiredAt = new WeakMap(); // client -> expiresAt
+  const clientUserId = new WeakMap(); // client -> userId
+  const clientSymbol = new WeakMap(); // client -> symbol
+  const stoppedClients = new WeakSet();
   let streamTimer = null;
   let tickCount = 0;
 
@@ -559,7 +567,10 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     const statusPass = tickCount % Math.max(1, Math.round(2000 / config.streamIntervalMs)) === 0;
     const pingPass = tickCount % Math.max(1, Math.round(15000 / config.streamIntervalMs)) === 0;
     for (const client of [...clients]) {
+      if (stoppedClients.has(client)) continue;
       if (current >= client.expiresAt) { send(client, 'bye', { reason: 'session-refresh' }); dropClient(client); continue; }
+      // Stop processing requests for clients that have already disconnected.
+      if (!connectedClients.has(client)) { continue; }
       if (dirty.has(client.symbol) || statusPass) {
         const view = await currentView(client.symbol, client.feed).catch(() => null);
         if (view && (view.rev !== client.lastRev || view.state !== client.lastState)) {
@@ -585,11 +596,21 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
     res.write('retry: 3000\n\n');
     const client = { res, symbol, feed, userId, lastRev: 0, lastState: null, expiresAt: now() + config.streamMaxLifetimeSeconds * 1000 };
     clients.add(client);
+    connectedClients.add(client);
+    clientExpiredAt.set(client, client.expiresAt);
+    clientUserId.set(client, userId);
+    clientSymbol.set(client, symbol);
     if (!streamTimer) {
       streamTimer = setInterval(() => { streamTick().catch(error => console.error('Market stream tick failed:', error.message)); }, config.streamIntervalMs);
       if (streamTimer.unref) streamTimer.unref();
     }
-    const cleanup = () => { clients.delete(client); if (!clients.size && streamTimer) { clearInterval(streamTimer); streamTimer = null; } };
+    const cleanup = () => {
+      connectedClients.delete(client);
+      stoppedClients.delete(client);
+      clients.delete(client);
+      try { client.res.end(); } catch { /* connection already closed */ }
+      if (!clients.size && streamTimer) { clearInterval(streamTimer); streamTimer = null; }
+    };
     req.on('close', cleanup);
     res.on('error', cleanup);
     return { client };
@@ -607,7 +628,7 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
   function close() {
     clearInterval(sweepTimer);
     if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
-    for (const client of [...clients]) dropClient(client);
+    for (const client of [...clients]) { connectedClients.delete(client); dropClient(client); }
   }
 
   // ---------------------------------------------------------------- routes

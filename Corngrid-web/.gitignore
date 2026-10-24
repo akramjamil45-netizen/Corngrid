@@ -11,4 +11,3 @@ keystore.properties
 android/app/keystore.properties
 # Uploaded profile photos
 storage/
-`n# Local PostgreSQL credential scratch file (never commit)`n.pg-secrets.tmp

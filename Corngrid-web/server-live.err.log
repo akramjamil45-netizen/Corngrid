@@ -1,3 +1,0 @@
-◇ injected env (15) from .env
-Failed to calculate portfolio performance: function max(integer, integer) does not exist
-[13cdf1bb-61f6-4c58-82c5-af013a0131f5] slow GET /api/portfolio/performance?period=30d&accountId=13 -> 500 in 88.3ms

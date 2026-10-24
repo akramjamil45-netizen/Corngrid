@@ -22,6 +22,10 @@
 const sqlite3 = require('sqlite3').verbose();
 const { inWriteTransaction } = require('./db-write');
 
+// 8 second per-query ceiling on read paths; 15s on the primary write path.
+const DB_QUERY_TIMEOUT_MS = 8000;
+const DB_WRITE_TIMEOUT_MS = 15000;
+
 function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
   if (!primary) throw new Error('createDatabaseRouter requires a primary connection.');
 
@@ -59,14 +63,134 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
     return readers[roundRobin];
   }
 
+  function withTimeout(db, sql, params, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        const error = new Error(`Database query timed out after ${timeoutMs}ms: ${sql.slice(0, 80)}`);
+        error.code = 'ETIMEOUT';
+        reject(error);
+      }, timeoutMs);
+      db.get(sql, params, (error, row) => {
+        clearTimeout(timeout);
+        if (error) reject(error);
+        else resolve(row);
+      });
+    });
+  }
+
+  // Promise-based wrapper for async/await usage
+  function withPromise(db, sql, params, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const error = new Error(`Database query timed out after ${timeoutMs}ms: ${sql.slice(0, 80)}`);
+        error.code = 'ETIMEOUT';
+        reject(error);
+      }, timeoutMs);
+
+      db.get(sql, params, (error, row) => {
+        clearTimeout(timer);
+        if (error) reject(error);
+        else resolve(row);
+      });
+    });
+  }
+
+  // Callback-based wrapper for existing Node-style callback code
+  function withCallback(db, sql, params, timeoutMs, callback) {
+    const timer = setTimeout(() => {
+      const error = new Error(`Database query timed out after ${timeoutMs}ms: ${sql.slice(0, 80)}`);
+      error.code = 'ETIMEOUT';
+      if (typeof callback === 'function') { callback(error); }
+      else reject(error);
+    }, timeoutMs);
+
+    db.get(sql, params, (error, row) => {
+      clearTimeout(timer);
+      if (typeof callback === 'function') {
+        if (error) callback(error);
+        else callback(null, row);
+      } else if (error) {
+        reject(error);
+      } else {
+        resolve(row);
+      }
+    });
+  }
+
   return {
-    get(...args) { return pickReader().get(...args); },
-    all(...args) { return pickReader().all(...args); },
-    // Writes (and the write queue's BEGIN/COMMIT/ROLLBACK) always use the primary.
-    run(...args) { return primary.run(...args); },
-    exec(...args) { return primary.exec(...args); },
-    serialize(...args) { return primary.serialize(...args); },
+    // Promise-based API for async/await code
+    async get(...args) {
+      const [sql, params = []] = args;
+      if (inWriteTransaction()) {
+        return withPromise(primary, sql, params, DB_WRITE_TIMEOUT_MS);
+      }
+      return withPromise(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS);
+    },
+    async all(...args) {
+      const [sql, params = []] = args;
+      if (inWriteTransaction()) {
+        return withPromise(primary, sql, params, DB_WRITE_TIMEOUT_MS);
+      }
+      return withPromise(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS);
+    },
+    async run(...args) {
+      const [sql, params = []] = args;
+      return withPromise(primary, sql, params, DB_WRITE_TIMEOUT_MS);
+    },
+    async exec(...args) {
+      const [sql] = args;
+      return withPromise(primary, sql, [], DB_WRITE_TIMEOUT_MS);
+    },
+    // Node callback-compatible API for existing code
+    get(sql, params, callback) {
+      if (typeof params === 'function') { callback = params; params = []; }
+      if (inWriteTransaction()) { withCallback(primary, sql, params, DB_WRITE_TIMEOUT_MS, callback); }
+      else { withCallback(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS, callback); }
+    },
+    all(sql, params, callback) {
+      if (typeof params === 'function') { callback = params; params = []; }
+      if (inWriteTransaction()) { withCallback(primary, sql, params, DB_WRITE_TIMEOUT_MS, callback); }
+      else { withCallback(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS, callback); }
+    },
+    run(sql, params, callback) {
+      if (typeof params === 'function') { callback = params; params = []; }
+      const timer = setTimeout(() => callback(new Error('Database query timed out')), DB_WRITE_TIMEOUT_MS);
+      this.runWithPromise(sql, params, timer).then(
+        result => { clearTimeout(timer); if (typeof callback === 'function') callback(null, result); else throw null; },
+        error => { clearTimeout(timer); if (typeof callback === 'function') callback(error); else throw error; }
+      );
+    },
+    exec(sql, callback) {
+      if (typeof callback === 'function') callback = null;
+      const timer = setTimeout(() => { if (callback) callback(new Error('Database exec timed out')); else throw new Error('Database exec timed out'); }, DB_WRITE_TIMEOUT_MS);
+      this.execWithPromise(sql, timer).then(
+        result => { clearTimeout(timer); if (callback) callback(null, result); else throw null; },
+        error => { clearTimeout(timer); if (callback) callback(error); else throw error; }
+      );
+    },
+    // Promise-based helpers for the callback-compatible methods above.
+    runWithPromise(sql, params, timer) {
+      return new Promise((resolve, reject) => {
+        primary.run(sql, params, (error) => {
+          clearTimeout(timer);
+          if (error) reject(error);
+          else resolve({ lastID: 0, changes: 0 });
+        });
+      });
+    },
+    execWithPromise(sql, timer) {
+      return new Promise((resolve, reject) => {
+        primary.exec(sql, (error) => {
+          clearTimeout(timer);
+          if (error) reject(error);
+          else resolve({});
+        });
+      });
+    },
+    // Called once the primary connection is open (so the database file exists and
+    // WAL is active). Until then every read falls back to the primary.
     enableReads,
+    serialize(...args) { return primary.serialize(...args); },
     readerCount: () => readers.length,
     close(callback) {
       const pending = readers.splice(0, readers.length);

@@ -204,9 +204,45 @@
   function setStat(name, value, tone = '') {
     const element = $(`[data-stat="${name}"]`);
     if (!element) return;
-    element.textContent = value;
-    element.classList.remove('positive', 'negative');
-    if (tone) element.classList.add(tone);
+
+    // Get current value from element text (strip any non-numeric chars)
+    const currentText = element.textContent || '0';
+    const currentValue = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+
+    // Determine format and suffix from element attributes or default
+    const format = element.dataset.format || '#,##0.00';
+    const prefix = element.dataset.prefix || '';
+    const suffix = element.dataset.suffix || '';
+
+    // If already has a counter instance, stop it first
+    if (element._counterInstance) {
+      element._counterInstance.stop();
+      element._counterInstance = null;
+    }
+
+    // Create and start counter animation
+    element._counterInstance = new Counter({
+      element,
+      start: currentValue,
+      end: typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d\-\.]/g, '') || '0'),
+      format,
+      prefix: prefix || (value >= 0 && !isNaN(value) ? '$' : ''), // Only add $ for positive/neutral values in money context
+      suffix: suffix || (tone === 'positive' ? '' : ''),
+      duration: 600,
+      onUpdate: (display) => {
+        element.textContent = display;
+        // Also update the class for tone
+        element.classList.remove('positive', 'negative');
+        if (tone) element.classList.add(tone);
+      },
+      onComplete: () => {
+        // Ensure final value has correct tone class
+        element.classList.remove('positive', 'negative');
+        if (tone) element.classList.add(tone);
+      }
+    });
+
+    element._counterInstance.start();
   }
 
   function showPage(name) {
@@ -409,6 +445,10 @@
         const count = Number(data.unreadCount) || 0;
         badge.hidden = count === 0;
         badge.textContent = count > 99 ? '99+' : String(count);
+      } catch (error) {
+        // Chat unread count endpoint may not be available - hide badge silently
+        const badge = $('#chat-nav-badge');
+        if (badge) badge.hidden = true;
       } finally {
         chatUnreadPromise = null;
       }

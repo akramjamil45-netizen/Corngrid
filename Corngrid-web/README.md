@@ -28,19 +28,6 @@ The dashboard extends the existing Express, SQLite, and JWT application. It keep
 
 `database.sqlite` receives backward-compatible `CREATE TABLE IF NOT EXISTS` additions at startup, plus the `idx_market_candles_symbol_feed` index on the candle table (an index build on an existing production database happens once, on the first start after this update). Back it up before deploying and ensure the service account can write to its directory. The included rate limits are process-local; deployments with multiple Node workers or instances must also enforce limits at the gateway.
 
-## PostgreSQL backend
-
-The server runs on PostgreSQL when `DATABASE_URL` is set (recommended for the EA fleet workload) and falls back to the local SQLite file when it is not. The application code is unchanged between the two: `db-postgres.js` translates the small SQLite-flavored SQL subset the app uses (`?` placeholders, `INSERT OR IGNORE`, `COLLATE NOCASE`, `json_each`, `lastID`/`changes`, `BEGIN IMMEDIATE`) onto a pooled `pg` connection.
-
-1. Install PostgreSQL (tested with 16.x) and create a login and database, for example in `psql`:
-   `CREATE ROLE corngrid_app LOGIN PASSWORD '...'; CREATE DATABASE corngrid OWNER corngrid_app;`
-2. Set `DATABASE_URL=postgres://corngrid_app:...@localhost:5432/corngrid` in `.env`. Optional pool tuning: `PG_POOL_MAX` (default 50), `PG_POOL_MIN`, `PG_IDLE_TIMEOUT_MS`, `PG_CONNECTION_TIMEOUT_MS`, `PG_STATEMENT_TIMEOUT_MS`, `PG_QUERY_TIMEOUT_MS`.
-3. Copy existing SQLite data once with `node scripts/migrate-sqlite-to-postgres.js` (idempotent: rows that already exist are skipped). Skip this step for a fresh install.
-4. Start the server normally. Schema migrations from `migrations/postgres/` are applied automatically at startup (tracked in `schema_migrations`) before the HTTP listener opens. If PostgreSQL is unreachable the process retries briefly and then exits with an error — it never silently falls back to SQLite while `DATABASE_URL` is set.
-5. Verify with `GET /api/health/ready` (reports `"db":"postgres"` plus pool statistics) or `node scripts/pg-check.js`.
-
-Backups: with PostgreSQL, the built-in SQLite file backup scheduler and WAL checkpointing are disabled. Use `pg_dump` (e.g. a scheduled `pg_dump -Fc corngrid > backup.dump`) instead. `db-write.js` still bounds the transactional write queue (`DB_WRITE_QUEUE_MAX`, default 1000); the SQLite-only read router (`db-router.js`) is bypassed because PostgreSQL reads and writes share the same pool.
-
 ## API contract
 
 All browser endpoints below require the existing `Authorization: Bearer <JWT>` token:

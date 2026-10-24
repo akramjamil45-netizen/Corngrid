@@ -7,6 +7,7 @@
   const TF_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
   const STATE_CLASS = { LIVE: 'pill-live', DELAYED: 'pill-delayed', STALE: 'pill-stale', OFFLINE: 'pill-offline', FALLBACK: 'pill-fallback' };
   const STATE_RANK = { LIVE: 3, DELAYED: 2, STALE: 1, OFFLINE: 0 };
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const state = {
     pageOpen: false,
     hovering: false,
@@ -19,6 +20,7 @@
     },
     watchdogTimer: null,
     watchdogTicks: 0,
+    watchdogProbeTimer: null,
     symbol: 'XAUUSD',
     interval: '1h',
     chart: null,
@@ -67,12 +69,23 @@
         signal = timeoutSignal;
       }
     }
-    const response = await fetch(`${API}${path}`, {
-      ...options,
-      credentials: 'same-origin',
-      signal,
-      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
-    });
+    let response;
+    try {
+      response = await fetch(`${API}${path}`, {
+        ...options,
+        credentials: 'same-origin',
+        signal,
+        headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
+      });
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        if (state.abortController && state.abortController.signal.aborted) {
+          return { status: 'aborted', data: null, error: new Error('Request cancelled (navigation).') };
+        }
+        return { status: 'timeout', data: null, error: error };
+      }
+      throw error;
+    }
     let data = {};
     try { data = await response.json(); } catch { if (response.ok) throw new Error('The server returned an invalid response.'); }
     if (response.status === 401 || response.status === 403) {
@@ -83,7 +96,7 @@
       failure.data = data;
       throw failure;
     }
-    return data;
+    return { status: 'ok', data, error: null };
   }
 
   function decimals() {
@@ -347,18 +360,70 @@
     if (live.source !== 'corngrid-ea') return;
     const current = localState();
     const usable = current === 'LIVE' || current === 'DELAYED';
-    const fmt = value => (value == null ? '—' : formatPrice(value));
-    const spreadText = live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—';
-    $('market-price').textContent = fmt(live.bid);
-    $('market-price').classList.toggle('muted', !usable);
-    $('market-quote-meta').textContent = `Bid ${fmt(live.bid)} · Ask ${fmt(live.ask)} · Spread ${spreadText}`;
-    $('info-bid').textContent = fmt(live.bid);
-    $('info-ask').textContent = fmt(live.ask);
-    $('info-spread').textContent = spreadText;
-    $('info-close').textContent = fmt(live.bid);
+
+    // Animate bid price
+    const bidElement = $('market-price');
+    if (live.bid != null && !reduceMotion) {
+      const currentText = bidElement.textContent || '0';
+      const currentBid = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(bidElement, currentBid, live.bid, {
+        format: '#,##0.###',
+        duration: 600,
+        onComplete: () => {
+          bidElement.classList.toggle('muted', !usable);
+        }
+      });
+    } else {
+      bidElement.textContent = live.bid != null ? formatPrice(live.bid) : '—';
+      bidElement.classList.toggle('muted', !usable);
+    }
+
+    // Animate ask price in quote-meta
+    const quoteMeta = $('market-quote-meta');
+    if (live.ask != null && !reduceMotion) {
+      const currentText = quoteMeta.textContent || '0';
+      const currentAsk = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(quoteMeta, currentAsk, live.ask, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      quoteMeta.textContent = `Bid ${formatPrice(live.bid)} · Ask ${formatPrice(live.ask)} · Spread ${live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—'}`;
+    }
+
+    // Animate spread
+    const spreadElement = $('info-spread');
+    if (live.spreadPoints != null && !reduceMotion) {
+      const currentText = spreadElement.textContent || '0';
+      const currentSpread = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(spreadElement, currentSpread, live.spreadPoints, {
+        format: '#,##0',
+        duration: 600
+      });
+    } else {
+      spreadElement.textContent = live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—';
+    }
+
+    // Animate close price (used for change calculation)
+    const closeElement = $('info-close');
+    if (live.bid != null && !reduceMotion) {
+      const currentText = closeElement.textContent || '0';
+      const currentClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(closeElement, currentClose, live.bid, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      closeElement.textContent = fmt(live.bid);
+    }
+
+    $('info-bid').textContent = live.bid != null ? formatPrice(live.bid) : 'N/A';
+    $('info-ask').textContent = live.ask != null ? formatPrice(live.ask) : 'N/A';
+
     const prev = state.stats && state.stats.previousClose;
     if (live.bid != null && prev) renderChange(live.bid - prev, ((live.bid - prev) / prev) * 100);
     else renderChange(null, null);
+
     const detail = current === 'LIVE' && live.quiet ? 'no new ticks (market quiet?)' : current === 'OFFLINE' ? 'CornGrid EA not publishing' : current === 'STALE' ? 'prices are old' : '';
     setConnState(current, detail);
     $('market-source').textContent = `Source: CornGrid EA broker feed${live.feed ? ` (${live.feed})` : ''}${live.brokerSymbol ? ` · ${live.brokerSymbol}` : ''}`;
@@ -373,10 +438,59 @@
     state.stats = { previousClose: summary.previousClose, dayOpen: summary.dayOpen, dayHigh: summary.dayHigh, dayLow: summary.dayLow };
     $('market-quote-symbol').textContent = summary.symbol;
     $('market-quote-label').textContent = summary.label;
-    $('info-open').textContent = summary.dayOpen == null ? 'N/A' : formatPrice(summary.dayOpen);
-    $('info-high').textContent = summary.dayHigh == null ? 'N/A' : formatPrice(summary.dayHigh);
-    $('info-low').textContent = summary.dayLow == null ? 'N/A' : formatPrice(summary.dayLow);
-    $('info-prev-close').textContent = summary.previousClose == null ? 'N/A' : formatPrice(summary.previousClose);
+
+    // Animate open price
+    const openElement = $('info-open');
+    if (summary.dayOpen != null && !reduceMotion) {
+      const currentText = openElement.textContent || '0';
+      const currentOpen = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(openElement, currentOpen, summary.dayOpen, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      openElement.textContent = summary.dayOpen == null ? 'N/A' : formatPrice(summary.dayOpen);
+    }
+
+    // Animate high price
+    const highElement = $('info-high');
+    if (summary.dayHigh != null && !reduceMotion) {
+      const currentText = highElement.textContent || '0';
+      const currentHigh = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(highElement, currentHigh, summary.dayHigh, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      highElement.textContent = summary.dayHigh == null ? 'N/A' : formatPrice(summary.dayHigh);
+    }
+
+    // Animate low price
+    const lowElement = $('info-low');
+    if (summary.dayLow != null && !reduceMotion) {
+      const currentText = lowElement.textContent || '0';
+      const currentLow = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(lowElement, currentLow, summary.dayLow, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      lowElement.textContent = summary.dayLow == null ? 'N/A' : formatPrice(summary.dayLow);
+    }
+
+    // Animate previous close
+    const prevCloseElement = $('info-prev-close');
+    if (summary.previousClose != null && !reduceMotion) {
+      const currentText = prevCloseElement.textContent || '0';
+      const currentPrevClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
+      new animateNumber(prevCloseElement, currentPrevClose, summary.previousClose, {
+        format: '#,##0.###',
+        duration: 600
+      });
+    } else {
+      prevCloseElement.textContent = summary.previousClose == null ? 'N/A' : formatPrice(summary.previousClose);
+    }
+
     $('market-attribution').textContent = summary.attribution || '';
     const note = $('market-instrument-note');
     if (summary.instrumentNote) { note.textContent = summary.instrumentNote; note.hidden = false; }
@@ -411,20 +525,22 @@
 
   async function loadSummary(silent = false) {
     const symbol = state.symbol;
+    let data = null;
     try {
-      const summary = await request(`/market/summary?symbol=${encodeURIComponent(symbol)}`);
+      data = (await request(`/market/summary?symbol=${encodeURIComponent(symbol)}`)).data;
       if (symbol !== state.symbol) return;
-      applySummary(summary);
-      if (summary.source && summary.source.kind === 'corngrid-ea') startLive();
+      applySummary(data);
+      if (data.source && data.source.kind === 'corngrid-ea') startLive();
     } catch (error) {
-      if (error && error.name === 'AbortError') return;
+      if (error && error.status === 'aborted') return;
       if (state.abortController && state.abortController.signal.aborted) return;
       if (symbol !== state.symbol) return;
       const live = state.live;
-      const unavailable = error.data && error.data.state === 'OFFLINE';
+      if (error && error.status === 'timeout' && error.error && error.error.name === 'TimeoutError') return;
+      const unavailable = data && data.state === 'OFFLINE';
       // A transient error must not wipe an EA feed that is still streaming.
       if (!unavailable && live.source === 'corngrid-ea') {
-        if (!silent && state.loaded) toast(error.message, 'error');
+        if (!silent && state.loaded) toast(error.message || 'Connection timed out.', 'error');
         return;
       }
       Object.assign(live, { source: unavailable ? 'none' : live.source, state: 'OFFLINE', bid: null, ask: null });
@@ -433,9 +549,9 @@
       $('market-quote-meta').textContent = 'Bid — · Ask — · Spread —';
       renderChange(null, null);
       setConnState('OFFLINE', unavailable ? 'no feed' : 'unavailable');
-      $('market-source').textContent = unavailable ? 'Source: none — CornGrid EA is not publishing and no fallback is enabled.' : `Source: unavailable (${error.message})`;
+      $('market-source').textContent = unavailable ? 'Source: none — CornGrid EA is not publishing and no fallback is enabled.' : `Source: unavailable`;
       $('market-last-update').textContent = 'Last update: N/A';
-      if (!silent && state.loaded && !unavailable) toast(error.message, 'error');
+      if (!silent && state.loaded && !unavailable) toast(error.message || 'Connection timed out.', 'error');
     }
   }
 
@@ -456,7 +572,7 @@
       if (live.polling || document.hidden || symbol !== state.symbol) return;
       live.polling = true;
       try {
-        const data = await request(`/market/quote?symbol=${encodeURIComponent(symbol)}`);
+        const { data } = await request(`/market/quote?symbol=${encodeURIComponent(symbol)}`);
         if (data.quote) applyQuote(data.quote);
       } catch { /* the watchdog downgrades the state if updates stop */ }
       live.polling = false;
@@ -549,9 +665,9 @@
     const { symbol, interval } = state;
     if (state.candleSource !== 'corngrid-ea' || !state.candleSeries || !state.lastCandle) return;
     try {
-      const payload = await request(`/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&outputsize=20`);
+      const { data: payload } = await request(`/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&outputsize=20`);
       if (symbol !== state.symbol || interval !== state.interval || !state.candleSeries || !state.lastCandle) return;
-      if (!payload.source || payload.source.kind !== 'corngrid-ea') return;
+      if (!payload || !payload.source || payload.source.kind !== 'corngrid-ea') return;
       for (const candle of payload.candles) {
         if (candle.time < state.lastCandle.time) continue;
         state.candleSeries.update({ time: candle.time, open: candle.open, high: candle.high, low: candle.low, close: candle.close });
@@ -573,8 +689,17 @@
       if (state.watchdogTicks % 20 === 0) refreshTail();
     }
     // When no EA feed is active, keep probing so recovery is picked up without a page refresh.
+    // Use exponential backoff with jitter to prevent a stampede of requests when the
+    // backend is slow or unreachable. The counter is reset as soon as healthy data arrives.
     const healthy = live.source === 'corngrid-ea' && (localState() === 'LIVE' || localState() === 'DELAYED');
-    if (!healthy && state.watchdogTicks % 15 === 0) loadSummary(true);
+    if (!healthy && (state.watchdogTicks % 15 === 0)) {
+      const ms = 1000 + Math.floor(Math.random() * 2000) + (state.watchdogTicks - 1) * 5000;
+      clearTimeout(state.watchdogProbeTimer);
+      state.watchdogProbeTimer = setTimeout(() => loadSummary(true), ms);
+    } else if (healthy) {
+      clearTimeout(state.watchdogProbeTimer);
+      state.watchdogTicks = 0;
+    }
   }
 
   function onVisibilityChange() {
@@ -588,8 +713,9 @@
     const seq = ++state.requestSeq;
     setChartState('loading');
     try {
-      const payload = await request(`/market/candles?symbol=${encodeURIComponent(state.symbol)}&interval=${encodeURIComponent(state.interval)}&outputsize=500`);
+      const { data: payload } = await request(`/market/candles?symbol=${encodeURIComponent(state.symbol)}&interval=${encodeURIComponent(state.interval)}&outputsize=500`);
       if (seq !== state.requestSeq) return;
+      if (!payload || !payload.candles) return;
       ensureChart();
       if (!state.chart) throw new Error('The chart library failed to load.');
       if (!payload.candles.length) {
@@ -631,10 +757,14 @@
       setChartState('hidden');
       state.loaded = true;
     } catch (error) {
-      if (error && error.name === 'AbortError') return;
+      if (error && error.status === 'aborted') return;
       if (state.abortController && state.abortController.signal.aborted) return;
       if (seq !== state.requestSeq) return;
-      setChartState('error', error.message);
+      if (error && error.data) {
+        setChartState('error', error.data.error || 'The request could not be completed.');
+      } else {
+        setChartState('error', error.message);
+      }
     }
   }
 
@@ -645,16 +775,16 @@
     // Trend lines are re-rendered from state, so only the price lines need removing.
     clearChartPriceLines();
     try {
-      const payload = await request(`/market/drawings?symbol=${encodeURIComponent(state.symbol)}`);
+      const { data: payload } = await request(`/market/drawings?symbol=${encodeURIComponent(state.symbol)}`);
       // Normalise the id to a number so it matches the id used by the price-line
       // map and by the delete button.
       state.drawings = (Array.isArray(payload.drawings) ? payload.drawings : [])
         .map(drawing => ({ ...drawing, id: Number(drawing.id) }));
     } catch (error) {
-      if (error && error.name === 'AbortError') return;
+      if (error && error.status === 'aborted') return;
       if (state.abortController && state.abortController.signal.aborted) return;
       state.drawings = [];
-      toast(error.message, 'error');
+      toast(error.message || 'Connection timed out.', 'error');
     }
     renderDrawingsList();
     // Apply only the drawings that are not on the chart yet. loadCandles() may
@@ -817,6 +947,9 @@
     // Release chart resources and observers when the dashboard page unloads.
     stopLive();
     if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
+    if (state.watchdogProbeTimer) { clearTimeout(state.watchdogProbeTimer); state.watchdogProbeTimer = null; }
+    if (state.live.pollTimer) { clearInterval(state.live.pollTimer); state.live.pollTimer = null; }
+    if (state.live.guardTimer) { clearTimeout(state.live.guardTimer); state.live.guardTimer = null; }
     state.pageOpen = false;
     if (state.resizeObserver) { state.resizeObserver.disconnect(); state.resizeObserver = null; }
     // Remove the trend overlay from the DOM as well; leaving it behind would
@@ -833,6 +966,8 @@
     state.loaded = false;
     state.chartClickBound = false;
     state.requestSeq += 1;
+    if (state.abortController) { state.abortController.abort(); state.abortController = null; }
+    state.live.polling = false;
   }
 
   window.CornGridMarket = {
@@ -858,6 +993,9 @@
       // chart library (create/remove on every switch caused UI freezes).
       if (state.abortController) { state.abortController.abort(); state.abortController = null; }
       state.pageOpen = false;
+      if (state.live.pollTimer) { clearInterval(state.live.pollTimer); state.live.pollTimer = null; }
+      if (state.live.guardTimer) { clearTimeout(state.live.guardTimer); state.live.guardTimer = null; }
+      if (state.watchdogProbeTimer) { clearTimeout(state.watchdogProbeTimer); state.watchdogProbeTimer = null; }
       stopLive();
       if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
     },

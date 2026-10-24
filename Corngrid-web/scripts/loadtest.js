@@ -59,41 +59,18 @@ if (args.serve) {
 
 function runServerChild() {
   const express = require('express');
+  const sqlite3 = require('sqlite3').verbose();
   const registerMt5Api = require('../mt5-api');
   const createMarketFeed = require('../market-feed');
   const registerMarketApi = require('../market-api');
   const createUserAuth = require('../user-auth');
 
+  const dbFile = args.db || path.join(os.tmpdir(), `corngrid-loadtest-${process.pid}.sqlite`);
   const count = Number(args.seed) || 100;
 
   const run = (db, sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, error => error ? reject(error) : resolve()));
 
-  // --pg runs the server against a PostgreSQL database instead of a temp
-  // SQLite file. The URL comes from --database-url or LOADTEST_DATABASE_URL
-  // and MUST name a dedicated throwaway database: the child resets its public
-  // schema before seeding. Anything not ending in _test/_loadtest is refused
-  // so this can never touch production data.
-  const usePg = Boolean(args.pg);
-  const databaseUrl = args['database-url'] || process.env.LOADTEST_DATABASE_URL;
-  let db;
-  let dbFile = null;
-  if (usePg) {
-    if (!databaseUrl) {
-      console.error('--pg requires --database-url or LOADTEST_DATABASE_URL.');
-      process.exit(1);
-    }
-    let dbName = '';
-    try { dbName = new URL(databaseUrl).pathname.replace(/^\//, ''); } catch { /* unparsable */ }
-    if (!/(_test|_loadtest)$/i.test(dbName)) {
-      console.error(`Refusing to load-test against database "${dbName || databaseUrl}": use a dedicated *_test or *_loadtest database.`);
-      process.exit(1);
-    }
-    db = require('../db-postgres')(databaseUrl);
-  } else {
-    const sqlite3 = require('sqlite3').verbose();
-    dbFile = args.db || path.join(os.tmpdir(), `corngrid-loadtest-${process.pid}.sqlite`);
-    db = new sqlite3.Database(dbFile);
-  }
+  const db = new sqlite3.Database(dbFile);
   const app = express();
   app.set('trust proxy', true);
   app.use(express.json({ limit: '256kb' }));
@@ -115,23 +92,9 @@ function runServerChild() {
   };
 
   (async () => {
-    if (usePg) {
-      // Fresh, isolated schema: reset the public schema of the dedicated test
-      // database and re-apply the PostgreSQL migration before seeding.
-      const { Client } = require('pg');
-      const admin = new Client({ connectionString: databaseUrl });
-      await admin.connect();
-      await admin.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-      await admin.query(fs.readFileSync(path.join(__dirname, '..', 'migrations', 'postgres', '0001_initial.sql'), 'utf8'));
-      await admin.end();
-      await waitFor(() => new Promise(resolve => db.get(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mt5_accounts'",
-        (error, row) => resolve(!error && !!row))));
-    } else {
-      await new Promise((resolve, reject) => db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;', error => error ? reject(error) : resolve()));
-      await new Promise((resolve, reject) => db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, bio TEXT, created_at TEXT);', error => error ? reject(error) : resolve()));
-      await waitFor(() => new Promise(resolve => db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='mt5_accounts'", (error, row) => resolve(!error && !!row))));
-    }
+    await new Promise((resolve, reject) => db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;', error => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, bio TEXT, created_at TEXT);', error => error ? reject(error) : resolve()));
+    await waitFor(() => new Promise(resolve => db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='mt5_accounts'", (error, row) => resolve(!error && !!row))));
 
     const ts = Date.now();
     await run(db, 'BEGIN IMMEDIATE');
@@ -162,10 +125,7 @@ function runServerChild() {
       cpuBaseline = process.cpuUsage();
       const lag = maxLag;
       maxLag = 0;
-      process.send({
-        type: 'snapshot', id: message.id, cpu, rss: process.memoryUsage().rss, maxLag: lag,
-        pool: typeof db.poolStats === 'function' ? db.poolStats() : undefined
-      });
+      process.send({ type: 'snapshot', id: message.id, cpu, rss: process.memoryUsage().rss, maxLag: lag });
     });
 
     process.send({ type: 'ready', origin: `http://127.0.0.1:${server.address().port}`, dbFile });
@@ -231,7 +191,6 @@ function runCoordinator() {
     console.log(`  server cpu : ${fmt(result.cpuPercentOfCore)}% of one core`);
     console.log(`  server rss : ${fmt(result.rssMB)}MB`);
     console.log(`  server lag : max event-loop lag ${fmt(result.maxEventLoopLagMs)}ms`);
-    if (result.pool) console.log(`  db pool    : total ${result.pool.total}  idle ${result.pool.idle}  waiting ${result.pool.waiting}  max ${result.pool.max}`);
     if (result.aborted) console.log(`  !! aborted early: ${result.abortReason}`);
   }
 
@@ -349,7 +308,6 @@ function runCoordinator() {
       rssMB: after.rss / 1048576,
       rssDeltaMB: (after.rss - before.rss) / 1048576,
       maxEventLoopLagMs: after.maxLag,
-      pool: after.pool || undefined,
       aborted: metrics.aborted,
       abortReason: metrics.abortReason
     };
@@ -376,14 +334,7 @@ function runCoordinator() {
     const maxUsers = Math.max(...levels);
     const dbFile = path.join(os.tmpdir(), `corngrid-loadtest-${process.pid}-${Date.now()}.sqlite`);
 
-    const childArgs = ['--serve', '--seed', String(maxUsers)];
-    if (args.pg) {
-      childArgs.push('--pg');
-      if (args['database-url']) childArgs.push('--database-url', args['database-url']);
-    } else {
-      childArgs.push('--db', dbFile);
-    }
-    child = fork(__filename, childArgs, { stdio: ['inherit', 'inherit', 'inherit', 'ipc'] });
+    child = fork(__filename, ['--serve', '--seed', String(maxUsers), '--db', dbFile], { stdio: ['inherit', 'inherit', 'inherit', 'ipc'] });
     child.on('message', message => {
       if (message && message.type === 'snapshot' && pending.has(message.id)) {
         pending.get(message.id)(message);
@@ -408,7 +359,7 @@ function runCoordinator() {
     const clients = makeClients(users);
 
     console.log('CornGrid EA load test');
-    console.log(`  target      : ${readyMessage.origin} (${args.pg ? 'PostgreSQL ' + (args['database-url'] || process.env.LOADTEST_DATABASE_URL || '').replace(/\/\/.*@/, '//***@') : 'isolated temp DB ' + dbFile})`);
+    console.log(`  target      : ${readyMessage.origin} (isolated temp DB ${dbFile})`);
     console.log(`  workload    : market every ${QUOTE_INTERVAL_MS}ms (candles every ${CANDLE_INTERVAL_MS}ms), heartbeat every ${HEARTBEAT_INTERVAL_MS}ms, positions ${POSITIONS}`);
     console.log(`  levels      : ${levels.join(', ')} users`);
     console.log(`  warmup/dur  : ${WARMUP_MS / 1000}s / ${DURATION_MS / 1000}s per level`);
@@ -431,10 +382,8 @@ function runCoordinator() {
     console.log(`\nRaw results written to ${summaryFile}`);
 
     child.disconnect();
-    if (!args.pg) {
-      for (const suffix of ['', '-wal', '-shm']) {
-        try { fs.unlinkSync(dbFile + suffix); } catch { /* ignore */ }
-      }
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { fs.unlinkSync(dbFile + suffix); } catch { /* ignore */ }
     }
     process.exit(results.some(result => result.aborted) ? 1 : 0);
   }
