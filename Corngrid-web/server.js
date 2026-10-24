@@ -27,7 +27,7 @@ const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
 const createBackupScheduler = require('./db-backup');
 const createDatabaseRouter = require('./db-router');
-const createPostgresDatabase = process.env.DATABASE_URL ? require('./db-postgres') : null;
+const createPostgresDatabase = require('./db-postgres');
 const {
   clearAuthCookie,
   isSameOriginRequest,
@@ -841,7 +841,7 @@ const checkpointTimer = process.env.DATABASE_URL ? null : setInterval(() => {
     if (error) console.error('WAL checkpoint failed:', error.message);
   });
 }, WAL_CHECKPOINT_INTERVAL_MS);
-if (checkpointTimer.unref) checkpointTimer.unref();
+if (checkpointTimer?.unref) checkpointTimer.unref();
 
 // Rolling database backups. Disabled when BACKUP_INTERVAL_HOURS is 0.
 const BACKUP_INTERVAL_HOURS = process.env.BACKUP_INTERVAL_HOURS === undefined
