@@ -27,14 +27,15 @@ const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
 const createBackupScheduler = require('./db-backup');
 const createDatabaseRouter = require('./db-router');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const createPostgresDatabase = process.env.DATABASE_URL ? require('./db-postgres') : null;
+const { applyPostgresMigrationsWithRetry } = require('./db-migrate');
 const {
   clearAuthCookie,
   isSameOriginRequest,
   readAuthCredential,
   setAuthCookie
 } = require('./session-cookie');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 app.disable('x-powered-by');
@@ -204,7 +205,6 @@ const DB_READ_POOL_SIZE = process.env.DB_READ_POOL_SIZE === undefined
 let db;
 if (process.env.DATABASE_URL) {
   db = createPostgresDatabase(process.env.DATABASE_URL);
-  console.log('Connected to the CornGrid PostgreSQL database.');
 } else {
   const primaryDb = new sqlite3.Database(DATABASE_PATH, (err) => {
     if (err) {
@@ -489,7 +489,14 @@ app.get('/api/health/ready', (req, res) => {
     }
     let depth;
     try { depth = require('./db-write').writeQueueDepth(db); } catch (e) { depth = undefined; }
-    res.json({ status: 'ok', db: 'ok', writeQueueDepth: depth, timestamp: Date.now() });
+    const payload = {
+      status: 'ok',
+      db: process.env.DATABASE_URL ? 'postgres' : 'sqlite',
+      writeQueueDepth: depth,
+      timestamp: Date.now()
+    };
+    if (typeof db.poolStats === 'function') payload.pool = db.poolStats();
+    res.json(payload);
   });
 });
 
@@ -516,7 +523,7 @@ app.post('/api/register', loginRateLimit, async (req, res) => {
 
     db.run(query, [username, email, hashedPassword], function (err) {
       if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
+        if ((err && (err.code === '23505' || /unique constraint/i.test(err.message || '')))) {
           return res.status(400).json({ error: 'Username or email has already been taken.' });
         }
         console.error('Failed to register user:', err.message);
@@ -645,7 +652,7 @@ app.put('/api/user/profile', verifyToken, (req, res) => {
   const query = `UPDATE users SET username = ?, bio = ? WHERE id = ?`;
   db.run(query, [username.trim(), typeof bio === 'string' ? bio : '', req.user.id], function (err) {
     if (err) {
-      if (err.message.includes('UNIQUE constraint failed')) {
+      if ((err && (err.code === '23505' || /unique constraint/i.test(err.message || '')))) {
         return res.status(400).json({ error: 'This username is already taken.' });
       }
       return res.status(500).json({ error: 'Failed to update profile.' });
@@ -841,7 +848,7 @@ const checkpointTimer = process.env.DATABASE_URL ? null : setInterval(() => {
     if (error) console.error('WAL checkpoint failed:', error.message);
   });
 }, WAL_CHECKPOINT_INTERVAL_MS);
-if (checkpointTimer.unref) checkpointTimer.unref();
+if (checkpointTimer && typeof checkpointTimer.unref === 'function') checkpointTimer.unref();
 
 // Rolling database backups. Disabled when BACKUP_INTERVAL_HOURS is 0.
 const BACKUP_INTERVAL_HOURS = process.env.BACKUP_INTERVAL_HOURS === undefined
@@ -854,17 +861,38 @@ const backupScheduler = process.env.DATABASE_URL ? { start(){}, stop(){} } : cre
 });
 backupScheduler.start();
 
-// Start the server
-const server = app.listen(PORT, () => {
-  console.log(`CornGrid backend is running at http://localhost:${PORT}`);
-});
+// Start the server. With PostgreSQL configured, schema migrations and a
+// connectivity check complete first, so the API never accepts traffic against
+// a missing schema, and the process exits (no silent SQLite fallback) when the
+// database stays unreachable.
+let server = null;
+async function startServer() {
+  if (process.env.DATABASE_URL) {
+    try {
+      const migration = await applyPostgresMigrationsWithRetry(process.env.DATABASE_URL);
+      if (migration.applied.length) console.log(`Applied PostgreSQL migrations: ${migration.applied.join(', ')}`);
+      await new Promise((resolve, reject) => {
+        db.get('SELECT 1 AS ok', [], (error, row) => (error || !row ? reject(error || new Error('no row')) : resolve()));
+      });
+      console.log('Connected to the CornGrid PostgreSQL database.');
+    } catch (error) {
+      console.error(`PostgreSQL is configured but unavailable: ${error.message}`);
+      console.error('Fix DATABASE_URL or start PostgreSQL; the server will not fall back to SQLite.');
+      process.exit(1);
+    }
+  }
+  server = app.listen(PORT, () => {
+    console.log(`CornGrid backend is running at http://localhost:${PORT}`);
+  });
 
-// Keep-alive must outlive the proxy's idle timeout so a reused connection is not
-// closed mid-request; requestTimeout caps a single slow request. IIS/ARR
-// defaults to a 120s idle timeout, so a slightly shorter keep-alive is used.
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 66000;
-server.requestTimeout = 120000;
+  // Keep-alive must outlive the proxy's idle timeout so a reused connection is
+  // not closed mid-request; requestTimeout caps a single slow request. IIS/ARR
+  // defaults to a 120s idle timeout, so a slightly shorter keep-alive is used.
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+  server.requestTimeout = 120000;
+}
+startServer();
 
 // On redeploy the process gets SIGTERM/SIGINT. Stop accepting connections, let
 // in-flight requests finish, then close the database cleanly so WAL data is
@@ -881,6 +909,12 @@ function shutdown(signal) {
   if (forceExit.unref) forceExit.unref();
   if (checkpointTimer) clearInterval(checkpointTimer);
   if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
+  if (!server) {
+    // Shutdown arrived before the listener started (e.g. migrations running).
+    if (db && typeof db.close === 'function') db.close(() => process.exit(0));
+    else process.exit(0);
+    return;
+  }
   server.close(() => {
     try {
       if (typeof marketFeed.close === 'function') marketFeed.close();
@@ -888,10 +922,25 @@ function shutdown(signal) {
       console.error('Failed to close the market feed:', feedError.message);
     }
     // Final checkpoint folds the WAL into the database file before exit.
-    if (process.env.DATABASE_URL) db.close(() => process.exit(0));
-    else db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
+    if (process.env.DATABASE_URL) {
+      if (db && typeof db.close === 'function') db.close(() => process.exit(0));
+      else process.exit(0);
+    } else {
+      try {
+        if (db && typeof db.run === 'function') {
+          db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => { if (db && typeof db.close === 'function') db.close(() => process.exit(0)); else process.exit(0); });
+        } else {
+          process.exit(0);
+        }
+      } catch (e) {
+        process.exit(0);
+      }
+    }
   });
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+// On Windows, console Ctrl+Break / CTRL_BREAK_EVENT (used by service managers
+// and IIS host stops) is the only termination signal delivered to a handler.
+if (process.platform === 'win32') process.on('SIGBREAK', () => shutdown('SIGBREAK'));
 

@@ -1,0 +1,180 @@
+# 1. Cari & hentikan proses di port 3000
+$pid3000 = (Get-NetTCPConnection -LocalPort 3000 -State Listen).OwningProcess
+Stop-Process -Id $pid3000 -Force
+
+# 2. Start server (dalam folder Corngrid-web)
+cd "c:\Users\mohamad akram\Desktop\CornGrid EA\CornGrid EA\Website\Corngrid-web"
+node server.js
+
+Connected to the CornGrid PostgreSQL database.
+CornGrid backend is running at http://localhost:3000
+
+
+# Jalankan di background
+Start-Process node -ArgumentList 'server.js' -WorkingDirectory "c:\Users\mohamad akram\Desktop\CornGrid EA\CornGrid EA\Website\Corngrid-web" -WindowStyle Hidden
+
+# Semak status bila-bila masa
+curl http://localhost:3000/api/health/ready
+
+# Hentikan
+$pid3000 = (Get-NetTCPConnection -LocalPort 3000 -State Listen).OwningProcess
+Stop-Process -Id $pid3000 -Force
+----------------------------------------------------------------------------------------------
+# Ya — malah server anda SUDAH BERJALAN sekarang ✅
+
+Saya baru sahaja semak:
+
+```javascript
+status: ok
+db: postgres          ← guna PostgreSQL, bukan SQLite
+pool: 2/50 sambungan aktif
+```
+
+Server sedang live di __[](http://localhost:3000)<http://localhost:3000>__ dengan PostgreSQL. Website homepage pun memberi respon `200 OK`.
+
+## Kalau anda mahu start semula (restart)
+
+Hentikan dulu yang sedang berjalan, kemudian start:
+
+```powershell
+# 1. Cari & hentikan proses di port 3000
+$pid3000 = (Get-NetTCPConnection -LocalPort 3000 -State Listen).OwningProcess
+Stop-Process -Id $pid3000 -Force
+
+# 2. Start server (dalam folder Corngrid-web)
+cd "c:\Users\mohamad akram\Desktop\CornGrid EA\CornGrid EA\Website\Corngrid-web"
+node server.js
+```
+
+Bila nampak dua baris ini, maksudnya berjaya:
+
+```javascript
+Connected to the CornGrid PostgreSQL database.
+CornGrid backend is running at http://localhost:3000
+```
+
+## Untuk kegunaan harian (supaya tidak mati bila terminal ditutup)
+
+```powershell
+# Jalankan di background
+Start-Process node -ArgumentList 'server.js' -WorkingDirectory "c:\Users\mohamad akram\Desktop\CornGrid EA\CornGrid EA\Website\Corngrid-web" -WindowStyle Hidden
+
+# Semak status bila-bila masa
+curl http://localhost:3000/api/health/ready
+
+# Hentikan
+$pid3000 = (Get-NetTCPConnection -LocalPort 3000 -State Listen).OwningProcess
+Stop-Process -Id $pid3000 -Force
+```
+
+## Nota penting
+
+- __PostgreSQL service mesti hidup__ — ia sedang berjalan (`postgresql-x64-16`). Kalau server gagal start dan keluar mesej `ECONNREFUSED`, maksudnya PostgreSQL mati; hidupkan dengan `Start-Service postgresql-x64-16`.
+- Skema database akan disemak/dikemas kini __secara automatik__ setiap kali server start — anda tak perlu buat apa-apa.
+- Untuk deployment sebenar (24/7), lebih baik daftarkan sebagai Windows Service (contoh guna `nssm` atau Task Scheduler "At startup") supaya server hidup sendiri bila VPS reboot — kalau nak, saya boleh sediakan langkahnya.
+
+---------------------------------------------------------------------------------
+CARA BACKUPS DATA 
+
+# Backup (buat folder backups dulu)
+mkdir C:\backups
+& "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe" `
+  -U corngrid_app -h localhost -Fc corngrid `
+  -f "C:\backups\corngrid-$(Get-Date -Format 'yyyy-MM-dd_HHmm').dump"
+
+# Restore (jika perlu suatu hari nanti)
+& "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" `
+  -U corngrid_app -h localhost -d corngrid --clean "C:\backups\corngrid-XXXX.dump"
+
+-------------------------------------------------------------------------------
+
+vps COMMAND
+
+cd "C:\...\Corngrid-web"
+node db-migrate.js                           # apply/verify schema (idempotent)
+node scripts/migrate-sqlite-to-postgres.js   # one-time data copy (idempotent)
+node server.js                               # start
+node scripts\verify-shutdown.js              # verify graceful stop logic
+curl http://localhost:3000/api/health/ready  # expect "db":"postgres"
+node scripts/pg-check.js                     # connectivity + table counts
+npm test                                     # full suite (uses corngrid_test)
+node scripts/loadtest.js --pg --users 500    # load verification (uses corngrid_loadtest)
+
+-------------------------------------------------------------------------------
+
+# Fail Critical Bila Pindah ke Komputer/VPS Lain
+
+Berita baik: saya sudah semak — **tiada alamat IP atau localhost yang tertanam dalam kod** (frontend guna alamat relatif, semua konfigurasi melalui `.env`). Jadi hanya beberapa perkara ini perlu diubah:
+
+## 1. ⭐ `.env` (satu-satunya fail yang MESTI disesuaikan)
+
+```env
+DATABASE_URL=postgres://corngrid_app:PASSWORD_BARU@localhost:5432/corngrid
+JWT_SECRET=...              # kekalkan sama supaya sesi pengguna tak terlogout
+APP_BASE_URL=https://corngrid.com   # tukar jika domain/IP berubah (untuk link reset password e-mel)
+PORT=3000
+TRUST_PROXY=1
+SMTP_*                      # kekalkan jika guna akaun e-mel sama
+ADMIN_EMAIL / ADMIN_PASSWORD_HASH
+```
+
+- **DATABASE_URL** → kalau PostgreSQL kekal di mesin yang sama dengan server, `localhost` tak perlu tukar — hanya **password baru** mengikut PostgreSQL di komputer baru.
+- **JWT_SECRET** → kekalkan nilai lama. Kalau tukar, semua pengguna terpaksa log masuk semula.
+
+## 2. Perkara yang perlu DIPASANG di komputer baru (bukan fail, tapi wajib)
+
+```powershell
+# a) Node.js 20.17+ → kemudian dalam folder Corngrid-web:
+npm ci
+
+# b) PostgreSQL 16 → kemudian dalam psql:
+CREATE ROLE corngrid_app LOGIN PASSWORD 'password-baru';
+CREATE DATABASE corngrid OWNER corngrid_app;
+
+# c) Pindahkan data (backup dari komputer lama, restore di komputer baru)
+pg_dump -U corngrid_app -h localhost -Fc corngrid -f corngrid-backup.dump     # di PC LAMA
+pg_restore -U corngrid_app -h localhost -d corngrid corngrid-backup.dump      # di PC BARU
+```
+
+Selepas itu `node server.js` — skema akan disemak automatik masa startup.
+
+## 3. Fail DATA yang mesti turut disalin (bukan dalam database)
+
+```
+Corngrid-web\storage\avatars\        ← gambar profil pengguna
+Corngrid-web\public\uploads\feed\    ← gambar post LiveFeed
+Corngrid-web\.env                    ← konfigurasi rahsia (jangan melalui Git!)
+```
+
+## 4. Fail yang TIDAK perlu diubah (tapi perlu disalin)
+
+| Fail/Folder | Nota |
+|---|---|
+| Semua `.js`, `public\`, `migrations\` | Kod — salin apa adanya (Git clone pun boleh) |
+| `files\`, `download\`, `images\`, `video\` | Kandungan muat turun EA & panduan |
+| `capacitor.config.json` | App Android — sudah point ke `https://corngrid.com`; hanya ubah jika domain berubah |
+| `web.config` | Reverse proxy IIS — kecuali jika port/URL berubah |
+
+## 5. Perkara yang JANGAN dibawa
+
+- `node_modules\` → pasang semula dengan `npm ci`
+- `database.sqlite*` → tidak diperlukan (data sudah dalam PostgreSQL); bawa sebagai arkib sahaja jika mahu
+- `.pg-secrets.tmp` → ia rahsia komputer LAMA; komputer baru akan ada password sendiri
+- `android\build\` → build output, dijana semula
+
+## Senarai semak ringkas (checklist pindah)
+
+```
+[ ] 1. Install Node.js + PostgreSQL 16 di komputer baru
+[ ] 2. Clone/copy projek (tanpa node_modules)
+[ ] 3. npm ci
+[ ] 4. Cipta role + database corngrid dalam PostgreSQL baru
+[ ] 5. pg_restore backup dari komputer lama
+[ ] 6. Salin .env → kemas kini DATABASE_URL (password baru)
+[ ] 7. Salin storage\avatars dan public\uploads
+[ ] 8. node server.js → semak "Connected to the CornGrid PostgreSQL database"
+[ ] 9. curl http://localhost:3000/api/health/ready → expect "db":"postgres"
+[ ] 10. Uji login + EA heartbeat + dashboard
+```
+
+Nak saya sediakan satu skrip `migrate-to-new-server.ps1` yang automatikkan langkah 4–9?

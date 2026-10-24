@@ -158,7 +158,7 @@ const POST_SELECT = `
          u.username AS author_username, u.bio AS author_bio, av.file AS author_avatar,
          (SELECT COUNT(*) FROM feed_comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL) AS comment_count,
          (SELECT COUNT(*) FROM feed_likes l WHERE l.post_id = p.id) AS like_count,
-         EXISTS(SELECT 1 FROM feed_likes l2 WHERE l2.post_id = p.id AND l2.user_id = ?) AS liked_by_me
+         CASE WHEN EXISTS(SELECT 1 FROM feed_likes l2 WHERE l2.post_id = p.id AND l2.user_id = ?) THEN 1 ELSE 0 END AS liked_by_me
   FROM feed_posts p
   LEFT JOIN users u ON u.id = p.author_user_id
   LEFT JOIN user_avatars av ON av.user_id = p.author_user_id

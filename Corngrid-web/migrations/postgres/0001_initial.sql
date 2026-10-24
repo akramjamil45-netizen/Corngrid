@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS user_account_access (
 CREATE TABLE IF NOT EXISTS public_portfolios (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   share_id TEXT NOT NULL UNIQUE,
-  is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  is_public INTEGER NOT NULL DEFAULT 0 CHECK (is_public IN (0, 1)),
   updated_at BIGINT NOT NULL
 );
 
@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS feed_posts (
   title TEXT,
   content TEXT NOT NULL,
   image_path TEXT,
-  is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+  is_pinned INTEGER NOT NULL DEFAULT 0 CHECK (is_pinned IN (0, 1)),
   created_at BIGINT NOT NULL,
   updated_at BIGINT,
   deleted_at BIGINT,
@@ -271,4 +271,5 @@ CREATE TABLE IF NOT EXISTS economic_calendar_cache (
 );
 
 COMMIT;
+
 
