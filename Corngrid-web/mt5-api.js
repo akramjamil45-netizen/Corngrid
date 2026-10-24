@@ -734,7 +734,8 @@ function registerMt5Api(app, db, verifyToken) {
       return res.json({ accepted: true, serverTime: new Date(now).toISOString() });
     } catch (databaseError) {
       console.error('Failed to store authenticated MT5 heartbeat:', databaseError.message);
-      return res.status(500).json({ error: 'Unable to store the account snapshot.' });
+      const status = databaseError && databaseError.statusCode ? databaseError.statusCode : 500;
+      return res.status(status).json({ error: status === 503 ? 'Server is busy. Please retry.' : 'Unable to store the account snapshot.' });
     }
   });
 
@@ -787,7 +788,8 @@ function registerMt5Api(app, db, verifyToken) {
       return res.json({ received: validated.length, inserted, duplicatesIgnored: validated.length - inserted });
     } catch (databaseError) {
       console.error('Failed to store MT5 deal imports:', databaseError.message);
-      return res.status(500).json({ error: 'Unable to store trade records.' });
+      const status = databaseError && databaseError.statusCode ? databaseError.statusCode : 500;
+      return res.status(status).json({ error: status === 503 ? 'Server is busy. Please retry.' : 'Unable to store trade records.' });
     }
   });
 

@@ -27,6 +27,7 @@ const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
 const createBackupScheduler = require('./db-backup');
 const createDatabaseRouter = require('./db-router');
+const createPostgresDatabase = process.env.DATABASE_URL ? require('./db-postgres') : null;
 const {
   clearAuthCookie,
   isSameOriginRequest,
@@ -90,6 +91,15 @@ const adminAuth = createAdminAuth({
 });
 
 // Middleware
+// Correlation ID for every request so logs can be traced end-to-end.
+app.use((req, res, next) => {
+  const incoming = req.headers['x-request-id'];
+  const requestId = (typeof incoming === 'string' && incoming.trim()) ? incoming.trim().slice(0, 128) : crypto.randomUUID();
+  req.requestId = requestId;
+  res.set('X-Request-Id', requestId);
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -122,9 +132,39 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
     if (res.statusCode >= 500 || durationMs >= SLOW_REQUEST_LOG_MS) {
-      console.warn(`slow ${req.method} ${req.originalUrl} -> ${res.statusCode} in ${durationMs.toFixed(1)}ms`);
+      console.warn(`[${req.requestId}] slow ${req.method} ${req.originalUrl} -> ${res.statusCode} in ${durationMs.toFixed(1)}ms`);
     }
   });
+  next();
+});
+
+// Concurrency guard for EA ingestion endpoints. A bounded number of in-flight
+// requests protects the single SQLite writer and the Node event loop from
+// unbounded fan-out under a large EA fleet. Excess requests get 503 + Retry-After.
+const EA_INGEST_CONCURRENCY = Number(process.env.EA_INGEST_CONCURRENCY) > 0
+  ? Number(process.env.EA_INGEST_CONCURRENCY)
+  : 100;
+const eaIngestState = { active: 0 };
+function eaIngestLimiter(req, res, next) {
+  if (eaIngestState.active >= EA_INGEST_CONCURRENCY) {
+    res.set('Retry-After', '1');
+    return res.status(503).json({ error: 'Server is busy. Please retry.' });
+  }
+  eaIngestState.active += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    eaIngestState.active = Math.max(0, eaIngestState.active - 1);
+  };
+  res.on('finish', release);
+  res.on('close', release);
+  next();
+}
+app.use((req, res, next) => {
+  if (req.method === 'POST' && /^\/api\/mt5\/(heartbeat|trades|market)$/.test(req.path)) {
+    return eaIngestLimiter(req, res, next);
+  }
   next();
 });
 
@@ -161,34 +201,31 @@ process.on('uncaughtException', (error) => {
 const DB_READ_POOL_SIZE = process.env.DB_READ_POOL_SIZE === undefined
   ? 3 : Math.min(16, Math.max(0, Number(process.env.DB_READ_POOL_SIZE) || 0));
 
-// Connect to the SQLite database
-const primaryDb = new sqlite3.Database(DATABASE_PATH, (err) => {
-  if (err) {
-    console.error('Failed to connect to SQLite:', err.message);
-  } else {
-    console.log('Connected to the CornGrid SQLite database.');
-    primaryDb.serialize(() => {
-      primaryDb.run('PRAGMA journal_mode = WAL;');
-      primaryDb.run('PRAGMA busy_timeout = 5000;');
-      primaryDb.run('PRAGMA synchronous = NORMAL;');
-      primaryDb.run('PRAGMA foreign_keys = ON;');
-      // Keep a larger page cache (~32 MB) and build temporary tables in memory;
-      // both cut disk I/O on the read-heavy market/dashboard queries.
-      primaryDb.run('PRAGMA cache_size = -32000;');
-      primaryDb.run('PRAGMA temp_store = MEMORY;');
-      // Cap WAL growth and checkpoint automatically so a long-running server does
-      // not let the -wal file grow without bound between restarts.
-      primaryDb.run('PRAGMA journal_size_limit = 67108864;');
-      primaryDb.run('PRAGMA wal_autocheckpoint = 1000;');
-    });
-    // The database file now exists and WAL is active, so the read pool can open.
-    db.enableReads();
-  }
-});
-
-// `db` is the rest of the application's entry point to storage: reads go to the
-// read pool, writes to the shared primary connection.
-const db = createDatabaseRouter({ primary: primaryDb, dbPath: DATABASE_PATH, readSize: DB_READ_POOL_SIZE });
+let db;
+if (process.env.DATABASE_URL) {
+  db = createPostgresDatabase(process.env.DATABASE_URL);
+  console.log('Connected to the CornGrid PostgreSQL database.');
+} else {
+  const primaryDb = new sqlite3.Database(DATABASE_PATH, (err) => {
+    if (err) {
+      console.error('Failed to connect to SQLite:', err.message);
+    } else {
+      console.log('Connected to the CornGrid SQLite database.');
+      primaryDb.serialize(() => {
+        primaryDb.run('PRAGMA journal_mode = WAL;');
+        primaryDb.run('PRAGMA busy_timeout = 5000;');
+        primaryDb.run('PRAGMA synchronous = NORMAL;');
+        primaryDb.run('PRAGMA foreign_keys = ON;');
+        primaryDb.run('PRAGMA cache_size = -32000;');
+        primaryDb.run('PRAGMA temp_store = MEMORY;');
+        primaryDb.run('PRAGMA journal_size_limit = 67108864;');
+        primaryDb.run('PRAGMA wal_autocheckpoint = 1000;');
+      });
+      db.enableReads();
+    }
+  });
+  db = createDatabaseRouter({ primary: primaryDb, dbPath: DATABASE_PATH, readSize: DB_READ_POOL_SIZE });
+}
 
 function rateLimit({ limit, windowMs }) {
   const buckets = new Map();
@@ -427,6 +464,32 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     service: 'auth',
     timestamp: Date.now()
+  });
+});
+
+// Liveness: process is up and event loop is responsive.
+app.get('/api/health/live', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Readiness: dependencies (SQLite) can answer within a bounded time.
+app.get('/api/health/ready', (req, res) => {
+  let done = false;
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true;
+    res.status(503).json({ status: 'degraded', db: 'timeout', timestamp: Date.now() });
+  }, 1000);
+  db.get('SELECT 1 AS ok', [], (error, row) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    if (error || !row) {
+      return res.status(503).json({ status: 'degraded', db: 'error', error: error ? error.message : 'no row', timestamp: Date.now() });
+    }
+    let depth;
+    try { depth = require('./db-write').writeQueueDepth(db); } catch (e) { depth = undefined; }
+    res.json({ status: 'ok', db: 'ok', writeQueueDepth: depth, timestamp: Date.now() });
   });
 });
 
@@ -773,7 +836,7 @@ app.use((req, res) => {
 // indefinitely under continuous writes. PASSIVE never blocks readers/writers.
 const WAL_CHECKPOINT_INTERVAL_MS = Number(process.env.WAL_CHECKPOINT_INTERVAL_MS) > 0
   ? Number(process.env.WAL_CHECKPOINT_INTERVAL_MS) : 5 * 60 * 1000;
-const checkpointTimer = setInterval(() => {
+const checkpointTimer = process.env.DATABASE_URL ? null : setInterval(() => {
   db.run('PRAGMA wal_checkpoint(PASSIVE);', error => {
     if (error) console.error('WAL checkpoint failed:', error.message);
   });
@@ -783,7 +846,7 @@ if (checkpointTimer.unref) checkpointTimer.unref();
 // Rolling database backups. Disabled when BACKUP_INTERVAL_HOURS is 0.
 const BACKUP_INTERVAL_HOURS = process.env.BACKUP_INTERVAL_HOURS === undefined
   ? 24 : Number(process.env.BACKUP_INTERVAL_HOURS);
-const backupScheduler = createBackupScheduler({
+const backupScheduler = process.env.DATABASE_URL ? { start(){}, stop(){} } : createBackupScheduler({
   dbPath: DATABASE_PATH,
   dir: process.env.BACKUP_DIR || path.join(__dirname, 'storage', 'backups'),
   intervalMs: Number.isFinite(BACKUP_INTERVAL_HOURS) && BACKUP_INTERVAL_HOURS > 0 ? BACKUP_INTERVAL_HOURS * 3600 * 1000 : 0,
@@ -816,8 +879,8 @@ function shutdown(signal) {
     process.exit(1);
   }, 10000);
   if (forceExit.unref) forceExit.unref();
-  clearInterval(checkpointTimer);
-  backupScheduler.stop();
+  if (checkpointTimer) clearInterval(checkpointTimer);
+  if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
   server.close(() => {
     try {
       if (typeof marketFeed.close === 'function') marketFeed.close();
@@ -825,8 +888,10 @@ function shutdown(signal) {
       console.error('Failed to close the market feed:', feedError.message);
     }
     // Final checkpoint folds the WAL into the database file before exit.
-    db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
+    if (process.env.DATABASE_URL) db.close(() => process.exit(0));
+    else db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
   });
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+

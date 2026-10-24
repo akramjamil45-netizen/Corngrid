@@ -658,7 +658,8 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
       } catch (error) {
         console.error('Market ingest failed:', error.message);
         if (res.headersSent || !clientConnected(res)) return undefined;
-        return res.status(500).json({ accepted: false, error: 'Unable to process market data.' });
+        const status = error && error.statusCode ? error.statusCode : 500;
+        return res.status(status).json({ accepted: false, error: status === 503 ? 'Server is busy. Please retry.' : 'Unable to process market data.' });
       }
     });
 
