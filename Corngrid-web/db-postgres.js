@@ -46,6 +46,9 @@ function createPostgresDatabase(databaseUrl) {
       if (s.endsWith(';')) s = s.slice(0, -1) + ' RETURNING *;';
       else s = s + ' RETURNING *';
     }
+    // Convert SQLite COLLATE NOCASE to PostgreSQL-compatible syntax.
+    s = s.replace(/\s+LIKE\s+(\S+)\s+COLLATE\s+NOCASE\b/gi, ' ILIKE $1');
+    s = s.replace(/\s+COLLATE\s+NOCASE\b/gi, '');
     s = convertPlaceholders(s);
     return s;
   }

@@ -573,12 +573,12 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Email or password is incorrect.' });
     }
 
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ error: 'Email or password is incorrect.' });
+    }
     try {
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return res.status(400).json({ error: 'Email or password is incorrect.' });
-      }
-      if (Buffer.byteLength(password, 'utf8') > 72) {
         return res.status(400).json({ error: 'Email or password is incorrect.' });
       }
 

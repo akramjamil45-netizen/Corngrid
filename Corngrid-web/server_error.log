@@ -1,0 +1,4 @@
+◇ injected env (15) from .env
+Failed to register user: duplicate key value violates unique constraint "users_username_key"
+[d36f7793-a959-47d7-97a8-5b84cc11ea96] slow POST /api/register -> 500 in 355.2ms
+[e76f4592-3416-44e8-ad94-0ac56baef7b9] slow POST /api/forgot-password -> 200 in 4771.9ms

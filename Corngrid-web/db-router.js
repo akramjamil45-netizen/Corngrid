@@ -156,12 +156,12 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
       if (typeof params === 'function') { callback = params; params = []; }
       const timer = setTimeout(() => callback(new Error('Database query timed out')), DB_WRITE_TIMEOUT_MS);
       this.runWithPromise(sql, params, timer).then(
-        result => { clearTimeout(timer); if (typeof callback === 'function') callback(null, result); else throw null; },
+        result => { clearTimeout(timer); if (typeof callback === 'function') callback.call(result, null, result); else throw null; },
         error => { clearTimeout(timer); if (typeof callback === 'function') callback(error); else throw error; }
       );
     },
     exec(sql, callback) {
-      if (typeof callback === 'function') callback = null;
+      if (typeof callback !== 'function') callback = null;
       const timer = setTimeout(() => { if (callback) callback(new Error('Database exec timed out')); else throw new Error('Database exec timed out'); }, DB_WRITE_TIMEOUT_MS);
       this.execWithPromise(sql, timer).then(
         result => { clearTimeout(timer); if (callback) callback(null, result); else throw null; },
@@ -171,10 +171,10 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
     // Promise-based helpers for the callback-compatible methods above.
     runWithPromise(sql, params, timer) {
       return new Promise((resolve, reject) => {
-        primary.run(sql, params, (error) => {
+        primary.run(sql, params, function (error) {
           clearTimeout(timer);
           if (error) reject(error);
-          else resolve({ lastID: 0, changes: 0 });
+          else resolve({ lastID: this && this.lastID, changes: this && this.changes });
         });
       });
     },
