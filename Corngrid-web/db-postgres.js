@@ -49,6 +49,8 @@ function createPostgresDatabase(databaseUrl) {
     // Convert SQLite COLLATE NOCASE to PostgreSQL-compatible syntax.
     s = s.replace(/\s+LIKE\s+(\S+)\s+COLLATE\s+NOCASE\b/gi, ' ILIKE $1');
     s = s.replace(/\s+COLLATE\s+NOCASE\b/gi, '');
+    // PostgreSQL requires json/jsonb for JSON functions; SQLite accepts the CAST too.
+    s = s.replace(/json_each\(\s*\?\s*\)/g, 'json_each(CAST(? AS JSON))');
     s = convertPlaceholders(s);
     return s;
   }

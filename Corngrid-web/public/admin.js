@@ -201,6 +201,9 @@
   }
 
   async function loadSupportMessages(userId) {
+    // Guard against NaN / null / undefined user IDs — the backend correctly
+    // rejects them with a 400, so bail here to avoid firing the request.
+    if (!Number.isSafeInteger(userId)) return;
     try {
       const data = await api(`/api/admin/support/conversations/${encodeURIComponent(userId)}/messages`);
       if (String(selectedSupportUserId) !== String(userId)) return;

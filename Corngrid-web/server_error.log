@@ -2,3 +2,550 @@
 Failed to register user: duplicate key value violates unique constraint "users_username_key"
 [d36f7793-a959-47d7-97a8-5b84cc11ea96] slow POST /api/register -> 500 in 355.2ms
 [e76f4592-3416-44e8-ad94-0ac56baef7b9] slow POST /api/forgot-password -> 200 in 4771.9ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[600f12e8-ca06-4818-90f0-268ebc7ca9a3] slow GET /api/feed?filter=latest&limit=15 -> 500 in 18.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[549cf9c5-1645-44a0-a85a-c16f896332a6] slow GET /api/feed?filter=popular&limit=15 -> 500 in 9.2ms
+Failed to load the administrator overview: operator does not exist: boolean = integer
+[f73c8f42-ce4e-489d-a6ab-2656802e0bc0] slow GET /api/admin/overview?page=1&limit=50&visibility=all&search= -> 500 in 297.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[decec5b4-a113-4cf9-b812-aeb69b1133bb] slow GET /api/feed?filter=latest&limit=15 -> 500 in 12.8ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[37a67236-4593-4332-be28-451cf8a766ff] slow GET /api/feed?filter=latest&limit=15 -> 500 in 16.1ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[634898ce-95d9-4af7-94a8-516dc7bd8617] slow GET /api/feed?filter=popular&limit=15 -> 500 in 28.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[fe9bb036-a7dc-4f52-81ac-1e74f09e92ec] slow GET /api/feed?filter=latest&limit=15 -> 500 in 403.9ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[fc9248fb-e243-4ad2-90a1-5dd3cb56ce6d] slow GET /api/feed?filter=popular&limit=15 -> 500 in 27.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8717cd65-8431-4ea2-9b9e-b48afae3058a] slow POST /api/mt5/heartbeat -> 500 in 26.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[aa62318c-41fb-4b33-9530-be5089282869] slow POST /api/mt5/heartbeat -> 500 in 128.5ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[0b5bec0b-3279-4e26-836c-564b2c537bea] slow GET /api/mt5/accounts -> 500 in 39.1ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[242e2e52-c3ad-46b6-837e-7295ac2435e8] slow GET /api/mt5/accounts -> 500 in 14.4ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[6cb45ee9-41c8-4276-97b1-bf55e4326e7f] slow GET /api/mt5/accounts -> 500 in 225.0ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[c63a5fd4-4be6-4541-af06-3e0661a21fde] slow GET /api/mt5/accounts -> 500 in 10.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[abe0c1f1-2b6d-4536-8864-d39b0e4141a3] slow POST /api/mt5/heartbeat -> 500 in 95.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[28203871-ea8f-4229-97c9-11baa2b41c08] slow GET /api/mt5/accounts -> 500 in 32.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[5e19a372-29b9-45cb-a7af-faa32911c667] slow GET /api/mt5/accounts -> 500 in 33.5ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[21584de7-2926-49b1-9b35-4332b0613f5b] slow GET /api/mt5/accounts -> 500 in 6.3ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[4ae43aab-bb90-4bf7-933d-da305f45575b] slow GET /api/mt5/accounts -> 500 in 9.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[75332eac-fecd-43f9-84ff-3e4c01544e89] slow POST /api/mt5/heartbeat -> 500 in 13.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b2f42320-5504-45aa-b988-4d1daef752b4] slow POST /api/mt5/heartbeat -> 500 in 22.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4bf6d344-c6b4-4e41-a66c-813aba4bfd61] slow POST /api/mt5/heartbeat -> 500 in 13.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[1c177fe6-2542-457b-8bc2-2e38f0bc2db4] slow GET /api/feed?filter=latest&limit=15 -> 500 in 9.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e323e724-76b3-4d2d-9efd-f2e308fcfd63] slow POST /api/mt5/heartbeat -> 500 in 10.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[f0abed70-06d3-44ad-8005-76b1f526d72e] slow GET /api/feed?filter=latest&limit=15 -> 500 in 10.4ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[1648eb42-4582-4a76-be0d-d1bdbde0c365] slow GET /api/feed?filter=popular&limit=15 -> 500 in 10.0ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[a18631a5-ee2b-4bc5-a4f3-0d7e104a2e63] slow GET /api/feed?filter=latest&limit=15 -> 500 in 4.9ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[10e715d4-ff99-41de-9afb-23dca88e5e86] slow GET /api/feed?filter=latest&limit=15 -> 500 in 9.0ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[ef34f119-f59f-4efa-ae2d-168c6e03139a] slow GET /api/feed?filter=popular&limit=15 -> 500 in 165.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[56184bdf-5ef4-4db9-91f5-ffec51ca6303] slow POST /api/mt5/heartbeat -> 500 in 14.9ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[356e7c77-c36a-4700-a96a-734ead89c770] slow GET /api/feed?filter=popular&limit=15 -> 500 in 6.6ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[063c0a74-e0e8-4676-b261-b8369003827b] slow GET /api/feed?filter=latest&limit=15 -> 500 in 90.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[92d3d3d6-d0e5-464d-aa91-68ebab90fef1] slow GET /api/feed?filter=latest&limit=15 -> 500 in 98.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[00a8ee18-0e3a-4636-a3b0-3fbb1d28d3fd] slow GET /api/feed?filter=latest&limit=15 -> 500 in 84.2ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[8ceff9d4-187d-4464-8c89-aa33610fabe0] slow GET /api/feed?filter=latest&limit=15 -> 500 in 93.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[df79631d-7b41-4e26-9ac9-afb743c81d68] slow GET /api/feed?filter=latest&limit=15 -> 500 in 97.0ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[e0144fbd-5190-4bc9-b7ef-8f4b09d8906f] slow GET /api/feed?filter=latest&limit=15 -> 500 in 9.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f0638734-ca7b-4ee1-8e5e-4c3a3eadd861] slow POST /api/mt5/heartbeat -> 500 in 16.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[69ab4f07-653f-4173-873c-e05ebdd73bd5] slow POST /api/mt5/heartbeat -> 500 in 9.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[30449fc5-65c2-4e76-a2e0-4d8b2c9cf71e] slow POST /api/mt5/heartbeat -> 500 in 19.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e4386d65-a441-4261-92cc-5f8285b25cc6] slow POST /api/mt5/heartbeat -> 500 in 23.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[fe67bf82-6f0f-4021-b96c-781f948c2824] slow POST /api/mt5/heartbeat -> 500 in 35.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4a8ef47f-269e-469a-bbf2-4ff001022801] slow POST /api/mt5/heartbeat -> 500 in 17.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8b86bf35-135e-4ff3-a784-8d524a937ff7] slow POST /api/mt5/heartbeat -> 500 in 15.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[980d0e03-8ea1-450f-928d-ec83ca904962] slow POST /api/mt5/heartbeat -> 500 in 16.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[36553c80-e8a8-48ca-bda0-2c5c2c111acc] slow POST /api/mt5/heartbeat -> 500 in 40.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[fe6d6dc1-9175-451f-b55c-309b44d200e6] slow POST /api/mt5/heartbeat -> 500 in 16.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[adce1f09-4735-486e-86f8-1c89feba387f] slow POST /api/mt5/heartbeat -> 500 in 43.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[348e38cf-d981-406b-a489-a678ab1ecea3] slow POST /api/mt5/heartbeat -> 500 in 14.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b2d08621-329e-462f-8a03-ae8f76aca8cc] slow POST /api/mt5/heartbeat -> 500 in 12.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f21cd5ca-e171-4147-8623-d0e65ecec02c] slow POST /api/mt5/heartbeat -> 500 in 11.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[890b33e5-7e06-4695-be6b-f0a23099a671] slow POST /api/mt5/heartbeat -> 500 in 12.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[54269cd7-ae2a-4862-a999-ee2e5e64b8b8] slow POST /api/mt5/heartbeat -> 500 in 10.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0db8dc49-050a-49b3-ba0f-6dbdd2ccbc51] slow POST /api/mt5/heartbeat -> 500 in 14.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[37df748c-9e57-450c-8b97-94112d622c8b] slow POST /api/mt5/heartbeat -> 500 in 17.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a53dc83e-9494-47f7-9dea-4f95370d69f5] slow POST /api/mt5/heartbeat -> 500 in 12.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[67430ef9-b78b-4600-8cfa-9c9253a6c3f8] slow POST /api/mt5/heartbeat -> 500 in 9.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[6fd737e0-65fd-47fd-bfe9-d35d7384fcc1] slow POST /api/mt5/heartbeat -> 500 in 12.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c16558d2-710a-4d67-9c16-ea688274945c] slow POST /api/mt5/heartbeat -> 500 in 12.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d69f4972-5b12-4391-82cb-1bf77ea62e90] slow POST /api/mt5/heartbeat -> 500 in 14.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[711e4492-9208-4a69-86cc-864f8a9cdbd0] slow POST /api/mt5/heartbeat -> 500 in 10.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[55a70a72-8aea-44d4-983a-f222d4111c64] slow POST /api/mt5/heartbeat -> 500 in 13.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e9eb56f4-8ae2-4b8c-8261-5ecd6b0189f7] slow POST /api/mt5/heartbeat -> 500 in 11.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[292e1150-1024-4b45-92aa-0f185dda213c] slow POST /api/mt5/heartbeat -> 500 in 13.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2366eb35-99ab-4c82-b2ed-ab5c9fe080b9] slow POST /api/mt5/heartbeat -> 500 in 10.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1b4751e7-c64b-4941-83ac-2b51b07f9308] slow POST /api/mt5/heartbeat -> 500 in 21.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e7f1597e-4851-43aa-885f-c40284c056e8] slow POST /api/mt5/heartbeat -> 500 in 20.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c82d0575-1220-445d-a8d0-9c60452b2baa] slow POST /api/mt5/heartbeat -> 500 in 19.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[65651285-c12b-4a10-948a-dc98ac527a1a] slow POST /api/mt5/heartbeat -> 500 in 11.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[20503814-3f72-46aa-adfa-575b3ae4972f] slow POST /api/mt5/heartbeat -> 500 in 202.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f4842f00-f113-4936-9931-bd9ac5f7dae9] slow POST /api/mt5/heartbeat -> 500 in 16.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b029a65b-41a2-4795-ba98-09eb5a1e513d] slow POST /api/mt5/heartbeat -> 500 in 17.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[17e87865-cd68-46b7-8d1f-b101a2652d98] slow POST /api/mt5/heartbeat -> 500 in 13.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[151f51cc-97b1-4102-8ff5-c3d5e7a1ca39] slow POST /api/mt5/heartbeat -> 500 in 23.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ea044da3-4c58-4804-88ab-82e6dfb0859a] slow POST /api/mt5/heartbeat -> 500 in 15.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8b140625-28aa-4eb4-ac3e-6e72114d76ec] slow POST /api/mt5/heartbeat -> 500 in 18.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[af34f787-9386-48dd-88db-7f5f5393ba3b] slow POST /api/mt5/heartbeat -> 500 in 12.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0fb3584e-2651-47eb-a451-53d6478140b4] slow POST /api/mt5/heartbeat -> 500 in 24.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[331193f4-116d-415b-84c9-8e3a83a25b66] slow POST /api/mt5/heartbeat -> 500 in 13.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[23fc9f8d-51fe-4337-8938-40dbf164c647] slow POST /api/mt5/heartbeat -> 500 in 19.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2be45792-34fa-494f-9cde-2ff18888eaa0] slow POST /api/mt5/heartbeat -> 500 in 17.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[82b6ee5c-fd40-469e-972a-244dc6991d2a] slow POST /api/mt5/heartbeat -> 500 in 21.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[606ab041-e4da-4067-bdd8-63b72f1e8326] slow POST /api/mt5/heartbeat -> 500 in 175.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f6400dcd-5253-4e77-97ba-4be540c6b965] slow POST /api/mt5/heartbeat -> 500 in 15.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ec8dc757-6405-4f8f-9c0e-100e2b897f3e] slow POST /api/mt5/heartbeat -> 500 in 199.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b4bd2575-e8d7-4064-848d-91211c974bb0] slow POST /api/mt5/heartbeat -> 500 in 192.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[dfb4fc5b-1547-4455-a908-8581a62d8203] slow POST /api/mt5/heartbeat -> 500 in 134.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c5b90444-41c6-44a7-8b49-2671ee4166d1] slow POST /api/mt5/heartbeat -> 500 in 158.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[765af7a6-3ed7-4a37-9003-d7b9b773db2f] slow POST /api/mt5/heartbeat -> 500 in 147.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[546d771e-8bd7-47ca-b4bd-ee9f911b51eb] slow POST /api/mt5/heartbeat -> 500 in 346.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[9172c339-bf96-4644-8016-8bcfb883aa98] slow POST /api/mt5/heartbeat -> 500 in 114.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d17a09c9-4bc5-4b27-b814-151d5ad1aa15] slow POST /api/mt5/heartbeat -> 500 in 119.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[39e2643f-cb6e-43b5-98f5-0ce3bc1935f2] slow POST /api/mt5/heartbeat -> 500 in 206.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d5b82c8e-a86f-44bf-b742-64e8e3f97f2b] slow POST /api/mt5/heartbeat -> 500 in 89.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[31699dac-5ac0-4bea-a02d-dabb8a81c6af] slow POST /api/mt5/heartbeat -> 500 in 129.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4943faf8-dbee-4022-9434-96cd977c28bb] slow POST /api/mt5/heartbeat -> 500 in 317.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[65a37a85-9825-4c6c-874f-cd17efeacca8] slow POST /api/mt5/heartbeat -> 500 in 173.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1a5790c6-781f-4a98-8ef1-b514e9feae82] slow POST /api/mt5/heartbeat -> 500 in 160.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e49adca1-83cb-4a62-a7e6-fe54379cd1de] slow POST /api/mt5/heartbeat -> 500 in 17.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[fd0dcc4d-950a-4ddf-aa79-21e569226094] slow POST /api/mt5/heartbeat -> 500 in 190.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d8069b77-3136-481b-96d4-d3930ef502bb] slow POST /api/mt5/heartbeat -> 500 in 388.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2448c105-618f-4d06-ba40-3b1a525f9fc3] slow POST /api/mt5/heartbeat -> 500 in 37.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7e5ac699-1ded-4b7a-ae3b-4f74bac97881] slow POST /api/mt5/heartbeat -> 500 in 140.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[39972e48-e5ad-4492-804d-559a9e55aeab] slow POST /api/mt5/heartbeat -> 500 in 175.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7902c63b-3b3e-409f-b7b4-dcbabf7d00b1] slow POST /api/mt5/heartbeat -> 500 in 14.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[46cd0fe2-5e8a-4325-9608-ba17c7a50e5c] slow POST /api/mt5/heartbeat -> 500 in 133.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[da551175-ced0-423f-af06-69b1e2f2bd09] slow POST /api/mt5/heartbeat -> 500 in 14.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f7f24106-e730-4608-9c69-28f2241bc589] slow POST /api/mt5/heartbeat -> 500 in 276.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[73437970-220e-4000-aa84-625e9ce04c43] slow POST /api/mt5/heartbeat -> 500 in 17.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8cc8bc54-f6b5-42ef-a98f-12cd5abd8308] slow POST /api/mt5/heartbeat -> 500 in 201.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ff14328b-8d8a-4e35-9047-ed3498382d35] slow POST /api/mt5/heartbeat -> 500 in 15.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1cb05cc4-72db-49a2-a1a3-6fb688a72484] slow POST /api/mt5/heartbeat -> 500 in 199.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[91b99e3c-5c9b-460e-9ca8-baa2947d07d5] slow POST /api/mt5/heartbeat -> 500 in 185.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4ca4eaca-6876-4e28-95a5-2a23687ce782] slow POST /api/mt5/heartbeat -> 500 in 155.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[5458c5be-56f9-4d85-af91-0bc3f59f8d81] slow POST /api/mt5/heartbeat -> 500 in 309.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ea145ca5-c111-4046-ba42-e55ee9fb5f5a] slow POST /api/mt5/heartbeat -> 500 in 94.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0f73ab80-49be-434c-8f5a-e47001b794e0] slow POST /api/mt5/heartbeat -> 500 in 87.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[228d6888-31cf-4834-9748-14467a71e061] slow POST /api/mt5/heartbeat -> 500 in 80.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b277e323-5214-49ab-875a-35b8c12b650b] slow POST /api/mt5/heartbeat -> 500 in 113.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[34be779e-f2ac-4d93-bc8d-605fe3be06f2] slow POST /api/mt5/heartbeat -> 500 in 115.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[5b17ef06-dd23-432e-bc8d-6b0c21e913c0] slow POST /api/mt5/heartbeat -> 500 in 115.4ms
+Ignored a client-aborted request (POST /api/mt5/heartbeat) (0/206 bytes received before the client disconnected).
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[61a53df2-9566-46e6-adce-46b07044a8dc] slow POST /api/mt5/heartbeat -> 500 in 120.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0c1f677d-614a-49e1-8f55-765987f66d49] slow POST /api/mt5/heartbeat -> 500 in 220.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f8b4ac91-1d05-4b3e-ace4-55d395d8686a] slow POST /api/mt5/heartbeat -> 500 in 355.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[425deca7-3990-44bc-a177-e4f2559be06f] slow POST /api/mt5/heartbeat -> 500 in 166.6ms
+Ignored a client-aborted request (POST /api/mt5/market) (0/1923 bytes received before the client disconnected).
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[27c3fcae-9a5f-43f4-98fc-a14c386a0959] slow POST /api/mt5/heartbeat -> 500 in 15.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3bc73640-29cc-4ab5-8796-aa84ca7b1022] slow POST /api/mt5/heartbeat -> 500 in 335.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ffb5a66d-e908-4da4-89de-4e7915a0b413] slow POST /api/mt5/heartbeat -> 500 in 223.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d470a753-e92a-478f-a689-4d28ec16d833] slow POST /api/mt5/heartbeat -> 500 in 171.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[502efd10-3044-4d77-b90d-e09c78f9f566] slow POST /api/mt5/heartbeat -> 500 in 212.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b0365638-f362-45c6-813b-2c625e46421c] slow POST /api/mt5/heartbeat -> 500 in 156.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[49c56d71-529d-4a6d-a25c-38d60c4e0966] slow POST /api/mt5/heartbeat -> 500 in 111.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e452c9b2-fa0b-401b-9978-56b3816a50d3] slow POST /api/mt5/heartbeat -> 500 in 125.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b53ae42b-e0cc-4abd-a9bd-7cc6acd45e2a] slow POST /api/mt5/heartbeat -> 500 in 142.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f2916426-4c61-4d13-be17-58649283eaf7] slow POST /api/mt5/heartbeat -> 500 in 130.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f767bc5b-4537-464e-aa5f-adb36d86acac] slow POST /api/mt5/heartbeat -> 500 in 117.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[19617f0e-2845-4522-bb6b-1cbb5e4b65e2] slow POST /api/mt5/heartbeat -> 500 in 14.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[84286f54-0b97-43bd-8b58-0beb3e158338] slow POST /api/mt5/heartbeat -> 500 in 107.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4063c19a-8224-454b-bda0-464d0a3289d0] slow POST /api/mt5/heartbeat -> 500 in 113.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[eabb451a-ae5c-43a0-84d5-528928c01a1d] slow POST /api/mt5/heartbeat -> 500 in 182.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3a72ffb3-bf3e-413f-952c-537b0f85a0bb] slow POST /api/mt5/heartbeat -> 500 in 505.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4900584d-c8cb-467a-a3fa-9fdec4702fda] slow POST /api/mt5/heartbeat -> 500 in 136.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7d11b704-64a7-4f9a-bf7c-4d8a4e5f4cc2] slow POST /api/mt5/heartbeat -> 500 in 148.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ec1e4a78-426e-4a63-928f-daae3bc00f85] slow POST /api/mt5/heartbeat -> 500 in 127.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4e2f4e0a-46c5-47a6-b78b-771f7a452a3d] slow POST /api/mt5/heartbeat -> 500 in 250.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[cb558379-4355-4f0f-86f3-1a7bb1ab41d6] slow POST /api/mt5/heartbeat -> 500 in 215.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[bb5c22dc-9600-45ed-b0dd-c52efc0b8519] slow POST /api/mt5/heartbeat -> 500 in 181.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[6429df4e-248a-4293-a592-786b51b61461] slow POST /api/mt5/heartbeat -> 500 in 165.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7aad23a8-706a-4f17-95cd-a4f010710aec] slow POST /api/mt5/heartbeat -> 500 in 303.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[43e21ea5-b126-4180-89cb-25809c97750c] slow POST /api/mt5/heartbeat -> 500 in 15.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7eda3237-18f6-4022-a974-db54178c1e4e] slow POST /api/mt5/heartbeat -> 500 in 138.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[bd9f18d5-1d26-42a4-a582-c18dd340216f] slow POST /api/mt5/heartbeat -> 500 in 159.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3c18be7b-d836-49cc-a4c4-0565658d48b8] slow POST /api/mt5/heartbeat -> 500 in 264.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[309854d7-4ecf-47ad-9aaa-57ebeaca5f4a] slow POST /api/mt5/heartbeat -> 500 in 291.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[38e39cc4-8206-470c-ac94-0d5b5c29579a] slow POST /api/mt5/heartbeat -> 500 in 13.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7e18efb0-323f-4d5b-ad53-5253db50935e] slow POST /api/mt5/heartbeat -> 500 in 150.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[43b2d966-d518-46b4-930d-1d6571056b82] slow POST /api/mt5/heartbeat -> 500 in 117.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e0c78b7e-b6b2-4640-a213-20b0f9e037a7] slow POST /api/mt5/heartbeat -> 500 in 15.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[cb8eb4fa-d953-4eba-b860-d0b8d3540edb] slow POST /api/mt5/heartbeat -> 500 in 327.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e3395c2e-c7a4-4e66-ac69-e2646c28d159] slow POST /api/mt5/heartbeat -> 500 in 19.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f1e1efc8-5b6f-406c-918d-c97a95207990] slow POST /api/mt5/heartbeat -> 500 in 124.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[eb9e7b83-0754-4ac5-97a8-3859eb352466] slow POST /api/mt5/heartbeat -> 500 in 22.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3daecf0d-7819-4c85-9115-6d45f07295f6] slow POST /api/mt5/heartbeat -> 500 in 12.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a08e3989-ad78-431e-995f-401ddfcd2125] slow POST /api/mt5/heartbeat -> 500 in 19.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2f5bbd6e-1ad5-480d-a39b-af27ab712090] slow POST /api/mt5/heartbeat -> 500 in 19.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1a5ad6bc-b288-43d5-87b1-4ac976e64a32] slow POST /api/mt5/heartbeat -> 500 in 20.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[fb4711cb-26f1-49ae-8a20-628ae0561962] slow POST /api/mt5/heartbeat -> 500 in 18.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[005f3024-3071-4ab0-afe2-565f824db1ad] slow POST /api/mt5/heartbeat -> 500 in 15.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[45343197-88f7-4eb9-97cd-441e3a68be58] slow POST /api/mt5/heartbeat -> 500 in 16.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7d3e5d70-24dc-410f-912d-6f10366a6804] slow POST /api/mt5/heartbeat -> 500 in 19.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d7380f70-3eaa-4847-bada-2985c31f6f40] slow POST /api/mt5/heartbeat -> 500 in 25.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[84eb0ec8-4c49-4ec0-b5ab-b6b052cb8665] slow POST /api/mt5/heartbeat -> 500 in 24.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[5c9d08d3-326c-424e-872e-33d672a216df] slow POST /api/mt5/heartbeat -> 500 in 193.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d15a7e36-22d8-408b-9ff7-3697ac268beb] slow POST /api/mt5/heartbeat -> 500 in 16.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[9cbc2a03-dc50-4890-a128-6119a6c7b8b9] slow POST /api/mt5/heartbeat -> 500 in 17.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[50bbef2b-4014-4a43-8395-c9c43bd281ab] slow POST /api/mt5/heartbeat -> 500 in 24.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e35e65cc-91c0-4864-8842-47ef83249617] slow POST /api/mt5/heartbeat -> 500 in 15.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[48d531a1-812f-4fbc-9a2c-38517d246073] slow POST /api/mt5/heartbeat -> 500 in 14.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d23b2c41-e57c-4d7f-8601-52e6535cadb8] slow POST /api/mt5/heartbeat -> 500 in 14.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[859923e1-8aa0-4e3d-b157-cf2e82c07bde] slow POST /api/mt5/heartbeat -> 500 in 18.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c861a084-4dc4-4f81-89a9-2ea4f40a3a6f] slow POST /api/mt5/heartbeat -> 500 in 9.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c8f80fb1-13f4-43b3-8925-33f6577c3905] slow POST /api/mt5/heartbeat -> 500 in 19.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a84a1c3d-d886-4663-b791-b81cac47da77] slow POST /api/mt5/heartbeat -> 500 in 11.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[d55fea87-e498-4c9c-b0b6-f57bbd6067d2] slow POST /api/mt5/heartbeat -> 500 in 98.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[fe0555bc-3add-416c-91e3-66bea4f367db] slow POST /api/mt5/heartbeat -> 500 in 11.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a5c53f99-3ae8-4e43-87db-c0cd7fe0f102] slow POST /api/mt5/heartbeat -> 500 in 97.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ab462b88-b613-4347-abd4-bd5a57ea03b4] slow POST /api/mt5/heartbeat -> 500 in 89.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[41af9cc0-7a8a-4eef-861b-7134ac5e92d9] slow POST /api/mt5/heartbeat -> 500 in 12.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[095ac83b-f0e4-44a5-ad30-d5117d584370] slow POST /api/mt5/heartbeat -> 500 in 9.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1378680c-f63e-4100-a2c6-401e656236c0] slow POST /api/mt5/heartbeat -> 500 in 97.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a6ae73d2-af92-4e99-8a4c-4f23c89c886d] slow POST /api/mt5/heartbeat -> 500 in 9.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3b1d70eb-c787-4156-a7ce-dabecb6a002a] slow POST /api/mt5/heartbeat -> 500 in 90.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4a76d094-359f-42b5-ad89-04c58084142e] slow POST /api/mt5/heartbeat -> 500 in 96.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1b8cda95-b2c7-4cca-9289-891077d65e21] slow POST /api/mt5/heartbeat -> 500 in 134.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8878fe04-0d2b-4da8-9410-6b6f32c3be87] slow POST /api/mt5/heartbeat -> 500 in 86.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c085494a-314a-4e80-9dda-38e1a598dd22] slow POST /api/mt5/heartbeat -> 500 in 106.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f75e9138-01b8-4d91-95fe-09e78c31679f] slow POST /api/mt5/heartbeat -> 500 in 13.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[dbab9547-f6ba-4cd7-9f36-fbb4a57d3c4d] slow POST /api/mt5/heartbeat -> 500 in 93.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1246b729-7b1f-4772-93a4-d8b39423dd22] slow POST /api/mt5/heartbeat -> 500 in 10.3ms
+Failed to load the administrator overview: operator does not exist: boolean = integer
+[40c8ad12-25fb-4198-8c27-d3b861000590] slow GET /api/admin/overview?page=1&limit=50&visibility=all&search= -> 500 in 236.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4c743df6-7b97-4bdd-89fd-6e498fa757bb] slow POST /api/mt5/heartbeat -> 500 in 93.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[bd7d4b32-2c98-4cde-88c6-b7c8927a7c83] slow POST /api/mt5/heartbeat -> 500 in 240.1ms
+Failed to load portfolio sharing settings: accountNumber.slice is not a function
+[c50dcb71-872d-49d6-8d1d-15972e91d996] slow GET /api/user/portfolio-sharing -> 500 in 40.2ms
+[5f0f3769-ba90-4f85-ac75-6e750579f7ad] slow GET /api/chat/unread-count -> 200 in 1315.4ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[2f2c2305-7e0d-4403-859a-30fcc174d43d] slow GET /api/mt5/accounts -> 500 in 1405.6ms
+Failed to load portfolio sharing settings: accountNumber.slice is not a function
+[892496bc-dce4-47a3-895b-979663e1eb19] slow GET /api/user/portfolio-sharing -> 500 in 20.7ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[d60c761d-8f4a-4f93-b9b8-d66a20e4b86a] slow GET /api/mt5/accounts -> 500 in 5.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[54ba4a37-d627-4897-8f0a-993d6d85f3a0] slow GET /api/feed?filter=latest&limit=15 -> 500 in 11.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[836623c7-d876-459d-b9f5-543a2d02bc8e] slow POST /api/mt5/heartbeat -> 500 in 14.1ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[19761524-a8dd-4567-a460-c264c62e7c5a] slow GET /api/feed?filter=popular&limit=15 -> 500 in 125.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[befc3490-7f6a-423a-bcc1-35554e5fb7ba] slow GET /api/feed?filter=latest&limit=15 -> 500 in 8.0ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[2a5a88ee-7d37-498c-810b-0795f84b9786] slow GET /api/feed?filter=popular&limit=15 -> 500 in 132.7ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[042c4c6d-bfdd-4ccb-a95f-d741c0727ab7] slow GET /api/feed?filter=popular&limit=15 -> 500 in 5.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[96655188-4318-4616-9313-826ea12f0d4e] slow POST /api/mt5/heartbeat -> 500 in 30.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[74cedece-0538-4c1a-af04-9cdccc055304] slow POST /api/mt5/heartbeat -> 500 in 210.4ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0ab622bf-8522-4e61-9174-33fb7a7b0690] slow POST /api/mt5/heartbeat -> 500 in 1445.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[1dc136c1-6882-4ef3-bcce-5ec24f5fc1fc] slow POST /api/mt5/heartbeat -> 500 in 21.8ms
+[13e2367b-682c-4da1-8a44-79064fada233] slow GET /api/market/candles?symbol=XAUUSD&interval=1h&outputsize=500 -> 200 in 1225.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[3d9870c6-ceff-4b30-90fe-cab6d293fe7d] slow POST /api/mt5/heartbeat -> 500 in 33.3ms
+[6168242d-f6cb-4773-bae6-87cf871dca8a] slow GET /api/chat/unread-count -> 200 in 1227.8ms
+[0991706e-5704-4630-bb4d-03a49b752922] slow GET /api/market/candles?symbol=GBPUSD&interval=1h&outputsize=500 -> 200 in 1407.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[843156f8-0c9e-42d2-aa4d-e4d37a4b43b2] slow POST /api/mt5/heartbeat -> 500 in 43.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2abcf6ee-93f7-4a6a-9f80-8845013654da] slow POST /api/mt5/heartbeat -> 500 in 133.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e44b8ec2-82a0-4937-915a-f11e99ec1968] slow POST /api/mt5/heartbeat -> 500 in 12.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[4d9c228b-b3ae-40e4-a860-9f86292a644b] slow POST /api/mt5/heartbeat -> 500 in 114.9ms
+Failed to load portfolio sharing settings: accountNumber.slice is not a function
+[deb84136-6600-4734-8511-cdffd4642165] slow GET /api/user/portfolio-sharing -> 500 in 23.8ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[fe71408a-6dcf-4995-99d3-2a7917b195dd] slow GET /api/mt5/accounts -> 500 in 250.5ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[52c4c4c2-23d4-42ec-88e4-6511c5c9aff0] slow GET /api/feed?filter=latest&limit=15 -> 500 in 7.5ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[a7f7bdd2-1a04-4fa6-beca-b8d7a247f0fe] slow GET /api/feed?filter=popular&limit=15 -> 500 in 4.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ebb07234-5c50-422c-b604-759e88358894] slow POST /api/mt5/heartbeat -> 500 in 116.8ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[e0ae136f-09bc-4f5d-9b50-b77e56d50c9a] slow GET /api/feed?filter=latest&limit=15 -> 500 in 113.4ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[14ba8d98-a79a-42d2-814d-579f6a03cd06] slow GET /api/feed?filter=popular&limit=15 -> 500 in 5.0ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[a39e314d-615c-455b-8fe0-0a7cb1613828] slow GET /api/feed?filter=latest&limit=15 -> 500 in 11.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[0bd24df4-5bfe-4b68-a946-0476d1b3eb4f] slow GET /api/mt5/accounts -> 500 in 26.9ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[f8e6d633-f4e1-41c9-8c90-66c975db901a] slow GET /api/mt5/accounts -> 500 in 28.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[8b72b066-9ca3-4844-8ff7-7fd677c25c54] slow GET /api/mt5/accounts -> 500 in 3.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[5e9b814f-32fd-4c8c-86b1-7f4cfc400cc3] slow POST /api/mt5/heartbeat -> 500 in 9.7ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[9de8fdca-3361-4677-8db7-25d21d713e26] slow GET /api/mt5/accounts -> 500 in 19.6ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[31e451aa-df6d-4509-9ea9-95a75ae6edf9] slow GET /api/mt5/accounts -> 500 in 3.8ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[59256a0f-4f4f-4ce2-9c8a-9fcd449c90ad] slow GET /api/mt5/accounts -> 500 in 11.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[aa832286-6b34-4549-a401-721c408e19d4] slow POST /api/mt5/heartbeat -> 500 in 249.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[161bd2b8-a6c3-4226-a98b-57ab20ad7d18] slow POST /api/mt5/heartbeat -> 500 in 125.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e5e62700-e892-471a-a930-48faf509c5c4] slow POST /api/mt5/heartbeat -> 500 in 20.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ef34f6b0-c1a9-4f1b-9081-bc18fec9783d] slow POST /api/mt5/heartbeat -> 500 in 109.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[335867e0-ac25-40fb-947e-26149acb33c5] slow POST /api/mt5/heartbeat -> 500 in 14.2ms
+Ignored a client-aborted request (POST /api/mt5/heartbeat) (0/218 bytes received before the client disconnected).
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a2832900-7a3e-4e35-9175-a8fc44b4e105] slow POST /api/mt5/heartbeat -> 500 in 134.0ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[35963036-217c-4d94-a4ed-cf2c5ac34f20] slow POST /api/mt5/heartbeat -> 500 in 32.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e7b21606-e043-46e3-9d2a-7e2b01fa90b8] slow POST /api/mt5/heartbeat -> 500 in 170.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[ee42f02c-56ea-40e8-aafc-8d98855ac94c] slow POST /api/mt5/heartbeat -> 500 in 205.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[2706c878-fb54-4ebf-88f1-99263860a037] slow POST /api/mt5/heartbeat -> 500 in 102.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[7ab3d844-13c7-42f4-b682-56807206caec] slow POST /api/mt5/heartbeat -> 500 in 346.7ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[87b70533-2842-41fd-9db2-7037603babd2] slow POST /api/mt5/heartbeat -> 500 in 185.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[03997822-03f6-4f04-a39c-20bcb09a1a4e] slow POST /api/mt5/heartbeat -> 500 in 281.6ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0d9366ef-5a78-4643-9470-f58c2433e3cc] slow POST /api/mt5/heartbeat -> 500 in 148.2ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[e774ae2a-c0a5-4efe-bd65-5a37b8768686] slow POST /api/mt5/heartbeat -> 500 in 16.8ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[dae1f703-22ac-4143-8e7c-99a7fe942930] slow POST /api/mt5/heartbeat -> 500 in 19.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[8395c735-8759-42b6-93e0-336fb4a40c76] slow GET /api/mt5/accounts -> 500 in 34.3ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[1928a052-94ae-4776-89a1-9cc81b7541b4] slow GET /api/mt5/accounts -> 500 in 28.2ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[f6fa3337-8689-438c-b2ac-0c82999c7b8a] slow GET /api/mt5/accounts -> 500 in 6.7ms
+Failed to load MT5 accounts: accountNumber.slice is not a function
+[95a2c93a-e807-441c-a2c2-1fe6550d2b1e] slow GET /api/mt5/accounts -> 500 in 10.2ms
+Failed to load portfolio sharing settings: accountNumber.slice is not a function
+[91ea1d34-7a83-4383-8a12-6a8f1a808ce2] slow GET /api/user/portfolio-sharing -> 500 in 18.5ms
+Failed to list feed posts: operator does not exist: boolean = integer
+[a3b5913e-bf69-4995-be4d-22be5e355c85] slow GET /api/feed?filter=latest&limit=15 -> 500 in 11.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[75656ff3-03fa-47fc-81c4-ae71366bcf45] slow POST /api/mt5/heartbeat -> 500 in 18.3ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[8629cf7f-7b92-4686-be45-0b8a80e3160e] slow POST /api/mt5/heartbeat -> 500 in 32.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[f13e0c9c-a1c7-4bec-a9ce-ee309c505b19] slow POST /api/mt5/heartbeat -> 500 in 14.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[c909225f-a5fb-4c52-ae30-7631b6505b7b] slow POST /api/mt5/heartbeat -> 500 in 20.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[99bb462c-b78f-410c-8e8e-ac93e610633b] slow POST /api/mt5/heartbeat -> 500 in 38.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[a46fd15e-8513-4c20-8c27-7e1e7759c941] slow POST /api/mt5/heartbeat -> 500 in 20.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[b5c824f3-ca57-4c27-9dd3-054e6b23f924] slow POST /api/mt5/heartbeat -> 500 in 16.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[0d8c8de2-2510-43a3-b5d0-d51310124b4f] slow POST /api/mt5/heartbeat -> 500 in 20.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[205796c5-6a18-45b0-b0ca-663848d2a278] slow POST /api/mt5/heartbeat -> 500 in 14.5ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[09691eb9-d1f0-4c21-887f-b15b3b9ef1ab] slow POST /api/mt5/heartbeat -> 500 in 20.1ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[681d1ebc-c4dd-4cb0-a21f-0c433fcf2985] slow POST /api/mt5/heartbeat -> 500 in 120.9ms
+Failed to store authenticated MT5 heartbeat: operator does not exist: text = json
+[535e157e-46f6-4fa4-85ee-979ecffdfbb5] slow POST /api/mt5/heartbeat -> 500 in 15.7ms

@@ -854,44 +854,59 @@ const backupScheduler = process.env.DATABASE_URL ? { start(){}, stop(){} } : cre
 });
 backupScheduler.start();
 
-// Start the server
-const server = app.listen(PORT, () => {
-  console.log(`CornGrid backend is running at http://localhost:${PORT}`);
-});
-
-// Keep-alive must outlive the proxy's idle timeout so a reused connection is not
-// closed mid-request; requestTimeout caps a single slow request. IIS/ARR
-// defaults to a 120s idle timeout, so a slightly shorter keep-alive is used.
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 66000;
-server.requestTimeout = 120000;
-
-// On redeploy the process gets SIGTERM/SIGINT. Stop accepting connections, let
-// in-flight requests finish, then close the database cleanly so WAL data is
-// checkpointed instead of being recovered on next start.
-let shuttingDown = false;
-function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`Received ${signal}; shutting down CornGrid backend.`);
-  const forceExit = setTimeout(() => {
-    console.error('Graceful shutdown timed out; forcing exit.');
+// Start the server. All the register* calls above fire schema DDL via db.exec
+// / db.run without awaiting completion. SQLite3 serializes statements, so a
+// queued no-op query (SELECT 1) only executes after every CREATE TABLE /
+// PRAGMA from every module has finished. This barrier eliminates the startup
+// race where incoming requests hit tables that don't exist yet (500 errors).
+(async () => {
+  try {
+    await new Promise((resolve, reject) => {
+      db.get('SELECT 1', (error) => (error ? reject(error) : resolve()));
+    });
+  } catch (error) {
+    console.error('Database initialization failed; aborting startup:', error.message);
     process.exit(1);
-  }, 10000);
-  if (forceExit.unref) forceExit.unref();
-  if (checkpointTimer) clearInterval(checkpointTimer);
-  if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
-  server.close(() => {
-    try {
-      if (typeof marketFeed.close === 'function') marketFeed.close();
-    } catch (feedError) {
-      console.error('Failed to close the market feed:', feedError.message);
-    }
-    // Final checkpoint folds the WAL into the database file before exit.
-    if (process.env.DATABASE_URL) db.close(() => process.exit(0));
-    else db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
+  }
+
+  const server = app.listen(PORT, () => {
+    console.log(`CornGrid backend is running at http://localhost:${PORT}`);
   });
-}
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Keep-alive must outlive the proxy's idle timeout so a reused connection is not
+  // closed mid-request; requestTimeout caps a single slow request. IIS/ARR
+  // defaults to a 120s idle timeout, so a slightly shorter keep-alive is used.
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+  server.requestTimeout = 120000;
+
+  // On redeploy the process gets SIGTERM/SIGINT. Stop accepting connections, let
+  // in-flight requests finish, then close the database cleanly so WAL data is
+  // checkpointed instead of being recovered on next start.
+  let shuttingDown = false;
+  function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`Received ${signal}; shutting down CornGrid backend.`);
+    const forceExit = setTimeout(() => {
+      console.error('Graceful shutdown timed out; forcing exit.');
+      process.exit(1);
+    }, 10000);
+    if (forceExit.unref) forceExit.unref();
+    if (checkpointTimer) clearInterval(checkpointTimer);
+    if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
+    server.close(() => {
+      try {
+        if (typeof marketFeed.close === 'function') marketFeed.close();
+      } catch (feedError) {
+        console.error('Failed to close the market feed:', feedError.message);
+      }
+      // Final checkpoint folds the WAL into the database file before exit.
+      if (process.env.DATABASE_URL) db.close(() => process.exit(0));
+      else db.run('PRAGMA wal_checkpoint(TRUNCATE);', () => db.close(() => process.exit(0)));
+    });
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+})();
 

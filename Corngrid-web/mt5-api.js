@@ -209,9 +209,10 @@ function timestamp(value, fallback = Date.now()) {
 }
 
 function maskedAccount(accountNumber) {
-  if (accountNumber.length <= 4) return '•'.repeat(accountNumber.length);
-  const tail = accountNumber.slice(-4);
-  return `${'•'.repeat(Math.min(accountNumber.length - tail.length, 8))}${tail}`;
+  const value = String(accountNumber);
+  if (value.length <= 4) return '•'.repeat(value.length);
+  const tail = value.slice(-4);
+  return `${'•'.repeat(Math.min(value.length - tail.length, 8))}${tail}`;
 }
 
 function formatTimestamp(value) {
@@ -915,7 +916,7 @@ function registerMt5Api(app, db, verifyToken) {
             ON CONFLICT(user_id) DO UPDATE SET
               is_public = excluded.is_public,
               updated_at = excluded.updated_at;
-          `, [ownerId(req), shareId, req.body.isPublic ? 1 : 0, now]);
+          `, [ownerId(req), shareId, Boolean(req.body.isPublic), now]);
           await run(db, 'COMMIT');
         } catch (transactionError) {
           await run(db, 'ROLLBACK').catch(() => {});
@@ -952,7 +953,7 @@ function registerMt5Api(app, db, verifyToken) {
         JOIN users u ON u.id = p.user_id
         JOIN public_portfolio_accounts ppa ON ppa.user_id = p.user_id
         JOIN mt5_accounts a ON a.id = ppa.account_id AND a.user_id = p.user_id
-        WHERE p.is_public = 1
+        WHERE p.is_public
         GROUP BY p.user_id
         ORDER BY p.updated_at DESC
         LIMIT 100
@@ -1324,7 +1325,7 @@ async function getPublicPortfolio(db, shareId) {
     SELECT p.user_id, u.username
     FROM public_portfolios p
     JOIN users u ON u.id = p.user_id
-    WHERE p.share_id = ? AND p.is_public = 1
+    WHERE p.share_id = ? AND p.is_public
   `, [shareId]);
   if (!owner) return null;
 

@@ -53,7 +53,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
       EXISTS (
         SELECT 1 FROM public_portfolios pp
         WHERE pp.user_id = u.id
-          AND pp.is_public = 1
+          AND pp.is_public
           AND EXISTS (
             SELECT 1 FROM public_portfolio_accounts ppa
             WHERE ppa.user_id = u.id
@@ -191,7 +191,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         FROM user_account_access
         WHERE user_id = ? AND suspended_until > ?
       `, [userId, Date.now()]);
-      const maskAccount = value => value.length <= 4 ? '•'.repeat(value.length) : `••••${value.slice(-4)}`;
+      const maskAccount = value => { const v = String(value); return v.length <= 4 ? '•'.repeat(v.length) : `••••${v.slice(-4)}`; };
       return res.json({
         user,
         suspension: suspension || null,

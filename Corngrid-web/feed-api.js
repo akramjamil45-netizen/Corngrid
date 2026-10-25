@@ -178,7 +178,7 @@ function shapePost(row) {
     title: row.title,
     content: row.content,
     imagePath: row.image_path,
-    isPinned: row.is_pinned === 1,
+    isPinned: Boolean(row.is_pinned),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     edited: Boolean(row.updated_at),
@@ -187,7 +187,7 @@ function shapePost(row) {
       : { username: row.author_username, displayName: row.author_username, bio: row.author_bio, avatarUrl: avatarUrl(row.author_avatar) },
     commentCount: row.comment_count,
     likeCount: row.like_count,
-    likedByMe: row.liked_by_me === 1
+    likedByMe: Boolean(row.liked_by_me)
   };
 }
 
@@ -234,7 +234,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
         where += ' AND p.author_user_id = ?';
         params.push(viewerId);
       } else {
-        where += " AND (p.kind = 'community' OR p.is_pinned = 1)";
+        where += " AND (p.kind = 'community' OR p.is_pinned)";
       }
       if (Number.isSafeInteger(cursor) && cursor > 0) {
         where += ' AND p.id < ?';
@@ -654,7 +654,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
           title: row.title,
           content: row.content,
           imagePath: row.image_path,
-          isPinned: row.is_pinned === 1,
+          isPinned: Boolean(row.is_pinned),
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           deleted: Boolean(row.deleted_at)
@@ -675,7 +675,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     if (req.body && req.body.imagePath != null && !imagePath) {
       return res.status(400).json({ error: 'Image must be uploaded through the image endpoint first.' });
     }
-    const isPinned = req.body && req.body.isPinned ? 1 : 0;
+    const isPinned = Boolean(req.body && req.body.isPinned);
     try {
       const now = Date.now();
       const result = await run(db, `
@@ -705,7 +705,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
       const params = [];
       if (title !== undefined) { sets.push('title = ?'); params.push(title); }
       if (content !== undefined) { sets.push('content = ?'); params.push(content); }
-      if (hasPin) { sets.push('is_pinned = ?'); params.push(req.body.isPinned ? 1 : 0); }
+      if (hasPin) { sets.push('is_pinned = ?'); params.push(Boolean(req.body.isPinned)); }
       if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
       sets.push('updated_at = ?');
       params.push(Date.now());

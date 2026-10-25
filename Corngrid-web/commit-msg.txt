@@ -1,0 +1,12 @@
+Fix PostgreSQL type mismatches - boolean/numeric/JSON casts
+
+Verified via comprehensive test: all endpoints (feed, mt5/accounts, user/portfolio-sharing)
+return 200 with auth and 401 without auth. No 500 errors remain.
+
+- mt5-api.js: Boolean() for is_public column inserts (line 919)
+- feed-api.js: JSON casting for mt5_orders
+- admin-api.js: boolean handling for MT5 account creation
+- db-postgres.js: numeric/boolean type coercion
+- server.js: JWT and validation type consistency
+- public/admin.js: frontend boolean values
+- Removed temporary server_output.log
