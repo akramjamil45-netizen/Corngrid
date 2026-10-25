@@ -165,6 +165,13 @@ test('Community feed: posts, comments, likes, profiles, and admin announcements'
     const unpinned = await (await request('/api/feed?filter=announcements', aliceToken)).json();
     assert.equal(unpinned.posts[0].isPinned, false, 'admin can unpin');
     assert.equal((await request(`/api/feed/announcements/${announcementId}`, null, { method: 'PATCH', admin: true, body: JSON.stringify({ title: 'Updated title' }) })).status, 200, 'admin can edit announcements');
+    const adminAnnouncements = await (await request('/api/feed/announcements', null, { admin: true })).json();
+    assert.equal(adminAnnouncements.announcements.find(item => item.id === announcementId).title, 'Updated title', 'admin list reflects edits');
+    assert.equal((await request(`/api/feed/announcements/${announcementId}`, null, { method: 'DELETE', admin: true })).status, 200, 'admin can delete announcements');
+    const afterAnnouncementDelete = await (await request('/api/feed/announcements', null, { admin: true })).json();
+    assert.ok(!afterAnnouncementDelete.announcements.some(item => item.id === announcementId), 'deleted announcement is removed from the admin list');
+    const feedAfterAnnouncementDelete = await (await request('/api/feed?filter=announcements', aliceToken)).json();
+    assert.ok(!feedAfterAnnouncementDelete.posts.some(post => post.id === announcementId), 'deleted announcement is removed from the feed');
 
 
     // --- Reports and moderation ---

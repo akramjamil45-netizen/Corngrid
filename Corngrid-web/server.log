@@ -1,0 +1,35 @@
+◇ injected env (15) from .env
+Connected to the CornGrid PostgreSQL database.
+CornGrid backend is running at http://localhost:3000
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[4f016bbc-f1f9-4b8b-8a48-1592f4c5c7cf] slow POST /api/mt5/heartbeat -> 500 in 46.2ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[842f2bbf-b438-4e30-91ab-4eab177c2f66] slow POST /api/mt5/heartbeat -> 500 in 16.2ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[ed1c6bf1-eec2-4e8e-93ec-c9218bb7e7b1] slow POST /api/mt5/heartbeat -> 500 in 141.9ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[976c2494-f7e1-49a8-8fb8-d97ef6f4302d] slow POST /api/mt5/heartbeat -> 500 in 23.9ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[7c9d49f8-344e-42c8-9e04-fe80cb891679] slow POST /api/mt5/heartbeat -> 500 in 28.9ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[bac6e384-6a95-44a7-ac22-f902ce08c7af] slow POST /api/mt5/heartbeat -> 500 in 26.1ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[1c40c6e4-54da-4c81-b0ba-a06db635e8b2] slow POST /api/mt5/heartbeat -> 500 in 34.9ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[acfc00f4-b7b6-41d2-adef-452296d214ca] slow POST /api/mt5/heartbeat -> 500 in 21.6ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[279f8d09-66e4-4082-a548-85c66d61bcd1] slow POST /api/mt5/heartbeat -> 500 in 149.1ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[9f4034ed-a0cb-48bb-956f-eb8809555747] slow POST /api/mt5/heartbeat -> 500 in 192.4ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[65c76f0c-09d1-4b0d-8d5a-29e1a2d8d95c] slow POST /api/mt5/heartbeat -> 500 in 179.5ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[1f2f4ec2-58d4-4114-ae70-e90cbdfd3135] slow POST /api/mt5/heartbeat -> 500 in 200.2ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[060e912e-a97f-4ae4-9047-f6559ab4fdd3] slow POST /api/mt5/heartbeat -> 500 in 26.9ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[a5b01af5-19cf-45b8-be4d-7fc5b6625206] slow POST /api/mt5/heartbeat -> 500 in 23.1ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[04c31dcd-c30d-4c76-9e60-37265259b2ef] slow POST /api/mt5/heartbeat -> 500 in 32.2ms
+Failed to store authenticated MT5 heartbeat: cannot deconstruct an array as an object
+[75eaebcb-d17c-4fb8-8aca-b9e2bdd183a6] slow POST /api/mt5/heartbeat -> 500 in 225.6ms

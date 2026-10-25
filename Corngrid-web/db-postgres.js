@@ -1,5 +1,21 @@
 'use strict';
-const { Pool } = require('pg');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const { Pool, types } = require('pg');
+
+// PostgreSQL returns BIGINT (int8) and NUMERIC as strings to avoid precision
+// loss. The application uses BIGINT for ids and epoch-millisecond timestamps,
+// and COUNT()/SUM() results, so parse them as numbers here. Values outside the
+// safe range are kept as strings.
+types.setTypeParser(20, value => {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : value;
+});
+types.setTypeParser(1700, value => {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+});
 
 function convertPlaceholders(sql) {
   let out = '';
@@ -14,20 +30,24 @@ function convertPlaceholders(sql) {
   return out;
 }
 
-function normalizeRows(rows) {
-  return (rows || []).map((row) => {
-    const next = {};
-    for (const key of Object.keys(row)) {
-      const value = row[key];
-      if (typeof value === 'string' && /^-?\d+$/.test(value)) next[key] = Number(value);
-      else next[key] = value;
-    }
-    return next;
-  });
+function normalizeError(error) {
+  // SQLite reports a duplicate key as "UNIQUE constraint failed: ..."; the
+  // application checks that message. Give PostgreSQL's 23505 the same shape.
+  if (error && error.code === '23505') {
+    const detail = error.constraint || error.detail || 'unique constraint';
+    const normalized = new Error(`UNIQUE constraint failed: ${detail}`);
+    normalized.code = error.code;
+    normalized.constraint = error.constraint;
+    return normalized;
+  }
+  return error;
 }
 
 function createPostgresDatabase(databaseUrl) {
   const pool = new Pool({ connectionString: databaseUrl });
+  // A transaction pins one pooled connection for the duration of the task, so
+  // every query made inside it must use that same client.
+  const transactionContext = new AsyncLocalStorage();
   let closed = false;
 
   function transform(sql, forRun) {
@@ -47,10 +67,21 @@ function createPostgresDatabase(databaseUrl) {
       else s = s + ' RETURNING *';
     }
     // Convert SQLite COLLATE NOCASE to PostgreSQL-compatible syntax.
+    // LIKE has a native case-insensitive form; equality needs LOWER() on both
+    // sides because PostgreSQL collations are case-sensitive by default.
     s = s.replace(/\s+LIKE\s+(\S+)\s+COLLATE\s+NOCASE\b/gi, ' ILIKE $1');
+    s = s.replace(/([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*\?\s+COLLATE\s+NOCASE\b/gi, 'LOWER($1) = LOWER(?)');
     s = s.replace(/\s+COLLATE\s+NOCASE\b/gi, '');
-    // PostgreSQL requires json/jsonb for JSON functions; SQLite accepts the CAST too.
-    s = s.replace(/json_each\(\s*\?\s*\)/g, 'json_each(CAST(? AS JSON))');
+    // PostgreSQL's json_each() expects a JSON object, not an array.
+    // SQLite's json_each() works with both objects and arrays, but callers
+    // in this codebase pass JSON arrays (e.g. kept ticket lists).
+    // Replace with json_array_elements_text() which handles JSON arrays and
+    // returns each element as text, matching SQLite's behavior with arrays.
+    // Also adjust "SELECT value FROM" since json_array_elements_text returns
+    // an unnamed text column rather than a named "value" column.
+    s = s.replace(/SELECT\s+value\s+FROM\s+json_each\(\s*\?\s*\)/gi,
+                  'SELECT * FROM json_array_elements_text(CAST(? AS JSON))');
+    s = s.replace(/json_each\(\s*\?\s*\)/g, 'json_array_elements_text(CAST(? AS JSON))');
     s = convertPlaceholders(s);
     return s;
   }
@@ -58,12 +89,36 @@ function createPostgresDatabase(databaseUrl) {
   async function query(sql, params, forRun) {
     const text = transform(sql, forRun);
     if (text === 'SELECT 1') return { rows: [], rowCount: 0 };
-    const result = await pool.query(text, params || []);
-    return { rows: normalizeRows(result.rows), rowCount: result.rowCount || 0 };
+    if (process.env.DEBUG_SQL) console.error('[SQL]', text, JSON.stringify(params || []));
+    const context = transactionContext.getStore();
+    const executor = context ? context.client : pool;
+    let result;
+    try {
+      result = await executor.query(text, params || []);
+    } catch (error) {
+      throw normalizeError(error);
+    }
+    return { rows: result.rows, rowCount: result.rowCount || 0 };
   }
 
   const db = {
     serialize(fn) { if (typeof fn === 'function') fn(); },
+    async transaction(task) {
+      // Nested calls already share the outer transaction.
+      if (transactionContext.getStore()) return task();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await transactionContext.run({ client }, task);
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        try { await client.query('ROLLBACK'); } catch { /* connection is already unusable */ }
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
     async run(sql, params, callback) {
       let cb = callback;
       let p = params;

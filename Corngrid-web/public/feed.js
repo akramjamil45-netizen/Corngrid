@@ -507,6 +507,7 @@
   async function loadMyProfileSummary() {
     try {
       const me = await request('/me');
+      const previousUsername = state.myUsername;
       state.myUsername = me.username;
       CornGridAvatar.fill($('feed-composer-avatar'), me);
       $('feed-side-username').textContent = me.username;
@@ -522,8 +523,9 @@
         $('feed-side-posts').textContent = String(profile.profile.postCount);
         $('feed-side-comments').textContent = String(profile.profile.commentCount);
       } catch { /* non-fatal: keep the zeros already rendered */ }
-      // Re-render any loaded cards so Edit/Delete controls match the viewer.
-      if (state.loaded) loadFeed();
+      // Re-render loaded cards only when the viewer identity just became known
+      // (first load); onOpen() already refreshes a loaded feed on every visit.
+      if (state.loaded && previousUsername !== state.myUsername) loadFeed();
     } catch (error) {
       if (error && error.name === 'AbortError') return;
       if (state.abortController && state.abortController.signal.aborted) return;
@@ -624,12 +626,15 @@
   }
 
   window.CornGridFeed = {
+    refresh() {
+      if (state.loaded) loadFeed();
+    },
     onOpen() {
       if (state.abortController) state.abortController.abort();
       state.abortController = new AbortController();
       if (!eventsBound) { bindEvents(); eventsBound = true; }
       loadMyProfileSummary();
-      if (!state.loaded) loadFeed();
+      loadFeed();
       // Deep link support: /dashboard.html?post=<id> opens that post's comments.
       const postId = new URLSearchParams(window.location.search).get('post');
       if (postId && state.loaded === false) {

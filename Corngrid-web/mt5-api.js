@@ -954,7 +954,7 @@ function registerMt5Api(app, db, verifyToken) {
         JOIN public_portfolio_accounts ppa ON ppa.user_id = p.user_id
         JOIN mt5_accounts a ON a.id = ppa.account_id AND a.user_id = p.user_id
         WHERE p.is_public
-        GROUP BY p.user_id
+        GROUP BY p.user_id, p.share_id, u.username, p.updated_at
         ORDER BY p.updated_at DESC
         LIMIT 100
       `);
@@ -1109,7 +1109,7 @@ function registerMt5Api(app, db, verifyToken) {
         SELECT captured_at, balance, equity
         FROM ordered_snapshots
         WHERE row_number = 1 OR row_number = row_count
-          OR row_number % MAX(1, CAST((row_count + 499) / 500 AS INTEGER)) = 0
+          OR row_number % CAST((row_count + 499) / 500 AS INTEGER) = 0
         ORDER BY captured_at ASC
       `, [ownerId(req), ...dealParams, since, until]) : [];
 
@@ -1392,7 +1392,7 @@ async function getPublicPortfolio(db, shareId) {
       )
       SELECT captured_at, balance, equity FROM ordered_snapshots
       WHERE row_number = 1 OR row_number = row_count
-        OR row_number % MAX(1, CAST((row_count + 499) / 500 AS INTEGER)) = 0
+        OR row_number % CAST((row_count + 499) / 500 AS INTEGER) = 0
       ORDER BY captured_at ASC
     `, [accounts[0].id]);
     let peak = null;

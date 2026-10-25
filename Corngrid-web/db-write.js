@@ -49,7 +49,11 @@ function exclusive(db, task) {
 
   pendingCounts.set(db, pendingFor(db) + 1);
 
-  const result = queueFor(db).then(() => holders.run(true, task));
+  // PostgreSQL has no shared connection to protect, but it should still make
+  // the whole block atomic. The SQLite path has no transaction() helper and
+  // keeps using its existing explicit BEGIN/COMMIT statements.
+  const runTask = () => (typeof db.transaction === 'function' ? db.transaction(task) : task());
+  const result = queueFor(db).then(() => holders.run(true, runTask));
   // Swallow the failure on the chain itself so one error does not poison the
   // queue for every later writer.
   queues.set(db, result.then(() => undefined, () => undefined));

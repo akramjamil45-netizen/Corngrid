@@ -81,7 +81,9 @@ function registerChatApi(app, db, verifyToken) {
     try {
       const row = await get(db, `
         SELECT
-          (SELECT COUNT(*) FROM direct_messages WHERE recipient_id = ? AND read_at IS NULL) +
+          (SELECT COUNT(*) FROM direct_messages dm
+            JOIN users sender ON sender.id = dm.sender_id
+            WHERE dm.recipient_id = ? AND dm.read_at IS NULL) +
           (SELECT COUNT(*) FROM support_messages WHERE user_id = ? AND sender_role = 'admin' AND read_at IS NULL)
           AS unread_count
       `, [req.user.id, req.user.id]);

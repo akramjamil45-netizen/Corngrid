@@ -645,7 +645,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     try {
       const rows = await all(db, `
         SELECT id, title, content, image_path, is_pinned, created_at, updated_at, deleted_at
-        FROM feed_posts WHERE kind = 'announcement'
+        FROM feed_posts WHERE kind = 'announcement' AND deleted_at IS NULL
         ORDER BY is_pinned DESC, id DESC LIMIT 100
       `);
       return res.json({

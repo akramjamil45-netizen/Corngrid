@@ -53,6 +53,9 @@
   const API = '/api';
   const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
+  const statCounters = new WeakMap();
+  let overviewInFlight = false;
+  let overviewQueued = false;
 
   function renderOverviewAccountSelector() {
     const select = $('#overview-account-select');
@@ -214,35 +217,49 @@
     const prefix = element.dataset.prefix || '';
     const suffix = element.dataset.suffix || '';
 
-    // If already has a counter instance, stop it first
-    if (element._counterInstance) {
-      element._counterInstance.stop();
-      element._counterInstance = null;
+    const previous = statCounters.get(element);
+    if (previous && typeof previous.stop === 'function') {
+      try { previous.stop(); } catch (_) {}
+    }
+    statCounters.delete(element);
+
+    const end = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d\-\.]/g, '') || '0');
+    const renderStatic = () => {
+      element.textContent = String(value ?? 'N/A');
+      element.classList.remove('positive', 'negative');
+      if (tone) element.classList.add(tone);
+    };
+
+    if (typeof Counter !== 'function' || !Number.isFinite(currentValue) || !Number.isFinite(end)) {
+      renderStatic();
+      return;
     }
 
-    // Create and start counter animation
-    element._counterInstance = new Counter({
+    const counter = new Counter({
       element,
       start: currentValue,
-      end: typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d\-\.]/g, '') || '0'),
+      end,
       format,
-      prefix: prefix || (value >= 0 && !isNaN(value) ? '$' : ''), // Only add $ for positive/neutral values in money context
+      prefix: prefix || (value >= 0 && !isNaN(value) ? '$' : ''),
       suffix: suffix || (tone === 'positive' ? '' : ''),
       duration: 600,
       onUpdate: (display) => {
         element.textContent = display;
-        // Also update the class for tone
         element.classList.remove('positive', 'negative');
         if (tone) element.classList.add(tone);
       },
       onComplete: () => {
-        // Ensure final value has correct tone class
         element.classList.remove('positive', 'negative');
         if (tone) element.classList.add(tone);
       }
     });
 
-    element._counterInstance.start();
+    if (!counter || typeof counter.start !== 'function') {
+      renderStatic();
+      return;
+    }
+    statCounters.set(element, counter);
+    counter.start();
   }
 
   function showPage(name) {
@@ -527,6 +544,23 @@
   }
 
   async function loadOverview() {
+    if (overviewInFlight) {
+      overviewQueued = true;
+      return;
+    }
+    overviewInFlight = true;
+    try {
+      await loadOverviewData();
+    } finally {
+      overviewInFlight = false;
+      if (overviewQueued) {
+        overviewQueued = false;
+        loadOverview();
+      }
+    }
+  }
+
+  async function loadOverviewData() {
     let accountsLoaded = false;
     $$('.stat-value').forEach(element => element.classList.add('is-loading'));
     try {
@@ -1396,6 +1430,7 @@
     if (!document.hidden && state.page === 'monitoring') loadMonitoring();
     if (!document.hidden) updateChatUnread().catch(error => console.error('Unable to refresh unread chat count:', error));
     if (!document.hidden && state.page === 'chat') refreshChat(false);
+    if (!document.hidden && state.page === 'feed' && window.CornGridFeed) window.CornGridFeed.refresh();
   });
   window.setInterval(() => {
     if (!document.hidden) {
