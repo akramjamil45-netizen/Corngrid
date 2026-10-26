@@ -54,6 +54,10 @@
   const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
   const statCounters = new WeakMap();
+  const statUpdateTimers = new WeakMap();
+  const seenChatMessages = new Set();
+  let chatUnreadCount = 0;
+  let chartSignature = '';
   let overviewInFlight = false;
   let overviewQueued = false;
 
@@ -204,18 +208,50 @@
     return '<span class="pill pill-muted">Waiting for data</span>';
   }
 
+  function parseStatDisplay(value) {
+    const text = String(value ?? '').trim();
+    const match = text.match(/^(-?[\d,]+(?:\.\d+)?)(?:\s*([A-Z]{2,5}|%))?$/);
+    if (!match) return null;
+    const end = Number(match[1].replace(/,/g, ''));
+    if (!Number.isFinite(end)) return null;
+    const decimals = (match[1].split('.')[1] || '').length;
+    return {
+      end,
+      suffix: match[2] || '',
+      format: decimals ? `#,##0.${'0'.repeat(decimals)}` : '#,##0'
+    };
+  }
+
+  function pulseStatCard(element) {
+    const card = element.closest('.stat-card');
+    if (!card) return;
+    window.clearTimeout(statUpdateTimers.get(card));
+    card.classList.remove('is-updated');
+    void card.offsetWidth;
+    card.classList.add('is-updated');
+    statUpdateTimers.set(card, window.setTimeout(() => card.classList.remove('is-updated'), 900));
+  }
+
+  function pulseBadge(badge) {
+    if (!badge) return;
+    badge.classList.remove('is-bumping');
+    void badge.offsetWidth;
+    badge.classList.add('is-bumping');
+    badge.addEventListener('animationend', () => badge.classList.remove('is-bumping'), { once: true });
+  }
+
   function setStat(name, value, tone = '') {
     const element = $(`[data-stat="${name}"]`);
     if (!element) return;
+    const display = String(value ?? 'N/A');
+    const previousValue = element.dataset.statValue;
+    const previousText = element.textContent || '';
+    const firstLoad = element.dataset.loaded !== 'true';
+    const changed = firstLoad || previousValue !== display || previousText !== display;
 
-    // Get current value from element text (strip any non-numeric chars)
-    const currentText = element.textContent || '0';
-    const currentValue = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-
-    // Determine format and suffix from element attributes or default
-    const format = element.dataset.format || '#,##0.00';
-    const prefix = element.dataset.prefix || '';
-    const suffix = element.dataset.suffix || '';
+    element.dataset.loaded = 'true';
+    element.dataset.statValue = display;
+    if (!changed) return;
 
     const previous = statCounters.get(element);
     if (previous && typeof previous.stop === 'function') {
@@ -223,43 +259,48 @@
     }
     statCounters.delete(element);
 
-    const end = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d\-\.]/g, '') || '0');
-    const renderStatic = () => {
-      element.textContent = String(value ?? 'N/A');
+    const applyTone = () => {
       element.classList.remove('positive', 'negative');
       if (tone) element.classList.add(tone);
     };
+    const renderStatic = () => {
+      element.textContent = display;
+      applyTone();
+    };
 
-    if (typeof Counter !== 'function' || !Number.isFinite(currentValue) || !Number.isFinite(end)) {
-      renderStatic();
-      return;
-    }
-
-    const counter = new Counter({
-      element,
-      start: currentValue,
-      end,
-      format,
-      prefix: prefix || (value >= 0 && !isNaN(value) ? '$' : ''),
-      suffix: suffix || (tone === 'positive' ? '' : ''),
-      duration: 600,
-      onUpdate: (display) => {
-        element.textContent = display;
-        element.classList.remove('positive', 'negative');
-        if (tone) element.classList.add(tone);
-      },
-      onComplete: () => {
-        element.classList.remove('positive', 'negative');
-        if (tone) element.classList.add(tone);
+    // Count up once, when the first real value arrives. Later updates are
+    // applied instantly so polling never delays or rewinds live figures.
+    const parsed = firstLoad ? parseStatDisplay(display) : null;
+    if (parsed && typeof Counter === 'function') {
+      const counter = new Counter({
+        element,
+        start: 0,
+        end: parsed.end,
+        format: parsed.format,
+        prefix: '',
+        suffix: parsed.suffix,
+        duration: 520,
+        onUpdate: applyTone,
+        onComplete: () => {
+          renderStatic();
+        }
+      });
+      if (counter && typeof counter.start === 'function') {
+        statCounters.set(element, counter);
+        counter.start();
+        return;
       }
-    });
-
-    if (!counter || typeof counter.start !== 'function') {
-      renderStatic();
-      return;
     }
-    statCounters.set(element, counter);
-    counter.start();
+
+    renderStatic();
+    if (!firstLoad) pulseStatCard(element);
+  }
+
+  function setOverviewStatsLoading(loading) {
+    $$('.stat-value').forEach(element => {
+      if (!loading) element.classList.remove('is-loading');
+      else if (element.dataset.loaded !== 'true') element.classList.add('is-loading');
+    });
   }
 
   function showPage(name) {
@@ -383,7 +424,7 @@
         stream.innerHTML = '<div class="chat-empty-state"><span class="chat-empty-state-icon">💬</span><h3>Start the conversation</h3><p class="muted">Send a message to begin chatting.</p></div>';
       } else {
         stream.innerHTML = messages.map(message => `
-          <div class="chat-row ${message.isMine ? 'is-mine' : 'is-peer'}">
+          <div class="chat-row ${message.isMine ? 'is-mine' : 'is-peer'}" data-message-id="${escapeHtml(message.id)}">
             ${CornGridAvatar.html(message.isMine ? state.profile : data.peer, '', 'chat-avatar chat-avatar-sm')}
             <div class="chat-bubble-wrap ${message.isMine ? 'is-mine' : 'is-peer'}">
               <div class="chat-bubble">${escapeHtml(message.message)}</div>
@@ -391,6 +432,13 @@
             </div>
           </div>
         `).join('');
+        stream.querySelectorAll('.chat-row').forEach(row => {
+          const id = row.dataset.messageId;
+          if (!id || seenChatMessages.has(id)) return;
+          seenChatMessages.add(id);
+          row.classList.add('is-entering');
+          row.addEventListener('animationend', () => row.classList.remove('is-entering'), { once: true });
+        });
       }
       if (scroll || wasAtBottom) stream.scrollTop = stream.scrollHeight;
       else stream.scrollTop = previousScrollTop;
@@ -460,12 +508,16 @@
         const data = await request('/chat/unread-count');
         const badge = $('#chat-nav-badge');
         const count = Number(data.unreadCount) || 0;
+        const increased = count > chatUnreadCount;
         badge.hidden = count === 0;
         badge.textContent = count > 99 ? '99+' : String(count);
+        chatUnreadCount = count;
+        if (increased && count) pulseBadge(badge);
       } catch (error) {
         // Chat unread count endpoint may not be available - hide badge silently
         const badge = $('#chat-nav-badge');
         if (badge) badge.hidden = true;
+        chatUnreadCount = 0;
       } finally {
         chatUnreadPromise = null;
       }
@@ -562,14 +614,14 @@
 
   async function loadOverviewData() {
     let accountsLoaded = false;
-    $$('.stat-value').forEach(element => element.classList.add('is-loading'));
+    setOverviewStatsLoading(true);
     try {
       const accountList = await request('/mt5/accounts');
       state.accounts = accountList.accounts || [];
       accountsLoaded = true;
       renderOverviewAccountSelector();
       if (!state.accounts.length) {
-        $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+        setOverviewStatsLoading(false);
         $('#data-notice').hidden = true;
         $('#connection-summary').hidden = false;
         $('#connection-summary').innerHTML = '<div class="connection-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div><strong>No MT5 account linked</strong><p>Link an account to see balance, performance and trade activity here.</p><button class="button button-primary" data-go="accounts">Link an MT5 account</button>';
@@ -589,11 +641,11 @@
         const from = $('#period-from').value;
         const to = $('#period-to').value;
         if (!from || !to) {
-          $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+          setOverviewStatsLoading(false);
           return;
         }
         if (from > to) {
-          $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+          setOverviewStatsLoading(false);
           return toast('The custom start date must be on or before the end date.', 'error');
         }
         performanceParams.set('from', from);
@@ -604,7 +656,7 @@
         request(`/portfolio/performance?${performanceParams}`),
         request(`/portfolio/positions?page=1&limit=5${accountParams.size ? `&${accountParams}` : ''}`)
       ]);
-      $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+      setOverviewStatsLoading(false);
       const selectedAccount = state.overviewAccountId
         ? (portfolio.accounts || []).find(account => String(account.id) === state.overviewAccountId)
         : null;
@@ -642,7 +694,8 @@
       $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Overview metrics, chart, EA status, and open positions are scoped to the selected MT5 account. No demo or estimated trading figures are used.</span>';
       $('#data-notice').hidden = true;
     } catch (error) {
-      $$('.stat-value').forEach(element => element.classList.remove('is-loading'));
+      setOverviewStatsLoading(false);
+      chartSignature = '';
       $$('[data-stat]').forEach(element => {
         element.textContent = 'N/A';
         element.classList.remove('positive', 'negative');
@@ -685,12 +738,23 @@
   function renderChart(snapshots, currency, unavailableReason) {
     const chart = $('#equity-chart');
     if (!snapshots.length) {
+      const signature = `empty|${unavailableReason || ''}`;
+      if (signature === chartSignature) return;
+      chartSignature = signature;
       chart.innerHTML = `<div class="chart-empty"><span class="empty-chart-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><strong>No equity history available</strong><span>${escapeHtml(unavailableReason || 'Historical chart data will appear after the selected EA sends account snapshots.')}</span></div>`;
       return;
     }
     const width = 800, height = 220, pad = 28;
     const values = snapshots.flatMap(point => [Number(point.equity), Number(point.balance)]).filter(Number.isFinite);
     if (!values.length) return;
+    const signature = JSON.stringify([
+      currency,
+      state.timezone,
+      state.dateFormat,
+      snapshots.map(point => [point.capturedAt, point.equity, point.balance])
+    ]);
+    if (signature === chartSignature) return;
+    chartSignature = signature;
     const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
     const x = index => pad + index * (width - pad * 2) / Math.max(snapshots.length - 1, 1);
     const y = value => height - pad - (value - min) * (height - pad * 2) / range;

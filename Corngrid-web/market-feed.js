@@ -59,7 +59,9 @@ function loadConfig(overrides = {}) {
     maxStreamClients: intFromEnv('MARKET_SSE_MAX_CLIENTS', 300, 1, 10000),
     maxStreamPerUser: intFromEnv('MARKET_SSE_MAX_PER_USER', 3, 1, 50),
     streamIntervalMs: intFromEnv('MARKET_STREAM_MIN_INTERVAL_MS', 250, 50, 5000),
-    streamMaxLifetimeSeconds: intFromEnv('MARKET_SSE_MAX_LIFETIME_SECONDS', 1800, 60, 86400),
+    // Keep streams short so a proxy that buffers (or silently drops) the client
+    // cannot leave a request hanging for half an hour. The browser reconnects.
+    streamMaxLifetimeSeconds: intFromEnv('MARKET_SSE_MAX_LIFETIME_SECONDS', 120, 60, 86400),
     preferredFeed: slugFeed(process.env.MARKET_PREFERRED_FEED || ''),
     // The external provider (Twelve Data / Yahoo) is used only when explicitly enabled.
     fallbackEnabled: String(process.env.MARKET_FALLBACK_PROVIDER || '').toLowerCase() === 'external',
@@ -543,9 +545,18 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
   }
 
   // ---------------------------------------------------------------- streaming (SSE)
+  // A buffering proxy accepts writes long after the browser has gone, so a failed
+  // write alone is not enough. Cap the queued bytes and drop the client once it is
+  // clearly not draining; otherwise a single stalled stream can grow without bound.
+  const MAX_STREAM_BUFFER_BYTES = 512 * 1024;
+  let streamTicking = false;
+
   function send(client, event, data) {
+    const res = client.res;
+    if (client.closed || !clientConnected(res)) { dropClient(client); return false; }
+    if ((res.writableLength || 0) > MAX_STREAM_BUFFER_BYTES) { dropClient(client); return false; }
     try {
-      client.res.write(`event: ${event}\nid: ${data && data.rev ? data.rev : 0}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.write(`event: ${event}\nid: ${data && data.rev ? data.rev : 0}\ndata: ${JSON.stringify(data)}\n\n`);
       return true;
     } catch {
       dropClient(client);
@@ -554,31 +565,45 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
   }
 
   function dropClient(client) {
+    if (client.closed) return;
+    client.closed = true;
+    connectedClients.delete(client);
+    stoppedClients.add(client);
     clients.delete(client);
     try { client.res.end(); } catch { /* connection already closed */ }
     if (!clients.size && streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   }
 
   async function streamTick() {
-    tickCount += 1;
-    const current = now();
-    const dirty = new Set(dirtySymbols);
-    dirtySymbols.clear();
-    const statusPass = tickCount % Math.max(1, Math.round(2000 / config.streamIntervalMs)) === 0;
-    const pingPass = tickCount % Math.max(1, Math.round(15000 / config.streamIntervalMs)) === 0;
-    for (const client of [...clients]) {
-      if (stoppedClients.has(client)) continue;
-      if (current >= client.expiresAt) { send(client, 'bye', { reason: 'session-refresh' }); dropClient(client); continue; }
-      // Stop processing requests for clients that have already disconnected.
-      if (!connectedClients.has(client)) { continue; }
-      if (dirty.has(client.symbol) || statusPass) {
-        const view = await currentView(client.symbol, client.feed).catch(() => null);
-        if (view && (view.rev !== client.lastRev || view.state !== client.lastState)) {
-          if (send(client, 'quote', view)) { client.lastRev = view.rev; client.lastState = view.state; }
+    // setInterval does not wait for an async callback. A slow database or provider
+    // used to let ticks pile up on top of each other; skip instead of queueing.
+    if (streamTicking) return;
+    streamTicking = true;
+    try {
+      tickCount += 1;
+      const current = now();
+      const dirty = new Set(dirtySymbols);
+      dirtySymbols.clear();
+      const statusPass = tickCount % Math.max(1, Math.round(2000 / config.streamIntervalMs)) === 0;
+      const pingPass = tickCount % Math.max(1, Math.round(15000 / config.streamIntervalMs)) === 0;
+      for (const client of [...clients]) {
+        if (client.closed || stoppedClients.has(client)) continue;
+        if (current >= client.expiresAt) { send(client, 'bye', { reason: 'session-refresh' }); dropClient(client); continue; }
+        // Stop processing requests for clients that have already disconnected.
+        if (!connectedClients.has(client) || !clientConnected(client.res)) { dropClient(client); continue; }
+        if (dirty.has(client.symbol) || statusPass) {
+          const view = await currentView(client.symbol, client.feed).catch(() => null);
+          if (view && (view.rev !== client.lastRev || view.state !== client.lastState)) {
+            if (send(client, 'quote', view)) { client.lastRev = view.rev; client.lastState = view.state; }
+          }
+        } else if (pingPass) {
+          // A named event (not an SSE comment) lets the browser distinguish a
+          // healthy but quiet stream from one that a proxy is silently buffering.
+          send(client, 'ping', { time: current });
         }
-      } else if (pingPass) {
-        try { client.res.write(': ping\n\n'); } catch { dropClient(client); }
       }
+    } finally {
+      streamTicking = false;
     }
   }
 
@@ -594,7 +619,7 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
       'X-Accel-Buffering': 'no'
     });
     res.write('retry: 3000\n\n');
-    const client = { res, symbol, feed, userId, lastRev: 0, lastState: null, expiresAt: now() + config.streamMaxLifetimeSeconds * 1000 };
+    const client = { res, symbol, feed, userId, lastRev: 0, lastState: null, closed: false, expiresAt: now() + config.streamMaxLifetimeSeconds * 1000 };
     clients.add(client);
     connectedClients.add(client);
     clientExpiredAt.set(client, client.expiresAt);
@@ -604,14 +629,12 @@ function createMarketFeed({ db, symbols, config: configOverrides }) {
       streamTimer = setInterval(() => { streamTick().catch(error => console.error('Market stream tick failed:', error.message)); }, config.streamIntervalMs);
       if (streamTimer.unref) streamTimer.unref();
     }
-    const cleanup = () => {
-      connectedClients.delete(client);
-      stoppedClients.delete(client);
-      clients.delete(client);
-      try { client.res.end(); } catch { /* connection already closed */ }
-      if (!clients.size && streamTimer) { clearInterval(streamTimer); streamTimer = null; }
-    };
+    const cleanup = () => dropClient(client);
+    // Different Node versions/proxies report a gone client on different events.
+    // Listen to all of them; dropClient is idempotent.
     req.on('close', cleanup);
+    req.on('aborted', cleanup);
+    res.on('close', cleanup);
     res.on('error', cleanup);
     return { client };
   }

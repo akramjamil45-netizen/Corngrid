@@ -16,7 +16,8 @@
     live: {
       source: null, feed: null, bid: null, ask: null, spread: null, spreadPoints: null, digits: null,
       state: 'OFFLINE', quiet: false, anchor: 0, receivedMs: 0, rev: 0, tickTime: null, limits: null,
-      es: null, pollTimer: null, guardTimer: null, polling: false, message: ''
+      es: null, pollTimer: null, guardTimer: null, polling: false, message: '',
+      lastFrameAt: 0, frameQueued: false, pendingQuote: null
     },
     watchdogTimer: null,
     watchdogTicks: 0,
@@ -107,6 +108,34 @@
   function formatPrice(value) {
     if (!Number.isFinite(value)) return 'N/A';
     return new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals(), maximumFractionDigits: decimals() }).format(value);
+  }
+
+  // Smooth number transition used by the quote panels. The dashboard does not
+  // load counter.js, so this helper must stay local; relying on a global
+  // `animateNumber` threw a ReferenceError and left the whole page stuck at
+  // OFFLINE even when the API had returned live data.
+  function animateNumber(element, start, end, options = {}) {
+    const format = options.format || '#,##0.###';
+    const decimalMatch = /\.(\d+)/.exec(format);
+    const maximumFractionDigits = decimalMatch ? Math.min(8, decimalMatch[1].length) : 0;
+    const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits });
+    const render = value => { element.textContent = formatter.format(value); };
+    const finish = () => {
+      render(end);
+      if (typeof options.onComplete === 'function') options.onComplete();
+    };
+    if (reduceMotion || !Number.isFinite(start) || !Number.isFinite(end)) { finish(); return; }
+    const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 600;
+    if (!duration) { finish(); return; }
+    const startedAt = performance.now();
+    const tick = now => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      render(start + (end - start) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+      else finish();
+    };
+    requestAnimationFrame(tick);
   }
 
   function setChartState(mode, message) {
@@ -366,7 +395,7 @@
     if (live.bid != null && !reduceMotion) {
       const currentText = bidElement.textContent || '0';
       const currentBid = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(bidElement, currentBid, live.bid, {
+      animateNumber(bidElement, currentBid, live.bid, {
         format: '#,##0.###',
         duration: 600,
         onComplete: () => {
@@ -378,25 +407,17 @@
       bidElement.classList.toggle('muted', !usable);
     }
 
-    // Animate ask price in quote-meta
+    // Keep the full Bid/Ask/Spread string: animating this element replaced the
+    // labels with a bare ask value and hid the quote context.
     const quoteMeta = $('market-quote-meta');
-    if (live.ask != null && !reduceMotion) {
-      const currentText = quoteMeta.textContent || '0';
-      const currentAsk = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(quoteMeta, currentAsk, live.ask, {
-        format: '#,##0.###',
-        duration: 600
-      });
-    } else {
-      quoteMeta.textContent = `Bid ${formatPrice(live.bid)} · Ask ${formatPrice(live.ask)} · Spread ${live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—'}`;
-    }
+    quoteMeta.textContent = `Bid ${formatPrice(live.bid)} · Ask ${formatPrice(live.ask)} · Spread ${live.spreadPoints != null ? `${live.spreadPoints} pts` : live.spread != null ? formatPrice(live.spread) : '—'}`;
 
     // Animate spread
     const spreadElement = $('info-spread');
     if (live.spreadPoints != null && !reduceMotion) {
       const currentText = spreadElement.textContent || '0';
       const currentSpread = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(spreadElement, currentSpread, live.spreadPoints, {
+      animateNumber(spreadElement, currentSpread, live.spreadPoints, {
         format: '#,##0',
         duration: 600
       });
@@ -409,12 +430,12 @@
     if (live.bid != null && !reduceMotion) {
       const currentText = closeElement.textContent || '0';
       const currentClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(closeElement, currentClose, live.bid, {
+      animateNumber(closeElement, currentClose, live.bid, {
         format: '#,##0.###',
         duration: 600
       });
     } else {
-      closeElement.textContent = fmt(live.bid);
+      closeElement.textContent = formatPrice(live.bid);
     }
 
     $('info-bid').textContent = live.bid != null ? formatPrice(live.bid) : 'N/A';
@@ -444,7 +465,7 @@
     if (summary.dayOpen != null && !reduceMotion) {
       const currentText = openElement.textContent || '0';
       const currentOpen = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(openElement, currentOpen, summary.dayOpen, {
+      animateNumber(openElement, currentOpen, summary.dayOpen, {
         format: '#,##0.###',
         duration: 600
       });
@@ -457,7 +478,7 @@
     if (summary.dayHigh != null && !reduceMotion) {
       const currentText = highElement.textContent || '0';
       const currentHigh = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(highElement, currentHigh, summary.dayHigh, {
+      animateNumber(highElement, currentHigh, summary.dayHigh, {
         format: '#,##0.###',
         duration: 600
       });
@@ -470,7 +491,7 @@
     if (summary.dayLow != null && !reduceMotion) {
       const currentText = lowElement.textContent || '0';
       const currentLow = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(lowElement, currentLow, summary.dayLow, {
+      animateNumber(lowElement, currentLow, summary.dayLow, {
         format: '#,##0.###',
         duration: 600
       });
@@ -483,7 +504,7 @@
     if (summary.previousClose != null && !reduceMotion) {
       const currentText = prevCloseElement.textContent || '0';
       const currentPrevClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
-      new animateNumber(prevCloseElement, currentPrevClose, summary.previousClose, {
+      animateNumber(prevCloseElement, currentPrevClose, summary.previousClose, {
         format: '#,##0.###',
         duration: 600
       });
@@ -562,6 +583,9 @@
     if (live.pollTimer) { clearInterval(live.pollTimer); live.pollTimer = null; }
     if (live.guardTimer) { clearTimeout(live.guardTimer); live.guardTimer = null; }
     live.polling = false;
+    live.lastFrameAt = 0;
+    live.frameQueued = false;
+    live.pendingQuote = null;
   }
 
   function startPolling() {
@@ -590,18 +614,48 @@
     let errors = 0;
     const source = new EventSource(`${API}/market/stream?symbol=${encodeURIComponent(symbol)}`, { withCredentials: true });
     live.es = source;
-    const fallToPolling = () => { if (live.es === source) { source.close(); live.es = null; } startPolling(); };
+    const fallToPolling = () => {
+      if (live.guardTimer) { clearTimeout(live.guardTimer); live.guardTimer = null; }
+      if (live.es === source) { source.close(); live.es = null; }
+      startPolling();
+    };
     // Reverse proxies that buffer responses never deliver events; poll instead.
-    live.guardTimer = setTimeout(() => { if (!received) fallToPolling(); }, 8000);
-    const onFrame = event => {
+    live.guardTimer = setTimeout(() => { if (!received) fallToPolling(); }, 6000);
+    const markFrame = () => {
       received = true;
       errors = 0;
+      live.lastFrameAt = Date.now();
+    };
+    const onFrame = event => {
+      markFrame();
       if (symbol !== state.symbol) return;
-      try { applyQuote(JSON.parse(event.data)); } catch { /* ignore malformed frame */ }
+      let quote;
+      try { quote = JSON.parse(event.data); } catch { return; }
+      // Coalesce a burst of queued frames (a paused tab or a buffering proxy can
+      // deliver thousands at once) into one render per animation frame. Only the
+      // newest quote matters, and rendering every frame would block the UI.
+      live.pendingQuote = quote;
+      if (live.frameQueued) return;
+      live.frameQueued = true;
+      const flush = () => {
+        live.frameQueued = false;
+        const next = live.pendingQuote;
+        live.pendingQuote = null;
+        if (next) applyQuote(next);
+      };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(flush);
+      else window.setTimeout(flush, 16);
     };
     source.addEventListener('snapshot', onFrame);
     source.addEventListener('quote', onFrame);
-    source.addEventListener('bye', () => { source.close(); if (live.es === source) live.es = null; window.setTimeout(startLive, 500); });
+    // Named ping proves the stream is alive even while the market is quiet.
+    source.addEventListener('ping', markFrame);
+    source.addEventListener('bye', () => {
+      source.close();
+      if (live.es === source) live.es = null;
+      if (live.guardTimer) { clearTimeout(live.guardTimer); live.guardTimer = null; }
+      window.setTimeout(startLive, 500 + Math.floor(Math.random() * 500));
+    });
     source.onerror = () => {
       errors += 1;
       if (source.readyState === EventSource.CLOSED || errors >= 4) fallToPolling();
@@ -684,6 +738,13 @@
     if (!state.pageOpen || document.hidden) return;
     state.watchdogTicks += 1;
     const live = state.live;
+    // A stream can stay open in the browser while a buffering proxy silently withholds
+    // every frame. Recycle it instead of waiting forever; the server pings every 15s, so
+    // 30s of silence means it is not reaching us.
+    if (live.es && live.lastFrameAt && Date.now() - live.lastFrameAt > 30000) {
+      stopLive();
+      startPolling();
+    }
     if (live.source === 'corngrid-ea') {
       renderLive();
       if (state.watchdogTicks % 20 === 0) refreshTail();

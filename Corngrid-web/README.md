@@ -139,6 +139,7 @@ MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (in
 | `MARKET_PUBLISHER_TAKEOVER_SECONDS` | 15 | Silence before a standby publisher takes over |
 | `MARKET_CLOCK_TOLERANCE_SECONDS` | 300 | Allowed EA clock skew |
 | `MARKET_SSE_MAX_CLIENTS` / `MARKET_SSE_MAX_PER_USER` | 300 / 3 | Stream connection caps |
+| `MARKET_SSE_MAX_LIFETIME_SECONDS` | 120 | Stream lifetime before the browser reconnects |
 | `MARKET_STREAM_MIN_INTERVAL_MS` | 250 | Stream flush interval (update throttle) |
 
 No new secrets are required. Website symbols: XAUUSD, EURUSD, GBPUSD, USDJPY; prefixes/suffixes such as `XAUUSD.a` or `m.EURUSD` are mapped automatically.
@@ -197,7 +198,7 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 
 ### Security notes
 
-HTTPS only (the EA refuses non-HTTPS URLs). Request size is capped (256 KB, at most 16 quotes, 12 series, 2,000 bars), with a per-installation limit of 90 requests/min. SSE connections are capped globally and per user and recycled every 30 minutes. In-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local; multi-instance deployments need gateway limits. Stream and quote endpoints require the existing dashboard login; the existing `cors()` setup is unchanged.
+HTTPS only (the EA refuses non-HTTPS URLs). Request size is capped (256 KB, at most 16 quotes, 12 series, 2,000 bars), with a per-installation limit of 90 requests/min. SSE connections are capped globally and per user and recycled every 2 minutes (adjustable with `MARKET_SSE_MAX_LIFETIME_SECONDS`). In-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local; multi-instance deployments need gateway limits. Stream and quote endpoints require the existing dashboard login; the existing `cors()` setup is unchanged.
 
 ### Rollback
 
@@ -247,6 +248,7 @@ MT5 broker feed -> CornGrid EA (OnTimer, WebRequest) -> POST /api/mt5/market (in
 | `MARKET_PUBLISHER_TAKEOVER_SECONDS` | 15 | Silence before a standby publisher takes over |
 | `MARKET_CLOCK_TOLERANCE_SECONDS` | 300 | Allowed EA clock skew |
 | `MARKET_SSE_MAX_CLIENTS` / `MARKET_SSE_MAX_PER_USER` | 300 / 3 | Stream connection caps |
+| `MARKET_SSE_MAX_LIFETIME_SECONDS` | 120 | Stream lifetime before the browser reconnects |
 | `MARKET_STREAM_MIN_INTERVAL_MS` | 250 | Stream flush interval (update throttle) |
 
 No new secrets are required. Symbols recognised by the website: XAUUSD, EURUSD, GBPUSD, USDJPY; prefixes/suffixes such as `XAUUSD.a`, `m.EURUSD` are mapped automatically.
@@ -298,7 +300,7 @@ Responses: `200` accepted, `202` ignored on purpose (`stale` or `standby`), `400
 
 ### Security notes
 
-HTTPS only (the EA refuses non-HTTPS URLs); credential only server-side hashed and in the MT5 `MQL5/Files` key file; request size capped (256 KB, at most 16 quotes, 12 series, 2,000 bars); per-installation rate limit of 90 requests/min; SSE connections capped globally and per user and recycled every 30 minutes; in-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local, so multi-instance deployments need gateway limits. The existing `cors()` setup is unchanged; the stream and quote endpoints require the existing dashboard login.
+HTTPS only (the EA refuses non-HTTPS URLs); credential only server-side hashed and in the MT5 `MQL5/Files` key file; request size capped (256 KB, at most 16 quotes, 12 series, 2,000 bars); per-installation rate limit of 90 requests/min; SSE connections capped globally and per user and recycled every 2 minutes (adjustable with `MARKET_SSE_MAX_LIFETIME_SECONDS`); in-memory structures are bounded by feeds and the four whitelisted symbols. Rate limits are process-local, so multi-instance deployments need gateway limits. The existing `cors()` setup is unchanged; the stream and quote endpoints require the existing dashboard login.
 
 ### Rollback
 

@@ -22,6 +22,27 @@
   };
 
   const $ = id => document.getElementById(id);
+  const seenPostIds = new Set();
+  const seenCommentIds = new Set();
+
+  function animateNewChildren(host, selector, seen, key) {
+    if (!host) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let index = 0;
+    host.querySelectorAll(selector).forEach(node => {
+      const id = node.dataset[key];
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      if (reduceMotion) return;
+      node.style.setProperty('--motion-index', String(Math.min(index++, 6)));
+      node.classList.add('is-entering');
+      node.addEventListener('animationend', event => {
+        if (event.target !== node) return;
+        node.classList.remove('is-entering');
+        node.style.removeProperty('--motion-index');
+      });
+    });
+  }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -165,6 +186,7 @@
         list.innerHTML = cards.length ? cards.join('')
           : '<div class="panel empty-state feed-empty"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span><h2>No posts yet</h2><p>Be the first to share something with the CornGrid community.</p></div>';
       }
+      animateNewChildren(list, '.feed-card', seenPostIds, 'postId');
       loadWrap.hidden = !state.cursor;
       state.loaded = true;
     } catch (error) {
@@ -325,6 +347,7 @@
       host.innerHTML = (data.comments.length
         ? data.comments.map(comment => renderComment(comment, postId)).join('')
         : '<p class="muted small">No comments yet. Start the discussion.</p>') + composer;
+      animateNewChildren(host, '.feed-comment', seenCommentIds, 'commentId');
     } catch (error) {
       host.innerHTML = `<p class="muted small">${escapeHtml(error.message)}</p>`;
     }
