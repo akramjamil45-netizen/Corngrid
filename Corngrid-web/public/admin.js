@@ -455,8 +455,277 @@
     }
   });
 
+  // --------------------------- Subscriptions ---------------------------
+  function subStatusBadge(status) {
+    const tone = status === 'active' || status === 'approved' ? 'success'
+      : status === 'suspended' || status === 'rejected' || status === 'revoked' ? 'danger' : 'warning';
+    const label = String(status || '—').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+    return `<span class="badge badge-${tone}">${escapeHtml(label)}</span>`;
+  }
+
+  function subDate(value) {
+    if (!value) return '—';
+    const date = new Date(Number(value));
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+  }
+
+  async function loadAdminSubscriptionsPage() {
+    await Promise.all([
+      loadAdminSubscriptionSummary(),
+      loadAdminPayments(),
+      loadAdminSubscriptions(),
+      loadAdminPlans(),
+      loadAdminEaBuilds()
+    ]);
+  }
+
+  async function loadAdminSubscriptionSummary() {
+    try {
+      const data = await api('/api/admin/subscriptions/overview');
+      $('#sub-stat-total').textContent = data.total;
+      $('#sub-stat-active').textContent = data.active;
+      $('#sub-stat-pending').textContent = data.pending;
+      $('#sub-stat-revenue').textContent = formatMoney(data.revenue, 'MYR');
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  async function loadAdminPayments() {
+    const tbody = $('#admin-payments-table');
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Loading payment requests…</td></tr>';
+    try {
+      const data = await api('/api/admin/subscription-payments');
+      if (!data.payments.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No payment requests yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.payments.map(payment => `
+        <tr>
+          <td>#${escapeHtml(String(payment.id))}</td>
+          <td>${escapeHtml(payment.username || payment.user_id)}<div class="muted small">${escapeHtml(payment.email || '')}</div></td>
+          <td>${escapeHtml(payment.plan_name || '—')}</td>
+          <td>${formatMoney(payment.amount, payment.currency)}</td>
+          <td>${escapeHtml(payment.payment_reference || '—')}${payment.hasProof ? ` · <a href="/api/admin/subscription-payments/${escapeHtml(String(payment.id))}/proof" target="_blank" rel="noopener">Proof</a>` : ''}</td>
+          <td>${subStatusBadge(payment.status)}</td>
+          <td>
+            ${payment.status === 'pending_approval' ? `
+              <button class="button button-small" type="button" data-sub-action="approve-payment" data-id="${escapeHtml(String(payment.id))}">Approve</button>
+              <button class="button button-small button-secondary" type="button" data-sub-action="reject-payment" data-id="${escapeHtml(String(payment.id))}">Reject</button>` : '—'}
+          </td>
+        </tr>`).join('');
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="7" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+
+  async function loadAdminSubscriptions() {
+    const tbody = $('#admin-subscriptions-table');
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Loading subscriptions…</td></tr>';
+    try {
+      const data = await api('/api/admin/subscriptions?limit=100');
+      if (!data.subscriptions.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No subscriptions yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.subscriptions.map(subscription => `
+        <tr>
+          <td>#${escapeHtml(String(subscription.id))}</td>
+          <td>${escapeHtml(subscription.username || subscription.user_id)}<div class="muted small">${escapeHtml(subscription.email || '')}</div></td>
+          <td>${escapeHtml(subscription.plan_name || '—')}</td>
+          <td>${formatMoney(subscription.purchase_price, subscription.currency)}</td>
+          <td>${subStatusBadge(subscription.status)}</td>
+          <td>${escapeHtml(String(subscription.activation_count || 0))} / ${escapeHtml(String(subscription.max_activations || 5))}</td>
+          <td>${subDate(subscription.expires_at)}</td>
+          <td>
+            ${subscription.status === 'active' ? `<button class="button button-small button-secondary" type="button" data-sub-action="suspend" data-id="${escapeHtml(String(subscription.id))}">Suspend</button>` : ''}
+            ${subscription.status === 'suspended' ? `<button class="button button-small" type="button" data-sub-action="reinstate" data-id="${escapeHtml(String(subscription.id))}">Reinstate</button>` : ''}
+            ${['active', 'suspended'].includes(subscription.status) ? `<button class="button button-small button-secondary" type="button" data-sub-action="revoke" data-id="${escapeHtml(String(subscription.id))}">Revoke</button>` : ''}
+            ${!['active', 'suspended'].includes(subscription.status) ? `<button class="button button-small button-danger" type="button" data-sub-action="delete-subscription" data-id="${escapeHtml(String(subscription.id))}">Delete</button>` : ''}
+          </td>
+        </tr>`).join('');
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="8" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+
+  async function loadAdminPlans() {
+    const tbody = $('#admin-plans-table');
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Loading plans…</td></tr>';
+    try {
+      const data = await api('/api/admin/subscription-plans');
+      if (!data.plans.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No plans yet. Add one to allow subscriptions.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.plans.map(plan => `
+        <tr>
+          <td>#${escapeHtml(String(plan.id))}</td>
+          <td>${escapeHtml(plan.name)}</td>
+          <td>${formatMoney(plan.price, plan.currency)}</td>
+          <td>${escapeHtml(String(plan.duration_days))} days</td>
+          <td>${escapeHtml(String(plan.max_activations))}</td>
+          <td>${subStatusBadge(plan.is_active ? 'active' : 'inactive')}</td>
+          <td><button class="button button-small button-secondary" type="button" data-sub-action="toggle-plan" data-id="${escapeHtml(String(plan.id))}" data-active="${plan.is_active ? '1' : '0'}">${plan.is_active ? 'Deactivate' : 'Activate'}</button></td>
+        </tr>`).join('');
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="7" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+
+  async function loadAdminEaBuilds() {
+    const tbody = $('#admin-ea-table');
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Loading EA builds…</td></tr>';
+    try {
+      const data = await api('/api/admin/ea-downloads');
+      if (!data.versions.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No EA builds uploaded yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.versions.map(build => `
+        <tr>
+          <td>#${escapeHtml(String(build.id))}</td>
+          <td>${escapeHtml(build.version)}</td>
+          <td>${escapeHtml(build.filename)}</td>
+          <td>${subDate(build.created_at)}</td>
+          <td>${subStatusBadge(build.is_active ? 'active' : 'inactive')}</td>
+          <td>${build.is_active ? '<span class="muted small">Current</span>' : `<button class="button button-small" type="button" data-sub-action="publish-build" data-id="${escapeHtml(String(build.id))}">Publish</button>`}</td>
+        </tr>`).join('');
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="6" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+
+  async function uploadEaBuild() {
+    const file = $('#ea-file').files[0];
+    const version = $('#ea-version').value.trim();
+    if (!version) return toast('Enter the EA version.', 'error');
+    if (!file) return toast('Select a compiled .ex5 file.', 'error');
+    if (!file.name.toLowerCase().endsWith('.ex5')) return toast('The EA must be an .ex5 file.', 'error');
+    const button = $('#ea-upload');
+    button.disabled = true;
+    try {
+      const query = new URLSearchParams({
+        version,
+        filename: file.name,
+        release_notes: $('#ea-release-notes').value.trim()
+      });
+      const response = await fetch(`/api/admin/ea-downloads/upload?${query}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to upload the EA build.');
+      toast('EA build uploaded. Publish it to make it available.', 'success');
+      $('#ea-version').value = '';
+      $('#ea-file').value = '';
+      $('#ea-release-notes').value = '';
+      loadAdminEaBuilds();
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function createSubscriptionPlan() {
+    const payload = {
+      name: $('#plan-name').value.trim(),
+      price: Number($('#plan-price').value),
+      duration_days: Number.parseInt($('#plan-duration').value, 10),
+      max_activations: Number.parseInt($('#plan-max-act').value, 10) || 5,
+      currency: $('#plan-currency').value.trim().toUpperCase() || 'MYR',
+      description: $('#plan-desc').value.trim()
+    };
+    try {
+      await api('/api/admin/subscription-plans', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Plan created.', 'success');
+      ['#plan-name', '#plan-price', '#plan-duration', '#plan-desc'].forEach(selector => { $(selector).value = ''; });
+      $('#plan-form').style.display = 'none';
+      loadAdminPlans();
+      loadAdminSubscriptionSummary();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  $('#admin-payments-refresh').addEventListener('click', loadAdminPayments);
+  $('#admin-subscriptions-refresh').addEventListener('click', loadAdminSubscriptions);
+  $('#admin-plan-add').addEventListener('click', () => {
+    const form = $('#plan-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  });
+  $('#admin-plan-create').addEventListener('click', createSubscriptionPlan);
+
+  async function handleSubscriptionAction(button) {
+    const { subAction, id } = button.dataset;
+    let path = null;
+    let body = {};
+    let method = 'POST';
+    if (subAction === 'approve-payment') path = `/api/admin/subscription-payments/${id}/approve`;
+    else if (subAction === 'reject-payment') {
+      const reason = window.prompt('Reason for rejecting this payment:');
+      if (!reason) return;
+      path = `/api/admin/subscription-payments/${id}/reject`;
+      body = { reason };
+    } else if (subAction === 'suspend') {
+      const reason = window.prompt('Reason for suspending this subscription:');
+      if (!reason) return;
+      path = `/api/admin/subscriptions/${id}/suspend`;
+      body = { reason };
+    } else if (subAction === 'reinstate') {
+      path = `/api/admin/subscriptions/${id}/reinstate`;
+    } else if (subAction === 'revoke') {
+      const reason = window.prompt('Reason for revoking this subscription:');
+      if (!reason) return;
+      path = `/api/admin/subscriptions/${id}/revoke`;
+      body = { reason };
+    } else if (subAction === 'delete-subscription') {
+      if (!window.confirm('Delete this inactive subscription record? This cannot be undone.')) return;
+      path = `/api/admin/subscriptions/${id}`;
+      method = 'DELETE';
+    } else if (subAction === 'toggle-plan') {
+      path = `/api/admin/subscription-plans/${id}`;
+      method = 'PUT';
+      body = { is_active: button.dataset.active !== '1' };
+    } else if (subAction === 'publish-build') {
+      path = `/api/admin/ea-downloads/${id}/activate`;
+    }
+    if (!path) return;
+    button.disabled = true;
+    try {
+      await api(path, { method, body: JSON.stringify(body) });
+      toast('Subscription updated.', 'success');
+      loadAdminSubscriptionsPage();
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  $('#admin-payments-table').addEventListener('click', event => {
+    const button = event.target.closest('[data-sub-action]');
+    if (button) handleSubscriptionAction(button);
+  });
+  $('#admin-subscriptions-table').addEventListener('click', event => {
+    const button = event.target.closest('[data-sub-action]');
+    if (button) handleSubscriptionAction(button);
+  });
+  $('#admin-plans-table').addEventListener('click', event => {
+    const button = event.target.closest('[data-sub-action]');
+    if (button) handleSubscriptionAction(button);
+  });
+  $('#admin-ea-table').addEventListener('click', event => {
+    const button = event.target.closest('[data-sub-action]');
+    if (button) handleSubscriptionAction(button);
+  });
+  $('#ea-upload').addEventListener('click', uploadEaBuild);
+
   function showAdminPage(name) {
-    const pages = ['overview', 'support', 'reports', 'announcements'];
+    const pages = ['overview', 'subscriptions', 'support', 'reports', 'announcements'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -469,8 +738,9 @@
       if (link.dataset.adminPage === active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const labels = { overview: 'Overview', support: 'Support', reports: 'Reports', announcements: 'Announcements' };
+    const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', reports: 'Reports', announcements: 'Announcements' };
     $('#admin-breadcrumb-page').textContent = labels[active];
+    if (active === 'subscriptions') loadAdminSubscriptionsPage();
     if (active === 'support') loadSupportConversations();
     if (active === 'reports') loadReports();
     if (active === 'announcements') loadAnnouncements();
@@ -478,7 +748,8 @@
   }
 
   $('#admin-refresh').addEventListener('click', () => {
-    if (!$('#support').hidden) loadSupportConversations();
+    if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
+    else if (!$('#support').hidden) loadSupportConversations();
     else if (!$('#reports').hidden) loadReports();
     else if (!$('#announcements').hidden) loadAnnouncements();
     else loadOverview();
@@ -598,7 +869,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['support', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -611,7 +882,8 @@
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
-  if (location.hash === '#support') showAdminPage('support');
+  if (location.hash === '#subscriptions') showAdminPage('subscriptions');
+  else if (location.hash === '#support') showAdminPage('support');
   else if (location.hash === '#reports') showAdminPage('reports');
   else if (location.hash === '#announcements') showAdminPage('announcements');
   loadOverview();

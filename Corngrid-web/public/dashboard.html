@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261025-2">
+  <link rel="stylesheet" href="dashboard.css?v=20261028-3">
 </head>
 <body>
   <div class="app-shell">
@@ -138,6 +138,7 @@
         <button class="nav-item" data-page="monitoring"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span>EA Monitoring</button>
         <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
         <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
+        <button class="nav-item" data-page="subscription"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription</button>
         <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
       </nav>
       <div class="sidebar-bottom">
@@ -276,6 +277,83 @@
           <div class="page-heading"><div><p class="eyebrow">SYSTEM HEALTH</p><h1>EA monitoring</h1><p class="muted">Connection and synchronization status for linked installations.</p></div><button class="button button-secondary" data-refresh>↻ Refresh status</button></div>
           <div class="monitor-summary" id="monitor-summary"><div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div></div>
           <section class="panel"><div class="panel-header"><div><p class="eyebrow">STATUS DEFINITIONS</p><h2>Connection states</h2></div></div><div class="status-definitions"><div><span class="pill pill-online">Online</span><p>A valid authenticated heartbeat was received within the configured timeout.</p></div><div><span class="pill pill-offline">Offline</span><p>A previously linked EA has not sent a heartbeat within the configured timeout.</p></div><div><span class="pill pill-muted">Waiting for data</span><p>The account is linked but has not yet sent its first heartbeat.</p></div></div><p class="muted small" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">Having trouble keeping your EA connected? Ensure <code>https://corngrid.com</code> is added to MT5's Allowed URLs under <em>Tools &rarr; Options &rarr; Expert Advisors</em> and the terminal's <em>Algo Trading</em> button is enabled.</p></section>
+        </section>
+
+        <section class="page" id="page-subscription">
+          <div class="page-heading">
+            <div><p class="eyebrow">EA SUBSCRIPTION</p><h1>Subscription</h1><p class="muted">Subscribe to CornGrid EA, make payment via DuitNow, and manage your license activations.</p></div>
+            <span class="subscription-heading-badge">DuitNow checkout</span>
+          </div>
+
+          <div id="subscription-overview" class="subscription-section">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">CURRENT STATUS</p><h2>Subscription Overview</h2></div></div>
+              <div id="subscription-status-content" class="subscription-panel-body">
+                <p class="muted">Loading subscription status...</p>
+              </div>
+            </section>
+          </div>
+
+          <div id="subscription-plans-section" class="subscription-section">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">AVAILABLE PLANS</p><h2>Choose a Plan</h2></div></div>
+              <div id="subscription-plans-grid" class="subscription-plans-grid"></div>
+            </section>
+          </div>
+
+          <div id="subscription-payment-section" class="subscription-section" style="display: none;">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PAYMENT</p><h2>DuitNow Payment</h2></div></div>
+              <div class="subscription-payment-layout">
+                <div class="subscription-qr-frame">
+                  <img id="duitnow-qr-img" class="subscription-qr-image" src="/api/subscription/duitnow-qr" alt="DuitNow QR" onerror="this.style.display='none'; document.getElementById('qr-missing').style.display='block';">
+                  <div id="qr-missing" class="subscription-qr-missing" style="display: none;">
+                    <p class="muted">Payment QR not configured yet. Please contact administrator.</p>
+                  </div>
+                </div>
+                <div class="subscription-payment-details">
+                  <div class="subscription-payment-meta">
+                    <div class="subscription-payment-meta-item"><span>Amount</span><strong id="payment-amount"></strong></div>
+                    <div class="subscription-payment-meta-item"><span>Plan</span><strong id="payment-plan-name"></strong></div>
+                  </div>
+                  <label class="subscription-field">Payment Reference / Transaction ID (optional)<input type="text" id="payment-reference" class="input-control" placeholder="Enter transaction reference"></label>
+                  <label class="subscription-field">Upload Payment Proof (screenshot/receipt)<input type="file" id="payment-proof" class="input-control" accept="image/*,.pdf"></label>
+                  <div class="subscription-payment-actions">
+                    <button class="button button-primary subscription-submit" id="submit-payment-proof">Submit Payment Proof</button>
+                    <button class="button button-secondary subscription-cancel" type="button" id="cancel-subscription" hidden>Cancel purchase</button>
+                  </div>
+                  <p class="muted small subscription-note">Your payment will be reviewed by admin. Subscription activates after approval.</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="subscription-activations-section" class="subscription-section">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">EA LICENSE</p><h2>Active Activations</h2></div><span class="muted small" id="activation-count-text"></span></div>
+              <div class="subscription-panel-body">
+                <div id="activations-list" class="subscription-list"></div>
+                <p class="muted small subscription-list-note">Link MT5 accounts in the MT5 Accounts section. EA activation is separate from account linking.</p>
+              </div>
+            </section>
+          </div>
+
+          <div id="subscription-downloads-section" class="subscription-section">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PROTECTED DOWNLOAD</p><h2>CornGrid EA Download</h2></div></div>
+              <div class="subscription-panel-body">
+                <p class="muted small" id="ea-download-help">An active subscription is required to download the compiled EA.</p>
+                <div id="ea-download-list" class="subscription-list"></div>
+              </div>
+            </section>
+          </div>
+
+          <div id="subscription-notifications-section" class="subscription-section">
+            <section class="panel subscription-panel">
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">NOTIFICATIONS</p><h2>Subscription Updates</h2></div><div class="subscription-notification-actions"><button class="button button-small" type="button" id="mark-notifications-read">Mark all read</button><button class="button button-small button-secondary" type="button" id="clear-notifications">Clear all</button></div></div>
+              <div id="subscription-notifications-list" class="subscription-panel-body subscription-notifications"></div>
+            </section>
+          </div>
         </section>
 
         <section class="page" id="page-downloads">
@@ -675,7 +753,7 @@
   </div>
   <div class="overlay" id="overlay" hidden></div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
-  <script src="dashboard.js?v=20261025-2"></script>
+  <script src="dashboard.js?v=20261028-5"></script>
   <script src="market.js?v=20261026-1"></script>
   <script src="economic-news.js?v=20261022-3"></script>
   <script src="feed.js?v=20261025-2"></script>

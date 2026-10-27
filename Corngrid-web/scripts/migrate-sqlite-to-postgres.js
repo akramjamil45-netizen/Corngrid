@@ -37,7 +37,7 @@ const TABLES = [
   'public_portfolio_accounts', 'mt5_installations', 'mt5_snapshots', 'mt5_positions',
   'mt5_deals', 'user_avatars', 'direct_messages', 'support_messages', 'feed_posts',
   'feed_comments', 'feed_likes', 'feed_reports', 'market_drawings', 'market_candles',
-  'economic_calendar_cache'
+  'economic_calendar_cache', 'email_verification_codes', 'email_verification_requests'
 ];
 const CONFLICT_TARGETS = {
   users: 'id', password_reset_tokens: 'token_hash', user_preferences: 'user_id',
@@ -46,15 +46,16 @@ const CONFLICT_TARGETS = {
   mt5_installations: 'id', mt5_snapshots: 'id', mt5_positions: 'id', mt5_deals: 'id',
   user_avatars: 'user_id', direct_messages: 'id', support_messages: 'id', feed_posts: 'id',
   feed_comments: 'id', feed_likes: 'user_id, post_id', feed_reports: 'id', market_drawings: 'id',
-  market_candles: 'feed, symbol, tf, t', economic_calendar_cache: 'id'
+  market_candles: 'feed, symbol, tf, t', economic_calendar_cache: 'id',
+  email_verification_codes: 'user_id', email_verification_requests: 'id'
 };
 
-const BOOLEAN_COLUMNS = new Set();
+const BOOLEAN_COLUMNS = new Set(['users.email_verified']);
 
 const SERIAL_TABLES = [
   'users', 'mt5_accounts', 'mt5_installations', 'mt5_snapshots', 'mt5_positions',
   'mt5_deals', 'direct_messages', 'support_messages', 'feed_posts', 'feed_comments',
-  'feed_reports', 'market_drawings'
+  'feed_reports', 'market_drawings', 'email_verification_requests'
 ];
 
 function sqliteAll(db, sql, params = []) {
@@ -101,10 +102,15 @@ async function main() {
   await pg.connect();
 
   try {
-    const schemaPath = path.join(__dirname, '..', 'migrations', 'postgres', '0001_initial.sql');
-    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-    console.log('Applying PostgreSQL schema...');
-    await pg.query(schemaSql);
+    const schemaDir = path.join(__dirname, '..', 'migrations', 'postgres');
+    const schemaFiles = fs.readdirSync(schemaDir)
+      .filter(name => name.endsWith('.sql'))
+      .sort();
+    console.log('Applying PostgreSQL schema migrations...');
+    for (const schemaFile of schemaFiles) {
+      console.log(`  ${schemaFile}`);
+      await pg.query(fs.readFileSync(path.join(schemaDir, schemaFile), 'utf8'));
+    }
 
     await pg.query('BEGIN');
     for (const table of TABLES) {

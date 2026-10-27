@@ -40,7 +40,7 @@ All browser endpoints below require the existing `Authorization: Bearer <JWT>` t
 - `GET /api/portfolio/trades?page=1&limit=20&from=YYYY-MM-DD&to=YYYY-MM-DD&symbol=EURUSD&result=win&sort=closed-desc`
 - `GET /api/mt5/accounts`
 - `POST /api/mt5/pairing-code`
-- `POST /api/mt5/pair` with `{ "code": "...", "accountNumber": "...", "brokerServer": "...", "currency": "...", "eaVersion": "2.60" }` (`eaVersion` is optional for older EA builds)
+- `POST /api/mt5/pair` with `{ "code": "...", "accountNumber": "...", "brokerServer": "...", "currency": "...", "eaVersion": "2.7" }` (`eaVersion` is optional for older EA builds)
 - `PATCH /api/mt5/accounts/:id` with `{ "accountName": "..." }`
 - `DELETE /api/mt5/accounts/:id`
 - `PUT /api/user/profile`
@@ -159,7 +159,7 @@ No new secrets are required. Website symbols: XAUUSD, EURUSD, GBPUSD, USDJPY; pr
   "schema": 1,
   "sentAtMs": 1893499200000,
   "serverUtcOffsetSec": 10800,
-  "eaVersion": "2.60",
+  "eaVersion": "2.7",
   "quotes": [
     { "symbol": "XAUUSD.a", "bid": 1000.10, "ask": 1000.30, "last": null, "spreadPoints": 20,
       "digits": 2, "tickTimeMs": 1893499199500, "tickVolume": null, "volume": null }
@@ -268,7 +268,7 @@ No new secrets are required. Symbols recognised by the website: XAUUSD, EURUSD, 
   "schema": 1,
   "sentAtMs": 1893499200000,
   "serverUtcOffsetSec": 10800,
-  "eaVersion": "2.60",
+  "eaVersion": "2.7",
   "quotes": [
     { "symbol": "XAUUSD.a", "bid": 1000.10, "ask": 1000.30, "last": null, "spreadPoints": 20,
       "digits": 2, "tickTimeMs": 1893499199500, "tickVolume": null, "volume": null }

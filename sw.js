@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-static-v14';
+const CACHE_NAME = 'corngrid-static-v17';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
   '/style.css',

@@ -98,9 +98,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261025-2">
+  <link rel="stylesheet" href="dashboard.css?v=20261028-3">
   <link rel="stylesheet" href="admin.css?v=20261023-1">
-  <script src="admin.js?v=20261023-1" defer></script>
+  <script src="admin.js?v=20261028-1" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -114,6 +114,7 @@
         <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
         <a class="nav-item admin-nav-link" href="#support" data-admin-page="support"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>Support <span class="admin-unread-badge" id="admin-support-unread" hidden>0</span></a>
         <a class="nav-item admin-nav-link" href="#reports" data-admin-page="reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>Reports <span class="admin-unread-badge" id="admin-reports-unread" hidden>0</span></a>
+        <a class="nav-item admin-nav-link" href="#subscriptions" data-admin-page="subscriptions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription Monitor</a>
         <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
       </nav>
       <div class="sidebar-bottom">
@@ -173,6 +174,57 @@
           <section class="panel">
             <div class="panel-header"><div><p class="eyebrow">OPEN REPORTS</p><h2>Pending moderation queue</h2></div><span class="muted small" id="admin-reports-count">0 open</span></div>
             <div class="admin-reports-list" id="admin-reports-list" aria-live="polite"><p class="table-empty">Loading reports…</p></div>
+          </section>
+        </section>
+
+        <section class="page" id="subscriptions" hidden>
+          <div class="page-heading"><div><p class="eyebrow">SUBSCRIPTION MANAGEMENT</p><h1>Subscription Monitor</h1><p class="muted">Manage plans, payments, subscriptions, and activations.</p></div></div>
+          
+          <div class="stat-grid admin-stat-grid">
+            <article class="stat-card"><div class="stat-top"><span>Total Subscriptions</span></div><strong class="stat-value" id="sub-stat-total">—</strong></article>
+            <article class="stat-card"><div class="stat-top"><span>Active</span></div><strong class="stat-value" id="sub-stat-active">—</strong></article>
+            <article class="stat-card"><div class="stat-top"><span>Pending Approval</span></div><strong class="stat-value" id="sub-stat-pending">—</strong></article>
+            <article class="stat-card"><div class="stat-top"><span>Revenue</span></div><strong class="stat-value" id="sub-stat-revenue">—</strong></article>
+          </div>
+
+          <section class="panel" style="margin-top: 18px;">
+            <div class="panel-header"><div><p class="eyebrow">PAYMENTS</p><h2>Payment Requests</h2></div><button class="button button-small" type="button" id="admin-payments-refresh">Refresh</button></div>
+            <div class="table-scroll"><table><thead><tr><th>ID</th><th>User</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Actions</th></tr></thead><tbody id="admin-payments-table"><tr><td colspan="7" class="table-empty">Loading...</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" style="margin-top: 18px;">
+            <div class="panel-header"><div><p class="eyebrow">SUBSCRIPTIONS</p><h2>All Subscriptions</h2></div><button class="button button-small" type="button" id="admin-subscriptions-refresh">Refresh</button></div>
+            <div class="table-scroll"><table><thead><tr><th>ID</th><th>User</th><th>Plan</th><th>Price</th><th>Status</th><th>Activations</th><th>Expires</th><th>Actions</th></tr></thead><tbody id="admin-subscriptions-table"><tr><td colspan="8" class="table-empty">Loading...</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" style="margin-top: 18px;">
+            <div class="panel-header"><div><p class="eyebrow">PLANS</p><h2>Subscription Plans</h2></div><button class="button button-small" type="button" id="admin-plan-add">+ Add Plan</button></div>
+            <div id="plan-form" style="display: none; padding: 16px; border-bottom: 1px solid var(--border);">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                <input type="text" id="plan-name" class="input-control" placeholder="Plan Name">
+                <input type="number" id="plan-price" class="input-control" placeholder="Price">
+                <input type="number" id="plan-duration" class="input-control" placeholder="Duration (days)">
+                <input type="number" id="plan-max-act" class="input-control" placeholder="Max Activations" value="5">
+                <input type="text" id="plan-currency" class="input-control" placeholder="Currency" value="MYR">
+                <input type="text" id="plan-desc" class="input-control" placeholder="Description">
+              </div>
+              <button class="button button-primary" style="margin-top: 12px;" type="button" id="admin-plan-create">Create Plan</button>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Duration</th><th>Max Activations</th><th>Active</th><th>Actions</th></tr></thead><tbody id="admin-plans-table"><tr><td colspan="7" class="table-empty">Loading...</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" style="margin-top: 18px;">
+            <div class="panel-header"><div><p class="eyebrow">EA BUILDS</p><h2>Protected EA Downloads</h2></div></div>
+            <div style="padding: 16px; border-bottom: 1px solid var(--border); display: grid; gap: 10px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                <input type="text" id="ea-version" class="input-control" placeholder="Version (e.g. 2.70)">
+                <input type="file" id="ea-file" class="input-control" accept=".ex5">
+                <input type="text" id="ea-release-notes" class="input-control" placeholder="Release notes (optional)">
+              </div>
+              <div><button class="button button-primary" type="button" id="ea-upload">Upload EA Build</button></div>
+              <p class="muted small">Only active subscribers can download the compiled EA from their Subscription page.</p>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>ID</th><th>Version</th><th>File</th><th>Released</th><th>Active</th><th>Actions</th></tr></thead><tbody id="admin-ea-table"><tr><td colspan="6" class="table-empty">Loading...</td></tr></tbody></table></div>
           </section>
         </section>
 

@@ -35,7 +35,7 @@ test('the admin navigation includes a Reports page', () => {
   assert.match(adminHtml, /<section class="page" id="reports"/);
   assert.match(adminHtml, /id="admin-reports-list"/);
   // The routing table must know about the new page.
-  assert.match(adminJs, /const pages = \['overview', 'support', 'reports', 'announcements'\]/);
+  assert.match(adminJs, /const pages = \['overview', 'subscriptions', 'support', 'reports', 'announcements'\]/);
   assert.match(adminJs, /if \(active === 'reports'\) loadReports\(\)/);
   assert.match(adminJs, /reports: 'Reports'/);
 });

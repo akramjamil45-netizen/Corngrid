@@ -15,6 +15,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const formTitle = document.querySelector('.form-header h3');
     const formDescription = document.querySelector('.form-header p');
     let isRegister = false;
+    const PENDING_EMAIL_KEY = 'corngrid_pending_email';
+    const PENDING_EXPIRES_KEY = 'corngrid_verify_expires_at';
+    const PENDING_COOLDOWN_KEY = 'corngrid_verify_resend_until';
+
+    function rememberPendingVerification(email, expiresAt, cooldownSeconds) {
+        try {
+            sessionStorage.setItem(PENDING_EMAIL_KEY, email);
+            if (Number.isFinite(Number(expiresAt)) && Number(expiresAt) > Date.now()) {
+                sessionStorage.setItem(PENDING_EXPIRES_KEY, String(Number(expiresAt)));
+            } else {
+                sessionStorage.removeItem(PENDING_EXPIRES_KEY);
+            }
+            if (Number.isFinite(Number(cooldownSeconds)) && Number(cooldownSeconds) > 0) {
+                sessionStorage.setItem(PENDING_COOLDOWN_KEY, String(Date.now() + Number(cooldownSeconds) * 1000));
+            } else {
+                sessionStorage.removeItem(PENDING_COOLDOWN_KEY);
+            }
+        } catch {}
+    }
+
+    function goToVerification(delayMs) {
+        setTimeout(() => {
+            window.location.href = '/verify-email';
+        }, delayMs);
+    }
+
+    if (new URLSearchParams(window.location.search).get('verified') === '1') {
+        showAlert('Email verified successfully. You can now sign in.', 'success');
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('verified');
+        window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    }
 
     // Check if user is already logged in (remember login for PWA / browser)
     async function checkExistingSession() {
@@ -93,22 +125,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
+                if (data.code === 'EMAIL_NOT_VERIFIED') {
+                    rememberPendingVerification(userEmail.value.trim().toLowerCase());
+                    redirecting = true;
+                    showAlert('Your email address needs verification. Redirecting...', 'info');
+                    goToVerification(800);
+                    return;
+                }
+                if (response.status === 409 && isRegister) {
+                    throw new Error('This email or username is already registered. Click "Already have an account? Sign in", or use a different username/email. If you just registered, sign in with your password and you will be sent to the PIN page when needed.');
+                }
                 throw new Error(data.error || 'Login failed. Please check your credentials.');
             }
 
             if (isRegister) {
-                showAlert(data.message || 'Account created. Please sign in.', 'success');
-                isRegister = false;
-                usernameGroup.hidden = true;
-                userUsername.required = false;
-                submitLabel.textContent = 'Sign In to Terminal';
-                formTitle.textContent = 'Account Login';
-                formDescription.textContent = 'Enter your credentials to access the CornGrid Terminal Portal.';
-                toggleAuthMode.textContent = "Don't have an account yet? Sign up";
-                loginForm.reset();
+                rememberPendingVerification(
+                    userEmail.value.trim().toLowerCase(),
+                    data.expiresAt,
+                    data.resendCooldownSeconds
+                );
+                redirecting = true;
+                showAlert(
+                    data.emailSent === false
+                        ? 'Account created, but the email could not be sent. Redirecting to verification...'
+                        : 'Account created. Redirecting to email verification...',
+                    data.emailSent === false ? 'info' : 'success'
+                );
+                goToVerification(900);
                 return;
             }
 

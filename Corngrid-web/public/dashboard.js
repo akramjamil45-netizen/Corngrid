@@ -51,7 +51,7 @@
 
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', subscription: 'Subscription', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
   const statCounters = new WeakMap();
   const statUpdateTimers = new WeakMap();
@@ -92,6 +92,17 @@
   const $ = (selector, parent = document) => parent.querySelector(selector);
   const $$ = (selector, parent = document) => Array.from(parent.querySelectorAll(selector));
 
+  // Only a rejected credential should end the session. A 403 is also used for
+  // legitimate application states (unverified email, suspended account, or a
+  // missing subscription), and those must be shown to the user instead of
+  // silently logging them out.
+  function isSessionRejected(status, data) {
+    if (status === 401) return true;
+    if (status !== 403) return false;
+    const message = String((data && data.error) || '');
+    return /token is invalid|session is no longer valid|account is no longer available|authentication token is required/i.test(message);
+  }
+
   async function request(path, options = {}) {
     const response = await fetch(`${API}${path}`, {
       ...options,
@@ -101,7 +112,7 @@
     });
     let data = {};
     try { data = await response.json(); } catch { if (response.ok) throw new Error('The server returned an invalid response.'); }
-    if (response.status === 401 || response.status === 403) {
+    if (isSessionRejected(response.status, data)) {
       void expireSession();
       throw new Error('Your session has expired. Please sign in again.');
     }
@@ -120,7 +131,7 @@
       if (!response.ok) {
         let data = {};
         try { data = await response.json(); } catch {}
-        if (response.status === 401 || response.status === 403) {
+        if (isSessionRejected(response.status, data)) {
           void expireSession();
           throw new Error('Your session has expired. Please sign in again.');
         }
@@ -314,6 +325,7 @@
     if (name === 'positions') loadPositions();
     if (name === 'history') loadTrades();
     if (name === 'monitoring') loadMonitoring();
+    if (name === 'subscription') loadSubscription();
     if (name === 'chat') {
       setChatMobileView();
       refreshChat();
@@ -611,6 +623,314 @@
       }
     }
   }
+
+  // ---------------------------- Subscription ----------------------------
+  let activePayment = null;
+
+  function subscriptionMoney(amount, currency = 'MYR') {
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(amount) || 0);
+    } catch {
+      return `${currency} ${Number(amount || 0).toFixed(2)}`;
+    }
+  }
+
+  function subscriptionDate(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const timestamp = Number(value);
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return '—';
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { dateStyle: 'medium' });
+  }
+
+  function subscriptionStatusLabel(status) {
+    return String(status || 'none').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  function renderSubscriptionOverview(data) {
+    const container = $('#subscription-status-content');
+    const subscription = data.subscription;
+    if (!subscription) {
+      container.innerHTML = '<p class="muted subscription-empty">You do not have an active subscription yet. Choose a plan below to get started.</p>';
+    } else {
+      const tone = subscription.status === 'active' ? 'success' : subscription.status === 'suspended' ? 'danger' : 'warning';
+      container.innerHTML = `
+        <div class="subscription-overview-grid">
+          <div class="subscription-metric"><span class="subscription-metric-label">Status</span><span class="badge badge-${tone}">${escapeHtml(subscriptionStatusLabel(subscription.status))}</span></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">Plan</span><strong class="subscription-metric-value">${escapeHtml(subscription.planName || '�?"')}</strong></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">Expires</span><strong class="subscription-metric-value">${escapeHtml(subscriptionDate(subscription.expiresAt))}</strong></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">Days Remaining</span><strong class="subscription-metric-value">${data.daysRemaining === null ? '�?"' : escapeHtml(String(data.daysRemaining))}</strong></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">EA Activations</span><strong class="subscription-metric-value">${escapeHtml(String(data.activationCount || 0))} / ${escapeHtml(String(data.maxActivations || 5))}</strong></div>
+        </div>
+        ${subscription.status === 'suspended' && subscription.suspendedReason ? `<p class="muted small subscription-reason">Reason: ${escapeHtml(subscription.suspendedReason)}</p>` : ''}`;
+    }
+    const latest = data.latestPayment;
+    if (latest && ['pending_payment', 'pending_approval'].includes(latest.status)) {
+      activePayment = { id: latest.id, amount: latest.amount, currency: latest.currency, planName: latest.plan_name || subscription?.planName || 'Subscription' };
+      $('#subscription-payment-section').style.display = '';
+      $('#payment-amount').textContent = subscriptionMoney(latest.amount, latest.currency);
+      $('#payment-plan-name').textContent = activePayment.planName;
+      $('#submit-payment-proof').textContent = latest.status === 'pending_approval' ? 'Update Payment Proof' : 'Submit Payment Proof';
+      $('#cancel-subscription').hidden = latest.status !== 'pending_payment';
+    } else {
+      activePayment = null;
+      $('#subscription-payment-section').style.display = 'none';
+      $('#cancel-subscription').hidden = true;
+    }
+  }
+
+  function renderSubscriptionPlans(plans) {
+    const grid = $('#subscription-plans-grid');
+    if (!plans.length) {
+      grid.innerHTML = '<p class="muted subscription-empty">No subscription plans are available right now. Please contact the administrator.</p>';
+      return;
+    }
+    grid.innerHTML = plans.map(plan => `
+      <article class="subscription-plan-card">
+        <div class="subscription-plan-top">
+          <p class="eyebrow">${escapeHtml(subscriptionMoney(plan.price, plan.currency))}</p>
+          <h3>${escapeHtml(plan.name)}</h3>
+        </div>
+        <p class="muted small subscription-plan-description">${escapeHtml(plan.description || 'CornGrid EA license')}</p>
+        <ul class="subscription-plan-meta">
+          <li>${escapeHtml(String(plan.durationDays))} days access</li>
+          <li>${escapeHtml(String(plan.maxActivations))} EA activations</li>
+        </ul>
+        <button class="button button-primary subscription-plan-button" type="button" data-subscribe-plan="${escapeHtml(String(plan.id))}">Subscribe</button>
+      </article>`).join('');
+  }
+
+  function renderSubscriptionActivations(activations) {
+    const list = $('#activations-list');
+    const activeCount = activations.filter(item => item.status === 'active').length;
+    $('#activation-count-text').textContent = `${activeCount} active`;
+    if (!activations.length) {
+      list.innerHTML = '<p class="muted subscription-empty">No EA activations yet. The EA activates automatically the first time it verifies with this account.</p>';
+      return;
+    }
+    list.innerHTML = activations.map(item => `
+      <div class="subscription-list-row">
+        <div class="subscription-list-main"><strong>${escapeHtml(item.maskedAccount)}</strong><span class="muted small">${escapeHtml(item.brokerServer || '')}</span></div>
+        <div class="subscription-list-side"><span class="badge badge-${item.status === 'active' ? 'success' : 'danger'}">${escapeHtml(subscriptionStatusLabel(item.status))}</span><span class="muted small">Verified ${escapeHtml(subscriptionDate(item.lastVerifiedAt || item.activatedAt))}</span></div>
+      </div>`).join('');
+  }
+
+  async function loadSubscriptionDownloads() {
+    const list = $('#ea-download-list');
+    try {
+      const data = await request('/subscription/downloads');
+      $('#ea-download-help').textContent = 'Download the latest compiled CornGrid EA. Your license activates when the EA first connects.';
+      if (!data.versions.length) {
+        list.innerHTML = '<p class="muted subscription-empty">No EA build has been published yet.</p>';
+        return;
+      }
+      list.innerHTML = data.versions.map(version => `
+        <div class="subscription-list-row">
+          <div class="subscription-list-main">
+            <strong>Version ${escapeHtml(version.version)}</strong>
+            <span class="muted small">${escapeHtml(version.filename)} · ${escapeHtml(subscriptionDate(version.releasedAt))}</span>
+            ${version.releaseNotes ? `<span class="muted small subscription-download-note">${escapeHtml(version.releaseNotes)}</span>` : ''}
+          </div>
+          <button class="button button-primary button-small" type="button" data-ea-download="${escapeHtml(String(version.id))}" data-ea-filename="${escapeHtml(version.filename)}">Download</button>
+        </div>`).join('');
+    } catch (error) {
+      list.innerHTML = `<p class="muted subscription-empty">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  $('#ea-download-list').addEventListener('click', async event => {
+    const button = event.target.closest('[data-ea-download]');
+    if (!button) return;
+    button.disabled = true;
+    const label = button.textContent;
+    button.textContent = 'Downloading…';
+    try {
+      const response = await fetch(`${API}/subscription/download/${encodeURIComponent(button.dataset.eaDownload)}`, { credentials: 'same-origin' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Unable to download the EA file.');
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = button.dataset.eaFilename || 'CornGrid.ex5';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      toast('EA download started.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  });
+
+  async function loadSubscriptionNotifications() {
+    const list = $('#subscription-notifications-list');
+    try {
+      const data = await request('/notifications');
+      if (!data.notifications.length) {
+        list.innerHTML = '<p class="muted subscription-empty">No subscription notifications yet.</p>';
+        return;
+      }
+      list.innerHTML = data.notifications.map(item => `
+        <div class="subscription-notification${item.read_at ? '' : ' is-unread'}">
+          <div class="subscription-notification-head">
+            <span class="subscription-notification-title">${escapeHtml(item.title)}</span>
+            <span class="subscription-notification-meta">
+              <time class="muted small">${escapeHtml(subscriptionDate(item.created_at))}</time>
+              <button class="subscription-notification-delete" type="button" data-notification-delete="${escapeHtml(String(item.id))}" aria-label="Delete notification" title="Delete notification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/><path d="M10 11v5M14 11v5"/></svg></button>
+            </span>
+          </div>
+          ${item.body ? `<p class="muted small subscription-notification-body">${escapeHtml(item.body)}</p>` : ''}
+        </div>`).join('');
+    } catch (error) {
+      list.innerHTML = `<p class="muted subscription-empty">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  $('#mark-notifications-read').addEventListener('click', async () => {
+    try {
+      await request('/notifications/read', { method: 'POST' });
+      loadSubscriptionNotifications();
+      toast('Notifications marked as read.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  });
+
+  $('#clear-notifications').addEventListener('click', async () => {
+    if (!window.confirm('Delete all subscription notifications?')) return;
+    const button = $('#clear-notifications');
+    button.disabled = true;
+    try {
+      await request('/notifications', { method: 'DELETE' });
+      loadSubscriptionNotifications();
+      toast('Notifications cleared.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('#subscription-notifications-list').addEventListener('click', async event => {
+    const button = event.target.closest('[data-notification-delete]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await request(`/notifications/${encodeURIComponent(button.dataset.notificationDelete)}`, { method: 'DELETE' });
+      loadSubscriptionNotifications();
+      toast('Notification deleted.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+      button.disabled = false;
+    }
+  });
+
+  async function loadSubscription() {
+    const overviewEl = $('#subscription-status-content');
+    overviewEl.innerHTML = '<p class="muted">Loading subscription status…</p>';
+    try {
+      const [overview, plans] = await Promise.all([
+        request('/subscription/overview'),
+        request('/subscription/plans')
+      ]);
+      renderSubscriptionOverview(overview);
+      renderSubscriptionPlans(plans.plans || []);
+      renderSubscriptionActivations(overview.activations || []);
+      loadSubscriptionDownloads();
+      loadSubscriptionNotifications();
+    } catch (error) {
+      overviewEl.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  $('#subscription-plans-grid').addEventListener('click', async event => {
+    const button = event.target.closest('[data-subscribe-plan]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+      const data = await request('/subscription/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ planId: Number(button.dataset.subscribePlan) })
+      });
+      activePayment = { id: data.paymentId, amount: data.amount, currency: data.currency, planName: data.plan?.name || 'Subscription' };
+      $('#payment-amount').textContent = subscriptionMoney(data.amount, data.currency);
+      $('#payment-plan-name').textContent = activePayment.planName;
+      $('#payment-reference').value = '';
+      $('#payment-proof').value = '';
+      $('#cancel-subscription').hidden = false;
+      $('#subscription-payment-section').style.display = '';
+      $('#subscription-payment-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('Plan selected. Complete your DuitNow payment and submit proof.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('#submit-payment-proof').addEventListener('click', async () => {
+    if (!activePayment) return;
+    const button = $('#submit-payment-proof');
+    const file = $('#payment-proof').files[0];
+    if (file && file.size > 5 * 1024 * 1024) {
+      toast('Payment proof must be smaller than 5 MB.', 'error');
+      return;
+    }
+    button.disabled = true;
+    try {
+      let proofData = null;
+      if (file) {
+        proofData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Unable to read the selected file.'));
+          reader.readAsDataURL(file);
+        });
+      }
+      await request('/subscription/payment-proof', {
+        method: 'POST',
+        body: JSON.stringify({
+          paymentId: activePayment.id,
+          paymentReference: $('#payment-reference').value.trim() || null,
+          proofData,
+          proofName: file ? file.name : null
+        })
+      });
+      toast('Payment submitted. Your subscription activates after admin approval.', 'success');
+      $('#payment-proof').value = '';
+      loadSubscription();
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('#cancel-subscription').addEventListener('click', async () => {
+    if (!activePayment || !window.confirm('Cancel this pending subscription purchase?')) return;
+    const button = $('#cancel-subscription');
+    button.disabled = true;
+    try {
+      await request('/subscription/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: activePayment.id })
+      });
+      activePayment = null;
+      $('#subscription-payment-section').style.display = 'none';
+      toast('Pending subscription cancelled.', 'success');
+      loadSubscription();
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   async function loadOverviewData() {
     let accountsLoaded = false;
@@ -1080,7 +1400,7 @@
       xhr.onload = () => {
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch { /* handled below */ }
-        if (xhr.status === 401 || xhr.status === 403) { void expireSession(); return reject(new Error('Your session has expired. Please sign in again.')); }
+        if (isSessionRejected(xhr.status, data)) { void expireSession(); return reject(new Error('Your session has expired. Please sign in again.')); }
         if (xhr.status >= 200 && xhr.status < 300 && data.avatarUrl) return resolve(data);
         return reject(new Error(data.error || 'The photo could not be saved.'));
       };

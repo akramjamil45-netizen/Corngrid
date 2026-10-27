@@ -7,7 +7,8 @@
     "start": "node server.js",
     "loadtest": "node scripts/loadtest.js",
     "gen:android-assets": "node scripts/generate-android-assets.mjs",
-    "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js"
+    "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js",
+    "migrate:postgres:schema": "node scripts/apply-postgres-migrations.js"
   },
   "engines": {
     "node": ">=20.17.0"

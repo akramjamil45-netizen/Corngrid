@@ -16,9 +16,17 @@ const STATIC_PREFIXES = ['/uploads/', '/download/', '/files/', '/video/', '/imag
 function collectServerRoutes() {
   const routes = [];
   const files = fs.readdirSync(ROOT_DIR).filter(name => name.endsWith('.js'));
+  const moduleDirs = ['subscriptions'];
   const routePattern = /app\.(get|post|patch|put|delete)\(\s*'([^']+)'/g;
-  for (const file of files) {
-    const source = fs.readFileSync(path.join(ROOT_DIR, file), 'utf8');
+  const sources = files.map(file => ({ file, source: fs.readFileSync(path.join(ROOT_DIR, file), 'utf8') }));
+  for (const dirName of moduleDirs) {
+    const dir = path.join(ROOT_DIR, dirName);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir).filter(name => name.endsWith('.js'))) {
+      sources.push({ file: path.join(dirName, name), source: fs.readFileSync(path.join(dir, name), 'utf8') });
+    }
+  }
+  for (const { file, source } of sources) {
     let match;
     while ((match = routePattern.exec(source)) !== null) {
       routes.push({ method: match[1].toUpperCase(), route: match[2], file });

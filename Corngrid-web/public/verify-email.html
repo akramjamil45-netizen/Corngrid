@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#08080a">
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/images/pwa-192.png">
+    <title>Verify Email | CornGrid EA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=20261018-5">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="verify-email.css?v=20261027-1">
+</head>
+<body class="verify-page">
+    <main class="verify-shell">
+        <section class="verify-card" aria-labelledby="verifyTitle">
+            <header class="verify-brand">
+                <img src="images/Corngrid logo 4k.jpg" alt="CornGrid logo" class="verify-logo">
+                <div>
+                    <span class="verify-brand-name">CORNGRID</span>
+                    <span class="verify-brand-sub">EA TERMINAL</span>
+                </div>
+            </header>
+
+            <div class="verify-badge">
+                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                <span>Secure email verification</span>
+            </div>
+
+            <div class="verify-heading">
+                <h1 id="verifyTitle">Verify your email</h1>
+                <p id="verifyIntro">
+                    Enter the 6-digit PIN we sent to
+                    <strong id="maskedEmail">your registered email</strong>.
+                </p>
+            </div>
+
+            <div id="alertBox" class="alert-box" role="status" aria-live="polite" hidden></div>
+
+            <form id="verifyForm" class="verify-form" novalidate>
+                <div class="form-group" id="emailGroup" hidden>
+                    <label for="verifyEmail">Account email</label>
+                    <div class="input-field">
+                        <i class="fas fa-envelope input-icon" aria-hidden="true"></i>
+                        <input type="email" id="verifyEmail" placeholder="name@domain.com" autocomplete="email" autocapitalize="off" spellcheck="false">
+                    </div>
+                </div>
+
+                <fieldset class="otp-fieldset">
+                    <legend class="sr-only">Six digit verification PIN</legend>
+                    <div class="otp-inputs" id="otpInputs">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="PIN digit 1" data-index="0">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="PIN digit 2" data-index="1">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="PIN digit 3" data-index="2">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="PIN digit 4" data-index="3">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="PIN digit 5" data-index="4">
+                        <input class="otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="PIN digit 6" data-index="5">
+                    </div>
+                </fieldset>
+
+                <div class="verify-meta">
+                    <span id="expiryLabel">PIN expires in <strong id="countdown">10:00</strong></span>
+                    <span class="verify-attempts">Up to 5 attempts</span>
+                </div>
+
+                <button type="submit" class="btn-login-submit verify-submit" id="verifyBtn">
+                    <span>Verify email</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </button>
+            </form>
+
+            <div class="resend-row">
+                <span>Didn't receive the PIN?</span>
+                <button type="button" class="resend-btn" id="resendBtn">
+                    <span>Resend PIN</span>
+                </button>
+            </div>
+            <p class="resend-timer" id="resendTimer" hidden></p>
+
+            <div class="verify-footer">
+                <a href="/login.html" class="back-link">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    Back to sign in
+                </a>
+                <p class="verify-warning">
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                    Never share this PIN. CornGrid support will never ask for it.
+                </p>
+            </div>
+        </section>
+
+        <p class="verify-copyright">CornGrid EA &middot; Secure account activation</p>
+    </main>
+
+    <script src="verify-email.js?v=20261027-1"></script>
+</body>
+</html>

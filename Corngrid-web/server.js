@@ -8,7 +8,6 @@ if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '16';
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
@@ -25,9 +24,12 @@ const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
 const createUserAuth = require('./user-auth');
+const createEmailVerification = require('./email-verification');
+const createLoginHandler = require('./login-handler');
 const createBackupScheduler = require('./db-backup');
 const createDatabaseRouter = require('./db-router');
 const createPostgresDatabase = require('./db-postgres');
+const createSubscriptionApi = require('./subscriptions/subscription-api');
 const {
   clearAuthCookie,
   isSameOriginRequest,
@@ -68,6 +70,20 @@ const mailTransport = SMTP_HOST && SMTP_FROM
         : {})
     })
   : null;
+
+function sendMail(message) {
+  return new Promise((resolve, reject) => {
+    if (!mailTransport) {
+      reject(new Error('SMTP transport is not configured.'));
+      return;
+    }
+    mailTransport.sendMail(message, (error, info) => {
+      if (error) reject(error);
+      else resolve(info);
+    });
+  });
+}
+
 const SECRET_KEY = process.env.JWT_SECRET || (
   process.env.NODE_ENV === 'production' ? '' : crypto.randomBytes(32).toString('hex')
 );
@@ -101,6 +117,9 @@ app.use((req, res, next) => {
 });
 
 app.use(cors());
+// Payment proofs are submitted as base64 JSON (5 MB decoded is ~6.7 MB of
+// text), so this route needs a larger parser than the global API limit.
+app.use('/api/subscription/payment-proof', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
@@ -116,7 +135,11 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/') ||
-    ['/admin', '/admin.html', '/dashboard', '/dashboard.html', '/index.html', '/login', '/login.html', '/reset-password.html'].includes(req.path)
+    [
+      '/admin', '/admin.html', '/dashboard', '/dashboard.html', '/index.html',
+      '/login', '/login.html', '/verify-email', '/verify-email.html',
+      '/verify-email.js', '/verify-email.css', '/reset-password.html'
+    ].includes(req.path)
   ) {
     res.set('Cache-Control', 'no-store');
   }
@@ -277,6 +300,24 @@ db.run(`
   )
 `);
 
+const emailVerification = createEmailVerification({
+  db,
+  sendMail: mailTransport ? sendMail : null,
+  smtpFrom: SMTP_FROM,
+  otpPepper: process.env.OTP_PEPPER || SECRET_KEY,
+  isReservedEmail: email => adminAuth.matchesEmail(email)
+});
+
+const loginHandler = createLoginHandler({
+  db,
+  jwtSecret: SECRET_KEY,
+  adminAuth,
+  setAuthCookie,
+  isSameOriginRequest,
+  isEmailVerified: emailVerification.isEmailVerified,
+  maskEmail: emailVerification.maskEmail
+});
+
 const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
 
 const { authenticateInstallation } = registerMt5Api(app, db, verifyToken);
@@ -294,6 +335,8 @@ registerAdminApi(
   adminAuth.verifyToken,
   Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180
 );
+const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation);
+
 
 const downloadableResources = Object.freeze({
   'setup-guide': {
@@ -424,6 +467,13 @@ app.get('/login.html', async (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Email verification page. The page itself contains no verification logic
+// beyond calling the API; a pending account cannot be activated client-side.
+app.get(['/verify-email', '/verify-email.html'], (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'verify-email.html'));
+});
+
 // Service-unavailable fallback: rendered only when the auth layer is
 // genuinely unavailable. The page is fully static and self-contained, so it
 // can render even while the auth API is down.
@@ -493,123 +543,13 @@ app.get('/api/health/ready', (req, res) => {
   });
 });
 
-// 1. API Pendaftaran Pengguna
-app.post('/api/register', loginRateLimit, async (req, res) => {
-  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
-  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const { password } = req.body;
+// 1. Registration, email OTP verification, and resend endpoints.
+// The implementation lives in email-verification.js so it can be tested with a
+// mocked mail transport and an in-memory database.
+emailVerification.registerRoutes(app);
 
-  if (!username || !email || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Please fill in all fields.' });
-  }
-  if (adminAuth.matchesEmail(email)) {
-    return res.status(400).json({ error: 'This email address is reserved.' });
-  }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'The password must be at least 8 characters long.' });
-  }
-  if (Buffer.byteLength(password, 'utf8') > 72) return res.status(400).json({ error: 'The password must not exceed 72 UTF-8 bytes.' });
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const query = `INSERT INTO users (username, email, password) VALUES (?, ?, ?)`;
-
-    db.run(query, [username, email, hashedPassword], function (err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(400).json({ error: 'Username or email has already been taken.' });
-        }
-        console.error('Failed to register user:', err.message);
-        return res.status(500).json({ error: 'Server error during registration.' });
-      }
-      if (this.changes !== 1) {
-        console.error('User registration did not add a record.');
-        return res.status(500).json({ error: 'Server error during registration.' });
-      }
-      res.json({ message: 'Registration successful! Please log in.' });
-    });
-  } catch (error) {
-    console.error('Failed to prepare registration:', error.message);
-    res.status(500).json({ error: 'Server error during registration.' });
-  }
-});
-
-// 2. Login API
-app.post('/api/login', loginRateLimit, async (req, res) => {
-  const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
-  const { password } = req.body;
-
-  if (!email || typeof password !== 'string' || !password) {
-    return res.status(400).json({ error: 'Please enter your email and password.' });
-  }
-
-  const rememberMe = req.body && req.body.rememberMe !== false;
-  const tokenDuration = rememberMe ? '30d' : '1d';
-  const cookieDuration = rememberMe ? (30 * 24 * 60 * 60 * 1000) : (24 * 60 * 60 * 1000);
-
-  if (adminAuth.matchesEmail(email)) {
-    try {
-      const token = await adminAuth.authenticate(email, password, tokenDuration);
-      if (!token) return res.status(400).json({ error: 'Email or password is incorrect.' });
-      if (isSameOriginRequest(req)) setAuthCookie(res, token, req, cookieDuration);
-      return res.json({
-        message: 'Login successful!',
-        token,
-        user: { role: 'admin', username: 'Administrator' }
-      });
-    } catch (error) {
-      console.error('Failed to verify administrator credentials:', error.message);
-      return res.status(500).json({ error: 'Error occurred while verifying credentials.' });
-    }
-  }
-
-  const query = `SELECT * FROM users WHERE email = ? COLLATE NOCASE`;
-  db.get(query, [email], async (err, user) => {
-    if (err) {
-      console.error('Failed to search for account:', err.message);
-      return res.status(500).json({ error: 'Server error during login.' });
-    }
-    if (!user) {
-      return res.status(400).json({ error: 'Email or password is incorrect.' });
-    }
-
-    if (Buffer.byteLength(password, 'utf8') > 72) {
-      return res.status(400).json({ error: 'Email or password is incorrect.' });
-    }
-    try {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(400).json({ error: 'Email or password is incorrect.' });
-      }
-
-      const authVersion = await new Promise((resolve, reject) => {
-        db.get('SELECT version FROM user_auth_versions WHERE user_id = ?', [user.id], (versionErr, record) => {
-          if (versionErr) reject(versionErr);
-          else resolve(record ? record.version : 0);
-        });
-      });
-      const token = jwt.sign(
-        { id: user.id, email: user.email, username: user.username, authVersion },
-        SECRET_KEY,
-        { expiresIn: tokenDuration }
-      );
-
-      if (isSameOriginRequest(req)) setAuthCookie(res, token, req, cookieDuration);
-      res.json({
-        message: 'Login successful!',
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          bio: user.bio
-        }
-      });
-    } catch (bcryptErr) {
-      res.status(500).json({ error: 'Error occurred while verifying password.' });
-    }
-  });
-});
+// 2. Login API (extracted so the unverified-account guard is testable).
+app.post('/api/login', loginRateLimit, loginHandler);
 
 app.post('/api/logout', (req, res) => {
   const credential = readAuthCredential(req);
@@ -864,6 +804,10 @@ backupScheduler.start();
     await new Promise((resolve, reject) => {
       db.get('SELECT 1', (error) => (error ? reject(error) : resolve()));
     });
+    // Additive email-verification schema (SQLite) or migration check
+    // (PostgreSQL) must finish before the first request is accepted.
+    await emailVerification.ready();
+    await subscriptionApi.ready();
   } catch (error) {
     console.error('Database initialization failed; aborting startup:', error.message);
     process.exit(1);
@@ -895,6 +839,7 @@ backupScheduler.start();
     if (forceExit.unref) forceExit.unref();
     if (checkpointTimer) clearInterval(checkpointTimer);
     if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
+    emailVerification.close();
     server.close(() => {
       try {
         if (typeof marketFeed.close === 'function') marketFeed.close();
