@@ -2350,3 +2350,239 @@ tbody tr:hover {
   }
 }
 
+
+/* ---- Responsive table-to-card layout ---------------------------------
+   Below 640px every data table row becomes a self-contained card. The
+   markup stays identical (one table, one source of truth) so sorting,
+   pagination, delegated click handlers and API calls are untouched; the
+   transformation is purely presentational and driven by data-label
+   attributes added by the renderers. */
+@media (max-width: 639px) {
+  .table-scroll { overflow-x: visible; }
+  .table-scroll > table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+  /* Visually hidden instead of display:none so the column headers stay in
+     the accessibility tree while the cards carry the visible labels. */
+  .table-scroll > table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .table-scroll > table > tbody {
+    display: grid;
+    gap: 14px;
+    width: 100%;
+    padding: 4px 12px 14px;
+  }
+  .table-scroll > table > tbody > tr {
+    position: relative;
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background:
+      radial-gradient(130% 90% at 100% 0%, rgba(255, 212, 0, .08), transparent 58%),
+      var(--surface);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .16);
+  }
+  .table-scroll > table > tbody > tr::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: 0 0 auto;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), rgba(255, 212, 0, 0) 76%);
+  }
+  .table-scroll > table > tbody > tr > td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+    min-width: 0;
+    padding: 9px 15px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .table-scroll > table > tbody > tr > td:last-child { border-bottom: 0; }
+  .table-scroll > table > tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 46%;
+    color: var(--subtle);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    line-height: 1.4;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .table-scroll > table > tbody > tr > td.cell-key {
+    font-size: 13.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Primary identifier becomes the compact card header. Grid order lets it
+     come first visually even when it is not the first cell in the table. */
+  .table-scroll > table > tbody > tr > td.cell-primary {
+    order: -1;
+    display: block;
+    margin: 0;
+    padding: 16px 15px 12px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255, 212, 0, .05), transparent);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -.1px;
+    line-height: 1.35;
+    text-align: left;
+  }
+  .table-scroll > table > tbody > tr > td.cell-primary::before { display: none; }
+  .table-scroll > table > tbody > tr > td.cell-primary .admin-profile-name { font-size: 15.5px; }
+  .table-scroll > table > tbody > tr > td.cell-primary strong { color: var(--text); }
+  .table-scroll > table > tbody > tr > td.cell-primary .muted,
+  .table-scroll > table > tbody > tr > td.cell-primary .admin-profile-id,
+  .table-scroll > table > tbody > tr > td.cell-primary small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  /* Row actions are pinned to the footer and never overflow the card. */
+  .table-scroll > table > tbody > tr > td.cell-actions,
+  .table-scroll > table > tbody > tr > td.admin-actions {
+    order: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 12px 15px 15px;
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+    background: rgba(255, 255, 255, .02);
+    text-align: left;
+  }
+
+  .table-scroll > table > tbody > tr > td.cell-actions::before,
+  .table-scroll > table > tbody > tr > td.admin-actions::before { display: none; }
+  .table-scroll > table > tbody > tr > td.cell-actions .button,
+  .table-scroll > table > tbody > tr > td.admin-actions .button {
+    flex: 1 1 auto;
+    min-height: 40px;
+    margin: 0;
+  }
+
+  /* Secondary fields stay collapsed until the reader asks for them. */
+  .table-scroll > table > tbody > tr > td.cell-extra {
+    order: 1;
+    display: none;
+    background: rgba(255, 255, 255, .015);
+  }
+  .table-scroll > table > tbody > tr.is-expanded > td.cell-extra {
+    display: flex;
+    animation: card-extra-in .18s ease both;
+  }
+  @keyframes card-extra-in {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .table-scroll > table > tbody > tr > td.cell-toggle {
+    order: 2;
+    display: block;
+    padding: 10px 15px 12px;
+    border-bottom: 0;
+    text-align: left;
+  }
+  .table-scroll > table > tbody > tr > td.cell-toggle::before { display: none; }
+  .card-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .2px;
+    cursor: pointer;
+    transition: background .16s ease, border-color .16s ease;
+  }
+  .card-toggle:hover { border-color: var(--accent); background: rgba(255, 212, 0, .17); }
+  .card-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card-toggle-icon { width: 16px; height: 16px; flex: 0 0 auto; transition: transform .18s ease; }
+  .table-scroll > table > tbody > tr.is-expanded .card-toggle-icon { transform: rotate(180deg); }
+
+  /* Empty / loading states stay a single quiet block, not a fake card. */
+  .table-scroll > table > tbody > tr > td.table-empty {
+    display: block;
+    padding: 24px 12px;
+    border: 0;
+    text-align: center;
+  }
+  .table-scroll > table > tbody > tr > td.table-empty::before { display: none; }
+  .table-scroll > table > tbody > tr:has(> td.table-empty) {
+    padding: 0;
+    border-style: dashed;
+    background: transparent;
+    box-shadow: none;
+  }
+  .table-scroll > table > tbody > tr:has(> td.table-empty)::before { display: none; }
+
+  .pagination { flex-wrap: wrap; gap: 9px; }
+  .pagination > div { flex: 1 1 100%; }
+  .pagination .button { flex: 1; }
+}
+
+/* Allow status pills and other inline value wrappers to wrap inside a card
+   so long suspension reasons or emails can never push past the card edge. */
+@media (max-width: 639px) {
+  body.theme-light .table-scroll > table > tbody > tr { box-shadow: 0 8px 18px rgba(20, 20, 20, .07); }
+  .table-scroll > table > tbody > tr > td > * { min-width: 0; }
+  .table-scroll > table > tbody > tr > td .pill,
+  .table-scroll > table > tbody > tr > td .badge {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+}
+
+/* Safety net for the injected detail toggle if a row is resized back up
+   before the shared script has removed it. */
+@media (min-width: 640px) {
+  .table-scroll > table > tbody > tr > td.cell-toggle { display: none !important; }
+}

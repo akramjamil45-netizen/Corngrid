@@ -98,9 +98,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261028-3">
+  <link rel="stylesheet" href="dashboard.css?v=20261029-1">
   <link rel="stylesheet" href="admin.css?v=20261023-1">
-  <script src="admin.js?v=20261028-1" defer></script>
+  <script src="table-cards.js?v=20261029-2" defer></script>
+  <script src="admin.js?v=20261029-1" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -208,7 +209,10 @@
                 <input type="text" id="plan-currency" class="input-control" placeholder="Currency" value="MYR">
                 <input type="text" id="plan-desc" class="input-control" placeholder="Description">
               </div>
-              <button class="button button-primary" style="margin-top: 12px;" type="button" id="admin-plan-create">Create Plan</button>
+              <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button class="button button-primary" type="button" id="admin-plan-create">Create Plan</button>
+                <button class="button button-secondary" type="button" id="admin-plan-cancel" hidden>Cancel edit</button>
+              </div>
             </div>
             <div class="table-scroll"><table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Duration</th><th>Max Activations</th><th>Active</th><th>Actions</th></tr></thead><tbody id="admin-plans-table"><tr><td colspan="7" class="table-empty">Loading...</td></tr></tbody></table></div>
           </section>

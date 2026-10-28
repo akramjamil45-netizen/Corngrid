@@ -1096,6 +1096,40 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   });
 
+  // Permanently removes a payment request that is no longer actionable. Only
+  // cancelled/rejected records can be removed so approved history is preserved.
+  app.delete('/api/admin/subscription-payments/:id', adminAuth.verifyToken, async (req, res) => {
+    try {
+      const paymentId = Number.parseInt(req.params.id, 10);
+      if (!Number.isSafeInteger(paymentId) || paymentId < 1) return res.status(400).json({ error: 'Invalid payment.' });
+      const adminId = req.admin?.id || null;
+      let proofPath = null;
+
+      const outcome = await withTransaction(async () => {
+        const payment = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
+        if (!payment) return { http: 404, body: { error: 'Payment not found.' } };
+        if (!['cancelled', 'rejected'].includes(payment.status)) {
+          return { http: 409, body: { error: 'Only cancelled or rejected payment requests can be deleted.' } };
+        }
+
+        proofPath = payment.payment_proof_path || null;
+        await run('DELETE FROM subscription_payments WHERE id = ?', [paymentId]);
+        await logAudit(adminId, 'admin', 'payment_deleted', 'payment', paymentId,
+          { status: payment.status, amount: Number(payment.amount), currency: payment.currency }, null, req.ip);
+        return { http: 200, body: { message: 'Payment request deleted.' } };
+      });
+
+      if (outcome.http === 200 && proofPath) {
+        const absolute = path.join(PROOF_DIR, path.basename(proofPath));
+        if (absolute.startsWith(PROOF_DIR)) fs.promises.unlink(absolute).catch(() => {});
+      }
+      return res.status(outcome.http).json(outcome.body);
+    } catch (error) {
+      console.error('Failed to delete payment request:', error.message);
+      res.status(500).json({ error: 'Unable to delete this payment request.' });
+    }
+  });
+
   app.post('/api/admin/subscriptions/:id/suspend', adminAuth.verifyToken, async (req, res) => {
     try {
       const subscriptionId = Number.parseInt(req.params.id, 10);

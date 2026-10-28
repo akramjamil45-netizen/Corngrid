@@ -449,7 +449,7 @@ const translations = {
         nav_terminal_app: "Aplikasi Terminal",
         nav_support: "Bantuan",
         nav_portfolios: "Portfolio",
-        nav_login: "Daftar masuk",
+        nav_login: "Daftar Masuk",
 
         // --- Hero Section ---
         hero_badge: "ALGORITMA TRADING PREMIUM v1.90",

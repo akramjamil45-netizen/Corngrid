@@ -123,14 +123,14 @@
           ? `<button class="button button-small" type="button" data-user-action="restore" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Restore</button>`
           : `<button class="button button-small" type="button" data-user-action="suspend" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Suspend</button>`;
         return `<tr>
-          <td><span class="admin-profile-name">${escapeHtml(profile.username || 'Unnamed user')}</span><span class="admin-profile-id">Profile #${profile.id}</span></td>
-          <td>${escapeHtml(formatDate(profile.createdAt))}</td>
-          <td><span class="pill ${visibilityClass}">${escapeHtml(profile.portfolioVisibility)}</span></td>
-          <td>${profile.sharedAccounts}</td>
-          <td>${profile.linkedAccounts}</td>
-          <td><span class="pill admin-status ${statusClass}">${escapeHtml(profile.accountStatus)}</span></td>
-          <td>${accessStatus}</td>
-          <td class="admin-actions">
+          <td data-label="User" class="cell-primary"><span class="admin-profile-name">${escapeHtml(profile.username || 'Unnamed user')}</span><span class="admin-profile-id">Profile #${profile.id}</span></td>
+          <td data-label="Profile created" class="cell-extra">${escapeHtml(formatDate(profile.createdAt))}</td>
+          <td data-label="Portfolio"><span class="pill ${visibilityClass}">${escapeHtml(profile.portfolioVisibility)}</span></td>
+          <td data-label="Selected accounts" class="cell-extra">${profile.sharedAccounts}</td>
+          <td data-label="Linked accounts" class="cell-extra">${profile.linkedAccounts}</td>
+          <td data-label="Connection"><span class="pill admin-status ${statusClass}">${escapeHtml(profile.accountStatus)}</span></td>
+          <td data-label="Account access" class="cell-extra">${accessStatus}</td>
+          <td class="admin-actions cell-actions" data-label="Actions">
             <button class="button button-small" type="button" data-user-action="trading" data-user-id="${profile.id}">Trading overview</button>
             ${accessButton}
             <button class="button button-small button-danger" type="button" data-user-action="delete" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Delete</button>
@@ -144,18 +144,18 @@
 
   function renderTradingOverview(data) {
     const accountRows = data.accounts.length ? data.accounts.map(account => `<tr>
-      <td>${escapeHtml(account.accountName || 'MT5 account')}<small>${escapeHtml(account.maskedAccount)}</small></td>
-      <td>${escapeHtml(account.currency)}</td><td>${formatMoney(account.balance, account.currency)}</td>
-      <td>${formatMoney(account.equity, account.currency)}</td><td>${formatMoney(account.floatingProfit, account.currency)}</td>
-      <td>${escapeHtml(formatDateTime(account.lastHeartbeat))}</td>
+      <td data-label="Account" class="cell-primary">${escapeHtml(account.accountName || 'MT5 account')}<small>${escapeHtml(account.maskedAccount)}</small></td>
+      <td data-label="Currency" class="cell-extra">${escapeHtml(account.currency)}</td><td data-label="Balance" class="cell-key">${formatMoney(account.balance, account.currency)}</td>
+      <td data-label="Equity" class="cell-key">${formatMoney(account.equity, account.currency)}</td><td data-label="Floating P/L" class="cell-key">${formatMoney(account.floatingProfit, account.currency)}</td>
+      <td data-label="Last heartbeat" class="cell-extra">${escapeHtml(formatDateTime(account.lastHeartbeat))}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="table-empty">No linked trading accounts.</td></tr>';
     const positionRows = data.positions.length ? data.positions.map(position => `<tr>
-      <td>${escapeHtml(position.maskedAccount)}</td><td>${escapeHtml(position.symbol)}</td><td>${escapeHtml(position.direction)}</td>
-      <td>${escapeHtml(position.volume)}</td><td>${formatMoney(position.profit, position.currency)}</td><td>${escapeHtml(formatDateTime(position.openedAt))}</td>
+      <td data-label="Account" class="cell-extra">${escapeHtml(position.maskedAccount)}</td><td data-label="Symbol" class="cell-primary">${escapeHtml(position.symbol)}</td><td data-label="Side">${escapeHtml(position.direction)}</td>
+      <td data-label="Volume">${escapeHtml(position.volume)}</td><td data-label="Profit" class="cell-key">${formatMoney(position.profit, position.currency)}</td><td data-label="Opened" class="cell-extra">${escapeHtml(formatDateTime(position.openedAt))}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="table-empty">No open positions.</td></tr>';
     const dealRows = data.deals.length ? data.deals.map(deal => `<tr>
-      <td>${escapeHtml(deal.maskedAccount)}</td><td>${escapeHtml(deal.symbol)}</td><td>${escapeHtml(deal.direction)}</td>
-      <td>${escapeHtml(deal.volume)}</td><td>${formatMoney(deal.profit, deal.currency)}</td><td>${escapeHtml(formatDateTime(deal.closedAt))}</td>
+      <td data-label="Account" class="cell-extra">${escapeHtml(deal.maskedAccount)}</td><td data-label="Symbol" class="cell-primary">${escapeHtml(deal.symbol)}</td><td data-label="Side">${escapeHtml(deal.direction)}</td>
+      <td data-label="Volume">${escapeHtml(deal.volume)}</td><td data-label="Profit" class="cell-key">${formatMoney(deal.profit, deal.currency)}</td><td data-label="Closed" class="cell-extra">${escapeHtml(formatDateTime(deal.closedAt))}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="table-empty">No recent closed trades.</td></tr>';
     $('#admin-trading-content').innerHTML = `
       <p class="eyebrow">TRADING OVERVIEW</p><h2>${escapeHtml(data.user.username)}</h2>
@@ -502,16 +502,17 @@
       }
       tbody.innerHTML = data.payments.map(payment => `
         <tr>
-          <td>#${escapeHtml(String(payment.id))}</td>
-          <td>${escapeHtml(payment.username || payment.user_id)}<div class="muted small">${escapeHtml(payment.email || '')}</div></td>
-          <td>${escapeHtml(payment.plan_name || '—')}</td>
-          <td>${formatMoney(payment.amount, payment.currency)}</td>
-          <td>${escapeHtml(payment.payment_reference || '—')}${payment.hasProof ? ` · <a href="/api/admin/subscription-payments/${escapeHtml(String(payment.id))}/proof" target="_blank" rel="noopener">Proof</a>` : ''}</td>
-          <td>${subStatusBadge(payment.status)}</td>
-          <td>
+          <td data-label="ID" class="cell-extra">#${escapeHtml(String(payment.id))}</td>
+          <td data-label="User" class="cell-primary">${escapeHtml(payment.username || payment.user_id)}<div class="muted small">${escapeHtml(payment.email || '')}</div></td>
+          <td data-label="Plan">${escapeHtml(payment.plan_name || '—')}</td>
+          <td data-label="Amount" class="cell-key">${formatMoney(payment.amount, payment.currency)}</td>
+          <td data-label="Reference" class="cell-extra">${escapeHtml(payment.payment_reference || '—')}${payment.hasProof ? ` · <a href="/api/admin/subscription-payments/${escapeHtml(String(payment.id))}/proof" target="_blank" rel="noopener">Proof</a>` : ''}</td>
+          <td data-label="Status">${subStatusBadge(payment.status)}</td>
+          <td class="cell-actions" data-label="Actions">
             ${payment.status === 'pending_approval' ? `
               <button class="button button-small" type="button" data-sub-action="approve-payment" data-id="${escapeHtml(String(payment.id))}">Approve</button>
-              <button class="button button-small button-secondary" type="button" data-sub-action="reject-payment" data-id="${escapeHtml(String(payment.id))}">Reject</button>` : '—'}
+              <button class="button button-small button-secondary" type="button" data-sub-action="reject-payment" data-id="${escapeHtml(String(payment.id))}">Reject</button>` : ['cancelled', 'rejected'].includes(payment.status) ? `
+              <button class="button button-small button-danger" type="button" data-sub-action="delete-payment" data-id="${escapeHtml(String(payment.id))}">Delete</button>` : '—'}
           </td>
         </tr>`).join('');
     } catch (error) {
@@ -530,14 +531,14 @@
       }
       tbody.innerHTML = data.subscriptions.map(subscription => `
         <tr>
-          <td>#${escapeHtml(String(subscription.id))}</td>
-          <td>${escapeHtml(subscription.username || subscription.user_id)}<div class="muted small">${escapeHtml(subscription.email || '')}</div></td>
-          <td>${escapeHtml(subscription.plan_name || '—')}</td>
-          <td>${formatMoney(subscription.purchase_price, subscription.currency)}</td>
-          <td>${subStatusBadge(subscription.status)}</td>
-          <td>${escapeHtml(String(subscription.activation_count || 0))} / ${escapeHtml(String(subscription.max_activations || 5))}</td>
-          <td>${subDate(subscription.expires_at)}</td>
-          <td>
+          <td data-label="ID" class="cell-extra">#${escapeHtml(String(subscription.id))}</td>
+          <td data-label="User" class="cell-primary">${escapeHtml(subscription.username || subscription.user_id)}<div class="muted small">${escapeHtml(subscription.email || '')}</div></td>
+          <td data-label="Plan">${escapeHtml(subscription.plan_name || '—')}</td>
+          <td data-label="Price" class="cell-key">${formatMoney(subscription.purchase_price, subscription.currency)}</td>
+          <td data-label="Status">${subStatusBadge(subscription.status)}</td>
+          <td data-label="Activations" class="cell-extra">${escapeHtml(String(subscription.activation_count || 0))} / ${escapeHtml(String(subscription.max_activations || 5))}</td>
+          <td data-label="Expires">${subDate(subscription.expires_at)}</td>
+          <td class="cell-actions" data-label="Actions">
             ${subscription.status === 'active' ? `<button class="button button-small button-secondary" type="button" data-sub-action="suspend" data-id="${escapeHtml(String(subscription.id))}">Suspend</button>` : ''}
             ${subscription.status === 'suspended' ? `<button class="button button-small" type="button" data-sub-action="reinstate" data-id="${escapeHtml(String(subscription.id))}">Reinstate</button>` : ''}
             ${['active', 'suspended'].includes(subscription.status) ? `<button class="button button-small button-secondary" type="button" data-sub-action="revoke" data-id="${escapeHtml(String(subscription.id))}">Revoke</button>` : ''}
@@ -549,24 +550,31 @@
     }
   }
 
+  let adminPlans = [];
+  let editingPlanId = null;
+
   async function loadAdminPlans() {
     const tbody = $('#admin-plans-table');
     tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Loading plans…</td></tr>';
     try {
       const data = await api('/api/admin/subscription-plans');
+      adminPlans = data.plans;
       if (!data.plans.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No plans yet. Add one to allow subscriptions.</td></tr>';
         return;
       }
       tbody.innerHTML = data.plans.map(plan => `
         <tr>
-          <td>#${escapeHtml(String(plan.id))}</td>
-          <td>${escapeHtml(plan.name)}</td>
-          <td>${formatMoney(plan.price, plan.currency)}</td>
-          <td>${escapeHtml(String(plan.duration_days))} days</td>
-          <td>${escapeHtml(String(plan.max_activations))}</td>
-          <td>${subStatusBadge(plan.is_active ? 'active' : 'inactive')}</td>
-          <td><button class="button button-small button-secondary" type="button" data-sub-action="toggle-plan" data-id="${escapeHtml(String(plan.id))}" data-active="${plan.is_active ? '1' : '0'}">${plan.is_active ? 'Deactivate' : 'Activate'}</button></td>
+          <td data-label="ID" class="cell-extra">#${escapeHtml(String(plan.id))}</td>
+          <td data-label="Name" class="cell-primary">${escapeHtml(plan.name)}</td>
+          <td data-label="Price" class="cell-key">${formatMoney(plan.price, plan.currency)}</td>
+          <td data-label="Duration">${escapeHtml(String(plan.duration_days))} days</td>
+          <td data-label="Max activations" class="cell-extra">${escapeHtml(String(plan.max_activations))}</td>
+          <td data-label="Active">${subStatusBadge(plan.is_active ? 'active' : 'inactive')}</td>
+          <td class="cell-actions" data-label="Actions">
+            <button class="button button-small button-secondary" type="button" data-sub-action="edit-plan" data-id="${escapeHtml(String(plan.id))}">Edit</button>
+            <button class="button button-small button-secondary" type="button" data-sub-action="toggle-plan" data-id="${escapeHtml(String(plan.id))}" data-active="${plan.is_active ? '1' : '0'}">${plan.is_active ? 'Deactivate' : 'Activate'}</button>
+          </td>
         </tr>`).join('');
     } catch (error) {
       tbody.innerHTML = `<tr><td colspan="7" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
@@ -584,12 +592,12 @@
       }
       tbody.innerHTML = data.versions.map(build => `
         <tr>
-          <td>#${escapeHtml(String(build.id))}</td>
-          <td>${escapeHtml(build.version)}</td>
-          <td>${escapeHtml(build.filename)}</td>
-          <td>${subDate(build.created_at)}</td>
-          <td>${subStatusBadge(build.is_active ? 'active' : 'inactive')}</td>
-          <td>${build.is_active ? '<span class="muted small">Current</span>' : `<button class="button button-small" type="button" data-sub-action="publish-build" data-id="${escapeHtml(String(build.id))}">Publish</button>`}</td>
+          <td data-label="ID" class="cell-extra">#${escapeHtml(String(build.id))}</td>
+          <td data-label="Version" class="cell-primary">${escapeHtml(build.version)}</td>
+          <td data-label="File" class="cell-extra">${escapeHtml(build.filename)}</td>
+          <td data-label="Released">${subDate(build.created_at)}</td>
+          <td data-label="Active">${subStatusBadge(build.is_active ? 'active' : 'inactive')}</td>
+          <td class="cell-actions" data-label="Actions">${build.is_active ? '<span class="muted small">Current</span>' : `<button class="button button-small" type="button" data-sub-action="publish-build" data-id="${escapeHtml(String(build.id))}">Publish</button>`}</td>
         </tr>`).join('');
     } catch (error) {
       tbody.innerHTML = `<tr><td colspan="6" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
@@ -630,7 +638,33 @@
     }
   }
 
-  async function createSubscriptionPlan() {
+  function resetPlanForm() {
+    editingPlanId = null;
+    ['#plan-name', '#plan-price', '#plan-duration', '#plan-desc'].forEach(selector => { $(selector).value = ''; });
+    $('#plan-max-act').value = '5';
+    $('#plan-currency').value = 'MYR';
+    $('#plan-form').style.display = 'none';
+    $('#admin-plan-create').textContent = 'Create Plan';
+    $('#admin-plan-cancel').hidden = true;
+  }
+
+  function startPlanEdit(planId) {
+    const plan = adminPlans.find(item => String(item.id) === String(planId));
+    if (!plan) return toast('This plan could not be found. Refresh and try again.', 'error');
+    editingPlanId = plan.id;
+    $('#plan-name').value = plan.name || '';
+    $('#plan-price').value = Number(plan.price);
+    $('#plan-duration').value = plan.duration_days ?? '';
+    $('#plan-max-act').value = plan.max_activations ?? 5;
+    $('#plan-currency').value = plan.currency || 'MYR';
+    $('#plan-desc').value = plan.description || '';
+    $('#plan-form').style.display = 'block';
+    $('#admin-plan-create').textContent = 'Save Changes';
+    $('#admin-plan-cancel').hidden = false;
+    $('#plan-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function saveSubscriptionPlan() {
     const payload = {
       name: $('#plan-name').value.trim(),
       price: Number($('#plan-price').value),
@@ -640,10 +674,14 @@
       description: $('#plan-desc').value.trim()
     };
     try {
-      await api('/api/admin/subscription-plans', { method: 'POST', body: JSON.stringify(payload) });
-      toast('Plan created.', 'success');
-      ['#plan-name', '#plan-price', '#plan-duration', '#plan-desc'].forEach(selector => { $(selector).value = ''; });
-      $('#plan-form').style.display = 'none';
+      if (editingPlanId) {
+        await api(`/api/admin/subscription-plans/${editingPlanId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        toast('Plan updated.', 'success');
+      } else {
+        await api('/api/admin/subscription-plans', { method: 'POST', body: JSON.stringify(payload) });
+        toast('Plan created.', 'success');
+      }
+      resetPlanForm();
       loadAdminPlans();
       loadAdminSubscriptionSummary();
     } catch (error) {
@@ -655,12 +693,19 @@
   $('#admin-subscriptions-refresh').addEventListener('click', loadAdminSubscriptions);
   $('#admin-plan-add').addEventListener('click', () => {
     const form = $('#plan-form');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    const wasHidden = form.style.display === 'none';
+    resetPlanForm();
+    if (wasHidden) form.style.display = 'block';
   });
-  $('#admin-plan-create').addEventListener('click', createSubscriptionPlan);
+  $('#admin-plan-create').addEventListener('click', saveSubscriptionPlan);
+  $('#admin-plan-cancel').addEventListener('click', resetPlanForm);
 
   async function handleSubscriptionAction(button) {
     const { subAction, id } = button.dataset;
+    if (subAction === 'edit-plan') {
+      startPlanEdit(id);
+      return;
+    }
     let path = null;
     let body = {};
     let method = 'POST';
@@ -682,6 +727,10 @@
       if (!reason) return;
       path = `/api/admin/subscriptions/${id}/revoke`;
       body = { reason };
+    } else if (subAction === 'delete-payment') {
+      if (!window.confirm('Delete this cancelled/rejected payment request? This cannot be undone.')) return;
+      path = `/api/admin/subscription-payments/${id}`;
+      method = 'DELETE';
     } else if (subAction === 'delete-subscription') {
       if (!window.confirm('Delete this inactive subscription record? This cannot be undone.')) return;
       path = `/api/admin/subscriptions/${id}`;
