@@ -98,6 +98,16 @@
   outline-offset: -2px;
 }
 
+/* Align the admin directory and list cards with the compact mobile card
+   rhythm defined in dashboard.css. */
+@media (max-width: 639px) {
+  .admin-profile-panel { border: 0; background: transparent; box-shadow: none; }
+  .admin-profile-panel > .panel-header { padding: 0 0 10px; }
+  .admin-toolbar { padding: 0 0 10px; }
+  .admin-ann-list, .admin-reports-list { gap: 10px; }
+  .admin-ann-item, .admin-report-item { padding: 12px; border-radius: 12px; }
+}
+
 /* Respect reduced motion for the admin surface as well. */
 @media (prefers-reduced-motion: reduce) {
   .admin-support-item, .admin-ann-item { transition: none; }

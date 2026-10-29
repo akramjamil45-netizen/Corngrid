@@ -24,7 +24,7 @@
             <div><span>Equity</span><strong>${portfolio.equityAvailable ? money(portfolio.equity, portfolio.currency) : 'N/A'}</strong></div>
             <div><span>Floating P/L</span><strong>${portfolio.floatingProfitAvailable ? money(portfolio.floatingProfit, portfolio.currency) : 'N/A'}</strong></div>
           </div>
-          <span class="muted small">Open public portfolio →</span>
+          <span class="public-card-cta">Open portfolio <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
         </a>`).join('');
     } catch (error) {
       host.innerHTML = `<div class="panel empty-state public-empty"><span class="empty-icon">!</span><h2>Public portfolios unavailable</h2><p>${escapeHtml(error.message)}</p><button class="button button-secondary" id="retry-public-portfolios">Try again</button></div>`;

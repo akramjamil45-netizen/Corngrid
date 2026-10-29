@@ -527,6 +527,9 @@ td { font-size: 13px; }
 .public-card-stats span { font-size: 11px; }
 .public-card-stats strong { font-size: 14px; }
 .public-portfolio-card > .muted.small { font-size: 13px; }
+.public-card-cta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.public-card-cta svg { display: block; flex: 0 0 auto; width: 14px; height: 14px; }
+.public-portfolio-card:hover .public-card-cta { color: var(--accent-text); }
 .public-section { margin-bottom: 18px; }
 .public-section .panel-header { padding: 20px; }
 .public-page .stat-grid { gap: 16px; margin: 22px 0; }
@@ -2566,4 +2569,118 @@ tbody tr:hover {
    before the shared script has removed it. */
 @media (min-width: 640px) {
   .table-scroll > table > tbody > tr > td.cell-toggle { display: none !important; }
+}
+
+/* ---- Compact mobile card system --------------------------------------
+   Shared by the user dashboard, admin dashboard and public portfolios.
+   One rhythm (10px gaps, 12px card padding) keeps every card list aligned
+   and makes mobile quieter: flat surfaces, no nested frames, fewer icons,
+   and a small text-style "More details" row. */
+@media (max-width: 639px) {
+  .stat-grid,
+  .public-page .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .stat-card,
+  .public-page .stat-card {
+    min-height: 0;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: none;
+  }
+  .stat-top,
+  .public-page .stat-top { font-size: 11.5px; line-height: 1.3; }
+  .stat-icon { display: none; }
+  .stat-value,
+  .public-page .stat-value { margin: 6px 0 2px; font-size: clamp(18px, 5.2vw, 22px); }
+  .stat-card small,
+  .public-page .stat-card small { margin: 0; font-size: 10.5px; line-height: 1.35; }
+
+  .public-directory-grid { gap: 10px; }
+  .public-portfolio-card {
+    gap: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: none;
+  }
+  .public-portfolio-card h2 { font-size: 16px; }
+  .public-card-stats { gap: 8px; padding-top: 10px; }
+  .public-card-stats span { font-size: 10px; }
+  .public-card-stats strong { font-size: 12px; }
+  .public-card-cta { justify-self: end; min-height: 28px; font-size: 11.5px; }
+  .public-card-cta svg { width: 14px; height: 14px; }
+
+  /* Flat sections and a single gap rhythm for every card list. */
+  .panel { padding: 14px; }
+  .table-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .table-panel .panel-header { padding: 0 0 10px; }
+  .table-panel .table-toolbar { margin-bottom: 10px; padding: 0; }
+  .table-panel .pagination { padding: 10px 0 0; border-top: 0; }
+
+  .table-scroll > table > tbody { gap: 10px; padding: 0; }
+  .table-scroll > table > tbody > tr {
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: none;
+  }
+  .table-scroll > table > tbody > tr::before { display: none; }
+  .table-scroll > table > tbody > tr > td { gap: 10px; padding: 7px 12px; font-size: 12.5px; }
+  .table-scroll > table > tbody > tr > td::before { font-size: 9px; letter-spacing: .5px; }
+  .table-scroll > table > tbody > tr > td.cell-primary {
+    padding: 12px 12px 10px;
+    background: none;
+    font-size: 14.5px;
+  }
+  .table-scroll > table > tbody > tr > td.cell-primary .admin-profile-name { font-size: 14.5px; }
+  .table-scroll > table > tbody > tr > td.cell-primary .muted,
+  .table-scroll > table > tbody > tr > td.cell-primary .admin-profile-id,
+  .table-scroll > table > tbody > tr > td.cell-primary small { margin-top: 3px; font-size: 11px; }
+  .table-scroll > table > tbody > tr > td.cell-actions,
+  .table-scroll > table > tbody > tr > td.admin-actions {
+    gap: 6px;
+    padding: 10px 12px;
+    background: transparent;
+  }
+  .table-scroll > table > tbody > tr > td.cell-actions .button,
+  .table-scroll > table > tbody > tr > td.admin-actions .button { min-height: 40px; }
+  .table-scroll > table > tbody > tr > td.cell-toggle { padding: 0 12px 8px; }
+  .card-toggle {
+    min-height: 34px;
+    justify-content: flex-end;
+    padding: 2px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .card-toggle:hover { border-color: transparent; background: transparent; color: var(--text); }
+  .card-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+  .card-toggle-icon { width: 14px; height: 14px; }
+
+  /* Public portfolio detail should align with its stat cards. */
+  .public-page .public-section {
+    margin-bottom: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .public-page .public-section .panel-header { padding: 0 0 10px; }
+  .account-grid { gap: 10px; }
+  .account-card { padding: 14px; border-radius: 12px; }
+  .account-stats { gap: 6px; margin: 12px 0; padding: 10px 0; }
+  .account-meta { font-size: 10.5px; }
 }
