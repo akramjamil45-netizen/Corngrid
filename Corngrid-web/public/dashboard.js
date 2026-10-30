@@ -71,6 +71,7 @@
       localStorage.removeItem('corngrid_overview_account_id');
       $('#overview-account-help').textContent = 'Link an account from the MT5 Accounts page to see its performance.';
       $('#retry-overview-accounts').hidden = true;
+      syncAccountScopeLabels();
       return;
     }
     state.accounts.forEach(account => {
@@ -87,6 +88,29 @@
       localStorage.setItem('corngrid_overview_account_id', state.overviewAccountId);
     }
     select.value = state.overviewAccountId;
+    syncAccountScopeLabels();
+  }
+
+  function selectedAccountLabel() {
+    const account = state.accounts.find(item => String(item.id) === String(state.overviewAccountId));
+    if (!account) return '';
+    return `${account.accountName || 'MT5 account'} · ${account.maskedAccount || `Account ${account.id}`}`;
+  }
+
+  function syncAccountScopeLabels() {
+    const label = selectedAccountLabel();
+    const positionsScope = $('#positions-scope');
+    const historyScope = $('#history-scope');
+    if (positionsScope) {
+      positionsScope.textContent = label
+        ? `Positions reported by ${label}. Data follows the account selected in Overview.`
+        : 'Positions reported by your linked MT5 accounts.';
+    }
+    if (historyScope) {
+      historyScope.textContent = label
+        ? `Imported deal records for ${label}. Data follows the account selected in Overview.`
+        : 'Imported MT5 deal records. Partial exits may appear as separate records.';
+    }
   }
 
   const $ = (selector, parent = document) => parent.querySelector(selector);
@@ -1011,7 +1035,7 @@
       $('#live-label').textContent = selectedAccount?.status === 'Online' ? 'LIVE MONITORING' : 'NO LIVE FEED';
       $('#live-indicator').classList.toggle('is-live', selectedAccount?.status === 'Online');
       $('#data-notice').className = 'notice notice-info';
-      $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Overview metrics, chart, EA status, and open positions are scoped to the selected MT5 account. No demo or estimated trading figures are used.</span>';
+      $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Overview metrics, chart, EA status, open positions, and trade history are scoped to the selected MT5 account. No demo or estimated trading figures are used.</span>';
       $('#data-notice').hidden = true;
     } catch (error) {
       setOverviewStatsLoading(false);
@@ -1195,6 +1219,7 @@
     body.innerHTML = '<tr><td colspan="12" class="table-empty">Loading verified position data…</td></tr>';
     try {
       const params = new URLSearchParams({ page: String(state.positionPage + 1), limit: String(state.pageSize), sort: $('#position-sort').value });
+      if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
       if ($('#position-search').value.trim()) params.set('search', $('#position-search').value.trim());
       if ($('#position-direction').value) params.set('direction', $('#position-direction').value);
       const result = await request(`/portfolio/positions?${params}`);
@@ -1224,6 +1249,7 @@
     const body = $('#trades-body');
     body.innerHTML = '<tr><td colspan="16" class="table-empty">Loading verified trade data…</td></tr>';
     const params = new URLSearchParams({ page: String(state.tradePage + 1), limit: String(state.pageSize) });
+    if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
     if ($('#trade-from').value) params.set('from', $('#trade-from').value);
     if ($('#trade-to').value) params.set('to', $('#trade-to').value);
     if ($('#trade-search').value.trim()) params.set('search', $('#trade-search').value.trim());
@@ -1269,6 +1295,7 @@
       const pageCount = Math.ceil(state.tradeTotal / exportPageSize);
       for (let page = 1; page <= pageCount; page += 1) {
         const params = new URLSearchParams({ page: String(page), limit: String(exportPageSize), sort: $('#trade-sort').value });
+        if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
         if ($('#trade-from').value) params.set('from', $('#trade-from').value);
         if ($('#trade-to').value) params.set('to', $('#trade-to').value);
         if ($('#trade-search').value.trim()) params.set('search', $('#trade-search').value.trim());
@@ -1609,13 +1636,30 @@
     state.overviewAccountId = event.target.value;
     if (state.overviewAccountId) localStorage.setItem('corngrid_overview_account_id', state.overviewAccountId);
     else localStorage.removeItem('corngrid_overview_account_id');
+    syncAccountScopeLabels();
     loadOverview();
+    if (state.page === 'positions') loadPositions();
+    if (state.page === 'history') loadTrades();
   });
   $('#period-from').addEventListener('change', loadOverview);
   $('#period-to').addEventListener('change', loadOverview);
   $('#refresh-button').addEventListener('click', loadOverview);
   $('#retry-overview-accounts').addEventListener('click', () => loadOverview());
   $('#refresh-positions').addEventListener('click', loadPositions);
+  function bindFilterToggle(toggleId, panelId) {
+    const toggle = $(`#${toggleId}`);
+    const panel = $(`#${panelId}`);
+    if (!toggle || !panel) return;
+    toggle.addEventListener('click', () => {
+      const open = panel.hidden;
+      panel.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.classList.toggle('is-open', open);
+      toggle.textContent = open ? 'Hide filters' : 'Filters';
+    });
+  }
+  bindFilterToggle('position-filter-toggle', 'position-filters');
+  bindFilterToggle('trade-filter-toggle', 'trade-filters');
   $('#refresh-chat-btn').addEventListener('click', () => refreshChat());
   $('#chat-search-toggle')?.addEventListener('click', () => setChatSearchOpen($('#chat-search-wrap').hidden));
   $('#chat-support-entry').addEventListener('click', selectSupportChat);

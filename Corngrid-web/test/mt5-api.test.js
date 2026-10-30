@@ -266,6 +266,14 @@ test('MT5 pairing, ingestion, ownership, preferences, and password revocation', 
     assert.equal(secondAccountPositions.items[0].symbol, 'XAUUSD');
     assert.equal((await request(`/api/portfolio/positions?accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
 
+    const firstAccountTrades = await (await request(`/api/portfolio/trades?accountId=${accountList.accounts[0].id}`, aliceToken)).json();
+    const secondAccountTrades = await (await request(`/api/portfolio/trades?accountId=${aliceSecondAccountId}`, aliceToken)).json();
+    assert.equal(firstAccountTrades.total, 2);
+    assert.equal(secondAccountTrades.total, 1);
+    assert.equal(secondAccountTrades.items[0].dealId, 'SECOND-ACCOUNT-DEAL');
+    assert.deepEqual(secondAccountTrades.symbols, ['XAUUSD'], 'symbol options follow the selected account');
+    assert.equal((await request(`/api/portfolio/trades?accountId=${bobAccounts.accounts[0].id}`, aliceToken)).status, 404);
+
     assert.equal((await request('/api/user/portfolio-sharing', aliceToken, {
       method: 'PATCH',
       body: JSON.stringify({ isPublic: true, accountIds: [bobAccounts.accounts[0].id] })

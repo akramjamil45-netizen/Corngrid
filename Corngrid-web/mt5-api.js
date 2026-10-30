@@ -1187,10 +1187,12 @@ function registerMt5Api(app, db, verifyToken) {
     const { page, limit, offset } = pageParams(req);
     const filters = ['a.user_id = ?'];
     const params = [ownerId(req)];
+    let scopedAccountId = null;
     try {
       const scope = await overviewAccountScope(db, req);
       if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
       if (scope.account) {
+        scopedAccountId = scope.account.id;
         filters.push('a.id = ?');
         params.push(scope.account.id);
       }
@@ -1222,7 +1224,7 @@ function registerMt5Api(app, db, verifyToken) {
     }[req.query.sort] || 'p.opened_at DESC';
     try {
       if (req.query.sort === 'profit-desc' || req.query.sort === 'profit-asc') {
-        const currencies = await get(db, 'SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?', [ownerId(req)]);
+        const currencies = await get(db, `SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
         if (currencies.count > 1) return res.status(400).json({ error: 'Profit sorting is unavailable across different account currencies.' });
       }
       const where = filters.join(' AND ');
@@ -1251,6 +1253,19 @@ function registerMt5Api(app, db, verifyToken) {
     const { page, limit, offset } = pageParams(req);
     const filters = ['a.user_id = ?'];
     const params = [ownerId(req)];
+    let scopedAccountId = null;
+    try {
+      const scope = await overviewAccountScope(db, req);
+      if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
+      if (scope.account) {
+        scopedAccountId = scope.account.id;
+        filters.push('a.id = ?');
+        params.push(scope.account.id);
+      }
+    } catch (databaseError) {
+      console.error('Failed to validate selected account for trade history:', databaseError.message);
+      return res.status(500).json({ error: 'Unable to validate the selected MT5 account.' });
+    }
     if (req.query.search !== undefined) {
       if (typeof req.query.search !== 'string' || req.query.search.length > 64) return res.status(400).json({ error: 'Trade search must be 64 characters or fewer.' });
       const search = `%${req.query.search.trim()}%`;
@@ -1288,7 +1303,7 @@ function registerMt5Api(app, db, verifyToken) {
     }[req.query.sort] || 'd.closed_at DESC';
     try {
       if (req.query.sort === 'net-desc' || req.query.sort === 'net-asc') {
-        const currencies = await get(db, 'SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?', [ownerId(req)]);
+        const currencies = await get(db, `SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
         if (currencies.count > 1) return res.status(400).json({ error: 'Net profit sorting is unavailable across different account currencies.' });
       }
       const where = filters.join(' AND ');
@@ -1302,7 +1317,7 @@ function registerMt5Api(app, db, verifyToken) {
           ORDER BY ${orderBy} LIMIT ? OFFSET ?
         `, [...params, limit, offset]),
         get(db, `SELECT COUNT(*) AS total FROM mt5_deals d JOIN mt5_accounts a ON a.id = d.account_id WHERE ${where}`, params),
-        all(db, `SELECT DISTINCT d.symbol FROM mt5_deals d JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ? ORDER BY d.symbol`, [ownerId(req)])
+        all(db, `SELECT DISTINCT d.symbol FROM mt5_deals d JOIN mt5_accounts a ON a.id = d.account_id WHERE a.user_id = ?${scopedAccountId ? ' AND a.id = ?' : ''} ORDER BY d.symbol`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)])
       ]);
       return res.json({ page, limit, total: count.total, symbols: symbols.map(row => row.symbol), items: rows.map(deal => ({
         dealId: deal.deal_id, positionId: deal.position_id, symbol: deal.symbol, direction: deal.direction,
