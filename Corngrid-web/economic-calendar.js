@@ -3,8 +3,9 @@
 const crypto = require('crypto');
 
 const DEFAULT_FEED_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.xml';
-const SOURCE_TIME_ZONE = 'America/New_York';
+const SOURCE_TIME_ZONE = 'UTC';
 const DISPLAY_TIME_ZONE = 'Asia/Kuala_Lumpur';
+const CACHE_VERSION = 2;
 const MAX_FEED_BYTES = 2 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 300;
 const MAX_VALUE_LENGTH = 48;
@@ -417,8 +418,8 @@ function createEconomicCalendar({ db, fetchImpl, now = () => Date.now(), config 
       const row = await dbGet('SELECT payload, fetched_at FROM economic_calendar_cache WHERE id = 1');
       if (!row) return;
       const payload = JSON.parse(row.payload);
-      if (Array.isArray(payload)) {
-        cache = { events: payload, fetchedAt: Number(row.fetched_at) || 0 };
+      if (payload && payload.version === CACHE_VERSION && Array.isArray(payload.events)) {
+        cache = { events: payload.events, fetchedAt: Number(row.fetched_at) || 0 };
       }
     } catch (error) {
       console.error('Unable to load the cached economic calendar:', error.message);
@@ -436,7 +437,7 @@ function createEconomicCalendar({ db, fetchImpl, now = () => Date.now(), config 
           fetched_at = excluded.fetched_at,
           source_url = excluded.source_url,
           updated_at = excluded.updated_at
-      `, [JSON.stringify(cache.events), cache.fetchedAt, feedUrl, now()]);
+      `, [JSON.stringify({ version: CACHE_VERSION, events: cache.events }), cache.fetchedAt, feedUrl, now()]);
     } catch (error) {
       console.error('Unable to persist the economic calendar cache:', error.message);
     }

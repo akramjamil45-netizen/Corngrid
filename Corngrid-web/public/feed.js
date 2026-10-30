@@ -124,7 +124,7 @@
       : (post.isPinned ? '<span class="feed-badge feed-badge-pinned">Pinned</span>' : '');
     const edited = post.edited ? '<span class="feed-edited" title="' + escapeHtml(exactTime(post.updatedAt)) + '">· edited</span>' : '';
     const image = post.imagePath
-      ? `<img class="feed-image" src="${escapeHtml(post.imagePath)}" alt="Post image" loading="lazy">`
+      ? `<button type="button" class="feed-image-button" data-feed-image="${escapeHtml(post.imagePath)}" aria-label="Open post image"><img class="feed-image" src="${escapeHtml(post.imagePath)}" alt="Post image" loading="lazy"></button>`
       : '';
     const menu = canManage
       ? `<div class="feed-card-menu">
@@ -455,6 +455,80 @@
     }
   }
 
+  // ---- Post image lightbox ----
+  let lightboxTrigger = null;
+
+  function safeImageUrl(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(value, window.location.href);
+      if (url.origin !== window.location.origin) return null;
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+      return url.href;
+    } catch {
+      return null;
+    }
+  }
+
+  function imageDownloadName(src) {
+    try {
+      const name = decodeURIComponent(new URL(src).pathname.split('/').pop() || '');
+      if (/^[\w.-]+\.[a-z0-9]{2,5}$/i.test(name)) return name;
+    } catch { /* use the fallback name */ }
+    return 'corngrid-post-image';
+  }
+
+  function openImageLightbox(src, trigger) {
+    const safeSrc = safeImageUrl(src);
+    const lightbox = $('feed-lightbox');
+    const image = $('feed-lightbox-image');
+    const download = $('feed-lightbox-download');
+    if (!safeSrc || !lightbox || !image || !download) return;
+    image.src = safeSrc;
+    const triggerImage = trigger && trigger.querySelector('img');
+    image.alt = triggerImage ? triggerImage.alt : 'Expanded post image';
+    download.href = safeSrc;
+    download.setAttribute('download', imageDownloadName(safeSrc));
+    lightboxTrigger = trigger || null;
+    lightbox.hidden = false;
+    document.body.classList.add('feed-lightbox-open');
+    const close = $('feed-lightbox-close');
+    if (close) window.requestAnimationFrame(() => close.focus());
+  }
+
+  function closeImageLightbox() {
+    const lightbox = $('feed-lightbox');
+    if (!lightbox || lightbox.hidden) return;
+    lightbox.hidden = true;
+    document.body.classList.remove('feed-lightbox-open');
+    const image = $('feed-lightbox-image');
+    if (image) image.removeAttribute('src');
+    const download = $('feed-lightbox-download');
+    if (download) {
+      download.removeAttribute('href');
+      download.removeAttribute('download');
+    }
+    if (lightboxTrigger && document.contains(lightboxTrigger)) lightboxTrigger.focus();
+    lightboxTrigger = null;
+  }
+
+  function trapLightboxFocus(event) {
+    const dialog = $('feed-lightbox-dialog');
+    if (!dialog) return;
+    const focusable = Array.from(dialog.querySelectorAll('a[href], button:not([disabled])'))
+      .filter(element => element.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   async function reportContent(targetId, targetType) {
     const reason = window.prompt(`Report this ${targetType}. Describe the issue (max 500 characters):`);
     if (reason === null) return;
@@ -588,6 +662,10 @@
 
     // Delegated clicks across feed cards, comments, and profile list
     document.addEventListener('click', event => {
+      const closeLightbox = event.target.closest('[data-feed-lightbox-close]');
+      if (closeLightbox) return closeImageLightbox();
+      const image = event.target.closest('[data-feed-image]');
+      if (image) return openImageLightbox(image.dataset.feedImage, image);
       const like = event.target.closest('[data-feed-like]');
       if (like) return toggleLike(like.dataset.feedLike, like);
       const comments = event.target.closest('[data-feed-comments]');
@@ -621,6 +699,17 @@
           form.value = `@${reply.closest('.feed-comment').querySelector('strong').textContent} `;
           form.closest('form').dataset.parentId = reply.dataset.commentReply;
         }
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      const lightbox = $('feed-lightbox');
+      if (!lightbox || lightbox.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeImageLightbox();
+      } else if (event.key === 'Tab') {
+        trapLightboxFocus(event);
       }
     });
 
@@ -674,6 +763,7 @@
       }
     },
     onClose() {
+      closeImageLightbox();
       if (state.abortController) { state.abortController.abort(); state.abortController = null; }
       state.loading = false;
     }

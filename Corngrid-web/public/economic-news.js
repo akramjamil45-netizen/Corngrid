@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var MYT = 'Asia/Kuala_Lumpur';
+  var FALLBACK_TIME_ZONE = 'UTC';
   var POLL_MS = 5 * 60 * 1000;
   var TICK_MS = 1000;
   var ALERT_STORE_KEY = 'corngrid_econ_alerted_v1';
@@ -11,6 +11,7 @@
     events: [],
     filtered: [],
     meta: null,
+    timeZone: detectTimeZone(),
     clockOffset: 0,
     bound: false,
     clockTimer: null,
@@ -28,22 +29,55 @@
     filters: {
       range: 'today',
       search: '',
-      impact: 'all',
-      currency: 'all',
-      relevance: 'all',
-      hideLow: false
+      impact: 'all'
     }
   };
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
+  function detectTimeZone() {
+    try {
+      return new Intl.DateTimeFormat().resolvedOptions().timeZone || FALLBACK_TIME_ZONE;
+    } catch (e) {
+      return FALLBACK_TIME_ZONE;
+    }
+  }
+
+  function validTimeZone(value) {
+    if (!value || typeof value !== 'string') return null;
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: value });
+      return value;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function nowMs() { return Date.now() + state.clockOffset; }
 
-  function mytDateKey(ms) {
+  function dateKeyInZone(ms) {
     return new Intl.DateTimeFormat('en-CA', {
-      timeZone: MYT, year: 'numeric', month: '2-digit', day: '2-digit'
+      timeZone: state.timeZone, year: 'numeric', month: '2-digit', day: '2-digit'
     }).format(new Date(ms));
+  }
+
+  function eventDateKey(ev) {
+    if (!ev) return null;
+    if (ev.startMs != null) return dateKeyInZone(ev.startMs);
+    return ev.dateKey || null;
+  }
+
+  function timeZoneName(ms) {
+    try {
+      var parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: state.timeZone, timeZoneName: 'short'
+      }).formatToParts(new Date(ms));
+      for (var i = 0; i < parts.length; i += 1) {
+        if (parts[i].type === 'timeZoneName' && parts[i].value) return parts[i].value;
+      }
+    } catch (e) { /* fall through */ }
+    return state.timeZone;
   }
 
   function shiftDateKey(key, days) {
@@ -54,7 +88,7 @@
   }
 
   function weekRangeKeys(ms) {
-    var today = mytDateKey(ms);
+    var today = dateKeyInZone(ms);
     var parts = today.split('-').map(Number);
     var dow = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
     var backToMonday = (dow + 6) % 7;
@@ -64,14 +98,14 @@
 
   function sortMs(ev) {
     if (ev.startMs != null) return ev.startMs;
-    if (ev.dateKey) return Date.parse(ev.dateKey + 'T00:00:00+08:00');
+    if (ev.dateKey) return Date.parse(ev.dateKey + 'T00:00:00Z');
     return Number.POSITIVE_INFINITY;
   }
 
   function formatClock(ms) {
     try {
       return new Intl.DateTimeFormat('en-GB', {
-        timeZone: MYT, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        timeZone: state.timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
       }).format(new Date(ms));
     } catch (e) { return '--:--:--'; }
   }
@@ -175,27 +209,23 @@
       // Released results are no longer upcoming and must never be listed as such.
       if (released(ev)) return false;
       if (ev.startMs != null) return ev.startMs >= nowMs();
-      return ev.dateKey != null && ev.dateKey >= mytDateKey(nowMs());
+      var upcomingKey = eventDateKey(ev);
+      return upcomingKey != null && upcomingKey >= dateKeyInZone(nowMs());
     }
-    if (!ev.dateKey) return false;
-    var today = mytDateKey(nowMs());
-    if (range === 'today') return ev.dateKey === today;
-    if (range === 'tomorrow') return ev.dateKey === shiftDateKey(today, 1);
+    var eventKey = eventDateKey(ev);
+    if (!eventKey) return false;
+    var today = dateKeyInZone(nowMs());
+    if (range === 'today') return eventKey === today;
+    if (range === 'tomorrow') return eventKey === shiftDateKey(today, 1);
     if (range === 'week') {
       var w = weekRangeKeys(nowMs());
-      return ev.dateKey >= w.start && ev.dateKey <= w.end;
+      return eventKey >= w.start && eventKey <= w.end;
     }
     return true;
   }
 
   function passesFilters(ev) {
-    if (state.filters.hideLow && ev.impact === 'low') return false;
     if (state.filters.impact !== 'all' && ev.impact !== state.filters.impact) return false;
-    if (state.filters.currency !== 'all' && ev.currency !== state.filters.currency) return false;
-    if (state.filters.relevance !== 'all') {
-      var rel = ev.relevance || [];
-      if (rel.indexOf(state.filters.relevance) === -1) return false;
-    }
     if (state.filters.search) {
       var q = state.filters.search.toLowerCase();
       var hay = ((ev.title || '') + ' ' + (ev.currency || '') + ' ' + (ev.impact || '')).toLowerCase();
@@ -220,19 +250,19 @@
     if (ev.startMs != null) row.dataset.startMs = String(ev.startMs);
 
     var timeCell = cell(null, 'econ-time-cell');
-    timeCell.dataset.label = 'Time (MYT)';
+    timeCell.dataset.label = 'Time (' + timeZoneName(ev.startMs != null ? ev.startMs : nowMs()) + ')';
     var timeText = document.createElement('span');
     if (ev.startMs != null) {
       timeText.textContent = formatClock(ev.startMs);
     } else {
-      timeText.textContent = ev.dateKey ? ev.dateKey : 'TIME N/A';
+      timeText.textContent = eventDateKey(ev) || 'TIME N/A';
       timeText.className = 'muted';
     }
     timeCell.appendChild(timeText);
-    if (ev.startMs != null && ev.dateKey) {
+    if (ev.startMs != null) {
       var dateSub = document.createElement('span');
       dateSub.className = 'muted small';
-      dateSub.textContent = ev.dateKey;
+      dateSub.textContent = eventDateKey(ev);
       timeCell.appendChild(dateSub);
     }
     row.appendChild(timeCell);
@@ -331,13 +361,13 @@
     var timeText = document.createElement('span');
     if (ev.startMs != null) timeText.textContent = formatClock(ev.startMs);
     else {
-      timeText.textContent = ev.dateKey ? ev.dateKey : 'TIME N/A';
+      timeText.textContent = eventDateKey(ev) || 'TIME N/A';
       timeText.className = 'muted';
     }
     time.appendChild(timeText);
-    if (ev.startMs != null && ev.dateKey) {
+    if (ev.startMs != null) {
       var dateSub = document.createElement('small');
-      dateSub.textContent = ev.dateKey;
+      dateSub.textContent = eventDateKey(ev);
       time.appendChild(dateSub);
     }
     head.appendChild(time);
@@ -482,13 +512,13 @@
 
   function updateSummary() {
     var now = nowMs();
-    var todayKey = mytDateKey(now);
+    var todayKey = dateKeyInZone(now);
     var highToday = 0, highUpcoming = 0, releasedCount = 0, nextHigh = null;
 
     for (var i = 0; i < state.events.length; i += 1) {
       var ev = state.events[i];
       if (ev.impact === 'high') {
-        if (ev.dateKey === todayKey) highToday += 1;
+        if (eventDateKey(ev) === todayKey) highToday += 1;
         // A released event is never counted as upcoming, even if its slot has passed.
         if (!released(ev) && ev.startMs != null && ev.startMs >= now) {
           highUpcoming += 1;
@@ -582,12 +612,12 @@
     var title = $('#econ-alert-title');
     var text = $('#econ-alert-text');
     if (title) title.textContent = 'High-impact in ' + Math.max(1, Math.round(hit.diff / 60000)) + ' min';
-    if (text) text.textContent = (hit.ev.currency || '') + ' - ' + hit.ev.title + ' · ' + formatClock(hit.ev.startMs) + ' MYT';
+    if (text) text.textContent = (hit.ev.currency || '') + ' - ' + hit.ev.title + ' · ' + formatClock(hit.ev.startMs) + ' ' + timeZoneName(hit.ev.startMs);
     banner.hidden = false;
     if (!alerted.has(key)) {
       alerted.add(key);
       saveStore(ALERT_STORE_KEY, alerted);
-      notifyBrowser('High-impact event approaching', (hit.ev.currency || '') + ' ' + hit.ev.title + ' at ' + formatClock(hit.ev.startMs) + ' MYT');
+      notifyBrowser('High-impact event approaching', (hit.ev.currency || '') + ' ' + hit.ev.title + ' at ' + formatClock(hit.ev.startMs) + ' ' + timeZoneName(hit.ev.startMs));
     }
   }
 
@@ -615,7 +645,7 @@
       pill.className = 'pill ' + (map[meta.feedState] || 'pill-muted');
       pill.textContent = meta.feedState || 'UNKNOWN';
     }
-    setText('#econ-last-update', meta && meta.fetchedAt ? 'Updated ' + formatClock(meta.fetchedAt) + ' MYT' : 'Last update: N/A');
+    setText('#econ-last-update', meta && meta.fetchedAt ? 'Updated ' + formatClock(meta.fetchedAt) + ' ' + timeZoneName(meta.fetchedAt) : 'Last update: N/A');
 
     var notice = $('#econ-stale-notice');
     var noticeText = $('#econ-stale-text');
@@ -632,7 +662,7 @@
     if (note && meta) {
       var parts = ['Source: ' + (meta.source || 'Forex Factory')];
       parts.push('Source TZ: ' + (meta.sourceTimeZone || 'America/New_York'));
-      parts.push('Display TZ: ' + (meta.displayTimeZone || MYT));
+      parts.push('Display TZ: ' + state.timeZone + ' (' + timeZoneName(nowMs()) + ')');
       if (meta.actualsPublished === false) {
         parts.push('Note: this feed publishes forecast and previous values; actual results appear only when supplied by Forex Factory.');
       }
@@ -654,32 +684,6 @@
   function hideError() {
     var panel = $('#econ-error');
     if (panel) panel.hidden = true;
-  }
-
-  function rebuildCurrencyOptions() {
-    var sel = $('#econ-currency-filter');
-    if (!sel) return;
-    var current = sel.value || 'all';
-    var seen = {};
-    var codes = [];
-    for (var i = 0; i < state.events.length; i += 1) {
-      var c = state.events[i].currency;
-      if (c && !seen[c]) { seen[c] = true; codes.push(c); }
-    }
-    codes.sort();
-    sel.textContent = '';
-    var allOpt = document.createElement('option');
-    allOpt.value = 'all';
-    allOpt.textContent = 'All currencies';
-    sel.appendChild(allOpt);
-    for (var j = 0; j < codes.length; j += 1) {
-      var opt = document.createElement('option');
-      opt.value = codes[j];
-      opt.textContent = codes[j];
-      sel.appendChild(opt);
-    }
-    sel.value = (current === 'all' || seen[current]) ? current : 'all';
-    state.filters.currency = sel.value;
   }
 
   async function request(path, options) {
@@ -717,7 +721,6 @@
     }
     hideError();
     applyMeta(data.meta);
-    rebuildCurrencyOptions();
     renderRows();
     updateSummary();
     if (state.loaded) detectNewResults(currentActuals, previousActuals);
@@ -758,18 +761,30 @@
   }
 
   async function refreshCalendar() {
+    var button = $('#econ-refresh');
+    if (button) {
+      button.classList.add('is-loading');
+      button.disabled = true;
+    }
     try {
       var data = await request('/api/economic-calendar/refresh', { method: 'POST' });
       applyCalendar(data);
       toast('Calendar refreshed.', 'success');
     } catch (error) {
       toast(error.message || 'The calendar could not be refreshed.', 'error');
+    } finally {
+      if (button) {
+        button.classList.remove('is-loading');
+        button.disabled = false;
+      }
     }
   }
 
   async function loadPreferences() {
+    var savedTimeZone = null;
     try {
       var data = await request('/api/me');
+      savedTimeZone = validTimeZone(data && data.preferences && data.preferences.timezone);
       var saved = data && data.preferences && data.preferences.economicNews;
       if (saved && typeof saved === 'object') {
         if (typeof saved.enabled === 'boolean') state.prefs.enabled = saved.enabled;
@@ -778,6 +793,12 @@
         if (['all', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY'].indexOf(saved.relevance) !== -1) state.prefs.relevance = saved.relevance;
       }
     } catch (e) { /* keep defaults */ }
+    if (savedTimeZone && savedTimeZone !== state.timeZone) {
+      state.timeZone = savedTimeZone;
+      renderRows();
+      updateSummary();
+      updateClock();
+    }
     syncPreferenceControls();
   }
 
@@ -789,10 +810,7 @@
     if (enabled) enabled.checked = state.prefs.enabled;
     if (browser) browser.checked = state.prefs.browserNotifications;
     if (windowSel) windowSel.value = String(state.prefs.alertWindow);
-    if (relevance) {
-      relevance.value = state.prefs.relevance;
-      state.filters.relevance = state.prefs.relevance;
-    }
+    if (relevance) relevance.value = state.prefs.relevance;
     var status = $('#econ-notification-status');
     if (status) {
       if (!('Notification' in window)) status.textContent = 'Browser notifications are not supported on this device.';
@@ -833,19 +851,13 @@
     var impact = $('#econ-impact-filter');
     if (impact) impact.addEventListener('change', function () { state.filters.impact = impact.value; renderRows(); });
 
-    var currency = $('#econ-currency-filter');
-    if (currency) currency.addEventListener('change', function () { state.filters.currency = currency.value; renderRows(); });
-
     var relevance = $('#econ-relevance-filter');
     if (relevance) relevance.addEventListener('change', function () {
-      state.filters.relevance = relevance.value;
       state.prefs.relevance = relevance.value;
-      renderRows();
+      state.currentAlertId = null;
       savePreferences();
+      checkAlerts();
     });
-
-    var hideLow = $('#econ-hide-low');
-    if (hideLow) hideLow.addEventListener('change', function () { state.filters.hideLow = hideLow.checked; renderRows(); });
 
     var refresh = $('#econ-refresh');
     if (refresh) refresh.addEventListener('click', function () { refreshCalendar(); });
@@ -855,7 +867,7 @@
 
     var reset = $('#econ-empty-reset');
     if (reset) reset.addEventListener('click', function () {
-      state.filters = { range: 'today', search: '', impact: 'all', currency: 'all', relevance: state.prefs.relevance, hideLow: false };
+      state.filters = { range: 'today', search: '', impact: 'all' };
       $$('.econ-filter').forEach(function (b) {
         var active = b.dataset.econRange === 'today';
         b.classList.toggle('is-active', active);
@@ -863,8 +875,6 @@
       });
       if (search) search.value = '';
       if (impact) impact.value = 'all';
-      if (currency) currency.value = 'all';
-      if (hideLow) hideLow.checked = false;
       renderRows();
     });
 
@@ -914,12 +924,14 @@
     });
   }
 
+  function updateClock() {
+    setText('#econ-clock', formatClock(nowMs()) + ' ' + timeZoneName(nowMs()));
+  }
+
   function startTimers() {
     stopTimers();
-    state.clockTimer = window.setInterval(function () {
-      setText('#econ-clock', formatClock(nowMs()) + ' MYT');
-    }, TICK_MS);
-    setText('#econ-clock', formatClock(nowMs()) + ' MYT');
+    state.clockTimer = window.setInterval(updateClock, TICK_MS);
+    updateClock();
 
     state.tickerTimer = window.setInterval(function () {
       tickCountdowns();

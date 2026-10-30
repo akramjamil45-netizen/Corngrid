@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261030-1">
+  <link rel="stylesheet" href="dashboard.css?v=20261030-3">
 </head>
 <body>
   <div class="app-shell">
@@ -540,12 +540,11 @@
             <div>
               <p class="eyebrow">ECONOMIC NEWS</p>
               <h1>Economic Calendar</h1>
-              <p class="muted">Macro events in Malaysia time with live countdowns, forecasts, and released results when the source publishes them.</p>
+              <p class="muted">Macro events in your local time with live countdowns, forecasts, and released results when the source publishes them.</p>
             </div>
             <div class="econ-head-actions">
-              <span class="econ-head-clock" id="econ-clock">— MYT</span>
+              <span class="econ-head-clock" id="econ-clock">—</span>
               <span class="pill pill-muted" id="econ-feed-status">Loading…</span>
-              <button class="button button-secondary" id="econ-refresh" type="button"><span aria-hidden="true">↻</span> Refresh</button>
             </div>
           </div>
 
@@ -563,7 +562,7 @@
             <button class="button button-secondary button-small" id="econ-alert-dismiss" type="button">Dismiss</button>
           </div>
 
-          <section class="panel econ-metrics" aria-label="Calendar summary">
+          <section class="econ-metrics" aria-label="Calendar summary">
             <div class="econ-metric">
               <span class="econ-metric-label">High impact today</span>
               <strong class="econ-metric-value" id="econ-stat-high-today">—</strong>
@@ -584,38 +583,25 @@
           </section>
 
           <section class="panel econ-controls-panel" aria-label="Calendar filters">
-            <div class="econ-controls-top">
+            <div class="econ-toolbar">
               <div class="econ-range-group" role="group" aria-label="Calendar date range">
                 <button type="button" class="econ-filter is-active" data-econ-range="today" aria-pressed="true">Today</button>
                 <button type="button" class="econ-filter" data-econ-range="tomorrow" aria-pressed="false">Tomorrow</button>
                 <button type="button" class="econ-filter" data-econ-range="week" aria-pressed="false">This week</button>
-                <button type="button" class="econ-filter" data-econ-range="upcoming" aria-pressed="false">All upcoming</button>
+                <button type="button" class="econ-filter" data-econ-range="upcoming" aria-pressed="false">Upcoming</button>
               </div>
               <div class="econ-search-wrap">
                 <svg class="econ-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                 <label class="sr-only" for="econ-search">Search economic events</label>
                 <input id="econ-search" class="input-control econ-search" type="search" placeholder="Search event or currency…" autocomplete="off">
               </div>
-            </div>
-            <div class="econ-controls-bottom">
-              <label class="econ-select"><span>Impact</span><select id="econ-impact-filter" class="select-control">
+              <label class="econ-select econ-impact-select"><span>Impact</span><select id="econ-impact-filter" class="select-control">
                 <option value="all">All impacts</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
                 <option value="holiday">Holiday</option>
               </select></label>
-              <label class="econ-select"><span>Currency</span><select id="econ-currency-filter" class="select-control">
-                <option value="all">All currencies</option>
-              </select></label>
-              <label class="econ-select"><span>Relevance</span><select id="econ-relevance-filter" class="select-control">
-                <option value="all">All markets</option>
-                <option value="XAUUSD">XAUUSD</option>
-                <option value="EURUSD">EURUSD</option>
-                <option value="GBPUSD">GBPUSD</option>
-                <option value="USDJPY">USDJPY</option>
-              </select></label>
-              <label class="econ-toggle"><input type="checkbox" id="econ-hide-low"> <span>Hide low impact</span></label>
             </div>
           </section>
 
@@ -629,6 +615,13 @@
                 <option value="30">30 minutes before</option>
                 <option value="60">60 minutes before</option>
               </select></label>
+              <label class="econ-select"><span>Alert relevance</span><select id="econ-relevance-filter" class="select-control">
+                <option value="all">All markets</option>
+                <option value="XAUUSD">XAUUSD</option>
+                <option value="EURUSD">EURUSD</option>
+                <option value="GBPUSD">GBPUSD</option>
+                <option value="USDJPY">USDJPY</option>
+              </select></label>
               <label class="econ-toggle"><input type="checkbox" id="econ-browser-notifications"> <span>Browser notifications</span></label>
               <p class="muted small econ-notification-status" id="econ-notification-status" role="status"></p>
             </div>
@@ -640,6 +633,9 @@
               <div class="econ-table-meta">
                 <span class="econ-event-count" id="econ-event-count">—</span>
                 <span class="muted small" id="econ-last-update">Last update: N/A</span>
+                <button class="econ-icon-btn" id="econ-refresh" type="button" aria-label="Refresh calendar" title="Refresh calendar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>
+                </button>
               </div>
             </div>
             <p class="econ-source-note muted small" id="econ-source-note"></p>
@@ -666,7 +662,7 @@
             <div class="econ-empty" id="econ-empty" hidden>
               <span class="econ-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
               <strong>No events match these filters</strong>
-              <p class="muted small">Try a wider date range, another currency, or clear the search.</p>
+              <p class="muted small">Try a wider date range, a different impact, or clear the search.</p>
               <button class="button button-secondary button-small" id="econ-empty-reset" type="button">Reset filters</button>
             </div>
             <div class="econ-error" id="econ-error" hidden>
@@ -776,11 +772,21 @@
     </main>
   </div>
   <div class="overlay" id="overlay" hidden></div>
+  <div class="feed-lightbox" id="feed-lightbox" hidden>
+    <div class="feed-lightbox-backdrop" data-feed-lightbox-close></div>
+    <div class="feed-lightbox-dialog" id="feed-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Post image preview">
+      <div class="feed-lightbox-bar">
+        <a class="button button-secondary button-small" id="feed-lightbox-download" download>Download</a>
+        <button type="button" class="button button-secondary button-small" id="feed-lightbox-close" data-feed-lightbox-close aria-label="Close image preview">Close</button>
+      </div>
+      <img class="feed-lightbox-image" id="feed-lightbox-image" alt="Expanded post image">
+    </div>
+  </div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
   <script src="dashboard.js?v=20261029-1"></script>
   <script src="market.js?v=20261026-1"></script>
-  <script src="economic-news.js?v=20261022-3"></script>
-  <script src="feed.js?v=20261025-2"></script>
+  <script src="economic-news.js?v=20261030-4"></script>
+  <script src="feed.js?v=20261030-1"></script>
 </body>
 </html>

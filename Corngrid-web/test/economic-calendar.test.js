@@ -195,7 +195,7 @@ test('XML with DOCTYPE or ENTITY declarations is rejected', () => {
   assert.throws(() => parseXmlCalendar(entity), /unsupported XML declarations/);
 });
 
-test('source wall time converts to UTC and displays in Malaysia time (DST-aware)', () => {
+test('zoned wall-time conversion is DST-aware', () => {
   // Summer (EDT, UTC-4): 8:30am New York -> 20:30 Kuala Lumpur same day.
   const summer = zonedWallTimeToUtcMs({ year: 2026, month: 7, day: 15, hour: 8, minute: 30 }, 'America/New_York');
   const summerDisplay = formatInZone(summer, 'Asia/Kuala_Lumpur');
@@ -242,7 +242,7 @@ test('US date strings parse and invalid dates are rejected', () => {
   assert.equal(parseUsDate('garbage'), null);
 });
 
-test('normalization produces Malaysia dateKey, MYT time, and safe fields', () => {
+test('normalization produces a Malaysia dateKey and safe fields', () => {
   const event = normalizeEvent({
     title: 'Non-Farm Employment Change',
     country: 'USD',
@@ -266,6 +266,17 @@ test('normalization produces Malaysia dateKey, MYT time, and safe fields', () =>
   assert.ok(event.relevance.includes('XAUUSD'), 'high-impact USD events map to XAUUSD');
   assert.ok(event.relevance.includes('EURUSD'));
   assert.equal(event.url, 'https://www.forexfactory.com/calendar?event=123');
+});
+
+test('XML feed wall-clock times are treated as UTC', () => {
+  const event = normalizeEvent({
+    title: 'Advance GDP q/q',
+    country: 'USD',
+    date: '10-29-2026',
+    time: '12:30pm',
+    impact: 'High'
+  });
+  assert.equal(new Date(event.startMs).toISOString(), '2026-10-29T12:30:00.000Z');
 });
 
 test('all-day and tentative events keep a dateKey but no startMs', () => {
@@ -386,7 +397,7 @@ test('calendar serves cached events, refreshes on demand, and reports actualsPub
   assert.equal(first.meta.stale, false);
   assert.equal(first.meta.error, null);
   assert.equal(first.meta.displayTimeZone, 'Asia/Kuala_Lumpur');
-  assert.equal(first.meta.sourceTimeZone, 'America/New_York');
+  assert.equal(first.meta.sourceTimeZone, 'UTC');
   assert.equal(fetchImpl.calls.length, 1);
 
   // A cached read within the TTL does not hit the network again.
@@ -547,6 +558,26 @@ test('feeds that contain only empty actuals report actualsPublished false', asyn
   const data = await calendar.refresh({ force: true });
   assert.equal(data.events[0].actual, null);
   assert.equal(data.meta.actualsPublished, false, 'the UI must label actuals as unavailable');
+});
+
+test('legacy cache payloads are ignored after a conversion change', async () => {
+  const clock = makeClock();
+  const db = await makeDb();
+  const first = createEconomicCalendar({ db, fetchImpl: fakeFetchSequence([xmlResponse(XML_FEED)]), now: clock.now });
+  await first.ready;
+  await new Promise((resolve, reject) => db.run(
+    `INSERT INTO economic_calendar_cache (id, payload, fetched_at, source_url, updated_at)
+     VALUES (1, ?, ?, ?, ?)`,
+    [JSON.stringify([]), clock.now(), 'legacy', clock.now()],
+    error => error ? reject(error) : resolve()
+  ));
+
+  const fetchImpl = fakeFetchSequence([xmlResponse(XML_FEED)]);
+  const second = createEconomicCalendar({ db, fetchImpl, now: clock.now });
+  await second.ready;
+  const data = await second.refresh({ force: false });
+  assert.equal(fetchImpl.calls.length, 1, 'a legacy payload must not prevent a refetch');
+  assert.equal(data.events.length, 5);
 });
 
 test('database cache survives a new calendar instance', async () => {
