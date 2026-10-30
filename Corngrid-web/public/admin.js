@@ -4,6 +4,14 @@
   let searchTimer;
   let selectedSupportUserId = null;
   let selectedSuspendUser = null;
+  let supportBadgeTick = 0;
+  const supportState = {
+    conversations: [],
+    conversationsSignature: '',
+    search: '',
+    filter: 'all',
+    threadSignature: ''
+  };
   const $ = selector => document.querySelector(selector);
   const $$ = selector => Array.from(document.querySelectorAll(selector));
 
@@ -176,52 +184,181 @@
     }
   }
 
-  async function loadSupportConversations() {
+  function supportInitial(username) {
+    const value = String(username || '?').trim();
+    return (value[0] || '?').toUpperCase();
+  }
+
+  function supportAvatar(username, extraClass = '') {
+    return `<span class="admin-support-avatar${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true">${escapeHtml(supportInitial(username))}</span>`;
+  }
+
+  function supportIcon(name) {
+    const icons = {
+      inbox: '<path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/>',
+      search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+      chat: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.chat}</svg>`;
+  }
+
+  function formatSupportTime(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay
+      ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function updateSupportUnreadBadge() {
+    const unread = supportState.conversations.reduce((sum, conversation) => sum + Number(conversation.unreadCount || 0), 0);
+    const badge = $('#admin-support-unread');
+    if (badge) {
+      badge.hidden = unread === 0;
+      badge.textContent = unread > 99 ? '99+' : String(unread);
+    }
+    const summary = $('#admin-support-unread-summary');
+    if (summary) {
+      summary.hidden = unread === 0;
+      summary.textContent = unread === 1 ? '1 unread message' : `${unread} unread messages`;
+    }
+    const total = $('#admin-support-total');
+    if (total) total.textContent = String(supportState.conversations.length);
+  }
+
+  function filterSupportConversations() {
+    const query = supportState.search.trim().toLowerCase();
+    return supportState.conversations.filter(conversation => {
+      if (supportState.filter === 'unread' && !Number(conversation.unreadCount)) return false;
+      if (!query) return true;
+      return [conversation.username, conversation.email, conversation.lastMessage]
+        .some(value => String(value || '').toLowerCase().includes(query));
+    });
+  }
+
+  function renderSupportConversations() {
+    const list = $('#admin-support-list');
+    if (!list) return;
+    const conversations = filterSupportConversations();
+    if (!supportState.conversations.length) {
+      list.innerHTML = `<div class="admin-support-empty"><span class="admin-support-empty-icon">${supportIcon('inbox')}</span><strong>No conversations yet</strong><p class="muted">User messages from Terminal Chat will appear here.</p></div>`;
+      return;
+    }
+    if (!conversations.length) {
+      list.innerHTML = `<div class="admin-support-empty"><span class="admin-support-empty-icon">${supportIcon('search')}</span><strong>No matching chats</strong><p class="muted">Try another search or switch the filter.</p></div>`;
+      return;
+    }
+    list.innerHTML = conversations.map(conversation => {
+      const unread = Number(conversation.unreadCount || 0);
+      const selected = String(selectedSupportUserId) === String(conversation.userId);
+      return `
+        <button class="admin-support-item${selected ? ' is-selected' : ''}" type="button" data-support-user="${conversation.userId}" aria-pressed="${selected}">
+          ${supportAvatar(conversation.username)}
+          <span class="admin-support-item-body">
+            <span class="admin-support-item-top"><strong>${escapeHtml(conversation.username)}</strong><time title="${escapeHtml(formatDateTime(conversation.lastMessageAt))}">${escapeHtml(formatSupportTime(conversation.lastMessageAt))}</time></span>
+            <span class="admin-support-item-email">${escapeHtml(conversation.email)}</span>
+            <span class="admin-support-preview"><span class="admin-support-preview-text">${conversation.lastSenderRole === 'admin' ? '<span class="admin-support-you">You:</span> ' : ''}${escapeHtml(conversation.lastMessage)}</span>${unread ? `<b class="chat-unread-badge">${unread > 99 ? '99+' : unread}</b>` : ''}</span>
+          </span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  async function loadSupportConversations({ silent = false } = {}) {
     const list = $('#admin-support-list');
     try {
       const data = await api('/api/admin/support/conversations');
       const conversations = data.conversations || [];
-      const unread = conversations.reduce((sum, conversation) => sum + Number(conversation.unreadCount || 0), 0);
-      const badge = $('#admin-support-unread');
-      badge.hidden = unread === 0;
-      badge.textContent = unread > 99 ? '99+' : String(unread);
-      if (!conversations.length) {
-        list.innerHTML = '<p class="table-empty">No support conversations yet.</p>';
-        return;
-      }
-      list.innerHTML = conversations.map(conversation => `
-        <button class="admin-support-item${String(selectedSupportUserId) === String(conversation.userId) ? ' is-selected' : ''}" type="button" data-support-user="${conversation.userId}">
-          <span class="admin-support-item-top"><strong>${escapeHtml(conversation.username)}</strong><time>${escapeHtml(formatDateTime(conversation.lastMessageAt))}</time></span>
-          <span class="admin-support-preview">${conversation.lastSenderRole === 'admin' ? 'You: ' : ''}${escapeHtml(conversation.lastMessage)}${Number(conversation.unreadCount) ? `<b class="chat-unread-badge">${Number(conversation.unreadCount) > 99 ? '99+' : Number(conversation.unreadCount)}</b>` : ''}</span>
-        </button>
-      `).join('');
+      const signature = conversations.map(conversation => [
+        conversation.userId, conversation.username, conversation.email, conversation.unreadCount,
+        conversation.lastSenderRole, conversation.lastMessage, conversation.lastMessageAt
+      ].join(':')).join('|');
+      const changed = signature !== supportState.conversationsSignature;
+      supportState.conversations = conversations;
+      supportState.conversationsSignature = signature;
+      updateSupportUnreadBadge();
+      if (changed) renderSupportConversations();
     } catch (error) {
-      list.innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
+      if (!silent && list) list.innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
     }
   }
 
-  async function loadSupportMessages(userId) {
-    // Guard against NaN / null / undefined user IDs — the backend correctly
-    // rejects them with a 400, so bail here to avoid firing the request.
+  async function loadSupportMessages(userId, { silent = false } = {}) {
     if (!Number.isSafeInteger(userId)) return;
+    const pane = $('#admin-support-messages');
+    if (!pane) return;
+    if (!silent) pane.setAttribute('aria-busy', 'true');
     try {
       const data = await api(`/api/admin/support/conversations/${encodeURIComponent(userId)}/messages`);
       if (String(selectedSupportUserId) !== String(userId)) return;
-      $('#admin-support-user').textContent = data.user.username;
-      $('#admin-support-email').textContent = data.user.email;
-      $('#admin-support-form').hidden = false;
+      if ($('#admin-support-user')) $('#admin-support-user').textContent = data.user.username;
+      if ($('#admin-support-email')) $('#admin-support-email').textContent = data.user.email;
+      if ($('#admin-support-avatar')) $('#admin-support-avatar').textContent = supportInitial(data.user.username);
+      if ($('#admin-support-form')) $('#admin-support-form').hidden = false;
+      const status = $('#admin-support-thread-status');
+      if (status) {
+        status.hidden = false;
+        status.textContent = 'Read';
+      }
       const messages = data.messages || [];
-      $('#admin-support-messages').innerHTML = messages.length ? messages.map(message => `
-        <div class="chat-bubble-wrap ${message.senderRole === 'admin' ? 'is-mine' : 'is-peer'}">
-          <div class="chat-bubble">${escapeHtml(message.message)}</div>
-          <div class="chat-meta"><span>${escapeHtml(formatDateTime(message.createdAt))}</span>${message.senderRole === 'admin' ? '<span>Support</span>' : `<span>${escapeHtml(data.user.username)}</span>`}</div>
-        </div>
-      `).join('') : '<div class="chat-empty-state"><h3>Conversation started</h3><p class="muted">Send a reply to help this user.</p></div>';
-      $('#admin-support-messages').scrollTop = $('#admin-support-messages').scrollHeight;
-      await loadSupportConversations();
+      const stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 90;
+      const signature = messages.map(message => `${message.id}:${message.readAt || ''}:${message.message}`).join('|');
+      if (signature !== supportState.threadSignature) {
+        supportState.threadSignature = signature;
+        pane.innerHTML = messages.length ? messages.map(message => {
+          const mine = message.senderRole === 'admin';
+          return `
+            <div class="chat-bubble-wrap ${mine ? 'is-mine' : 'is-peer'}">
+              <div class="chat-bubble">${escapeHtml(message.message)}</div>
+              <div class="chat-meta"><span>${escapeHtml(formatDateTime(message.createdAt))}</span><span>${mine ? 'Support' : escapeHtml(data.user.username)}</span></div>
+            </div>
+          `;
+        }).join('') : `<div class="chat-empty-state"><span class="chat-empty-state-icon">${supportIcon('chat')}</span><h3>Conversation started</h3><p class="muted">Send the first reply to help this user.</p></div>`;
+        if (!silent || stickToBottom) pane.scrollTop = pane.scrollHeight;
+      }
+      await loadSupportConversations({ silent: true });
     } catch (error) {
-      $('#admin-support-messages').innerHTML = `<div class="chat-empty-state admin-error">${escapeHtml(error.message)}</div>`;
+      if (!silent) pane.innerHTML = `<div class="chat-empty-state admin-error"><h3>Unable to open conversation</h3><p>${escapeHtml(error.message)}</p></div>`;
+    } finally {
+      pane.removeAttribute('aria-busy');
     }
+  }
+
+  function updateSupportComposer() {
+    const input = $('#admin-support-input');
+    const count = $('#admin-support-char-count');
+    const send = $('#admin-support-send');
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+    const length = input.value.length;
+    if (count) {
+      count.textContent = `${length} / 2000`;
+      count.classList.toggle('is-near-limit', length >= 1800);
+    }
+    if (send) send.disabled = !selectedSupportUserId || !input.value.trim();
+  }
+
+  async function refreshSupportInbox() {
+    const button = $('#admin-support-refresh');
+    if (button) button.disabled = true;
+    try {
+      if (selectedSupportUserId) await loadSupportMessages(selectedSupportUserId);
+      else await loadSupportConversations();
+      toast('Support inbox refreshed.');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function scrollSupportPanel(selector) {
+    if (!window.matchMedia('(max-width: 900px)').matches) return;
+    const panel = document.querySelector(selector);
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ---- Mobile sidebar (matches the dashboard shell behaviour) ----
@@ -798,7 +935,7 @@
 
   $('#admin-refresh').addEventListener('click', () => {
     if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
-    else if (!$('#support').hidden) loadSupportConversations();
+    else if (!$('#support').hidden) refreshSupportInbox();
     else if (!$('#reports').hidden) loadReports();
     else if (!$('#announcements').hidden) loadAnnouncements();
     else loadOverview();
@@ -887,28 +1024,65 @@
     finally { submit.disabled = false; }
   });
   $('#admin-suspend-cancel').addEventListener('click', () => $('#admin-suspend-dialog').close());
-  $('#admin-support-refresh').addEventListener('click', loadSupportConversations);
+  $('#admin-support-refresh').addEventListener('click', refreshSupportInbox);
+  $('#admin-support-back').addEventListener('click', () => scrollSupportPanel('.admin-support-list-panel'));
+  $('#admin-support-search').addEventListener('input', event => {
+    supportState.search = event.target.value;
+    renderSupportConversations();
+  });
+  $('#admin-support-filter').addEventListener('change', event => {
+    supportState.filter = event.target.value === 'unread' ? 'unread' : 'all';
+    renderSupportConversations();
+  });
   $('#admin-support-list').addEventListener('click', event => {
     const item = event.target.closest('[data-support-user]');
     if (!item) return;
-    selectedSupportUserId = Number(item.dataset.supportUser);
+    const userId = Number(item.dataset.supportUser);
+    if (String(selectedSupportUserId) !== String(userId)) {
+      const input = $('#admin-support-input');
+      if (input) input.value = '';
+    }
+    selectedSupportUserId = userId;
+    supportState.threadSignature = '';
+    renderSupportConversations();
+    $('#admin-support-user').textContent = 'Loading conversation…';
+    $('#admin-support-email').textContent = 'Fetching the latest messages.';
+    $('#admin-support-avatar').textContent = '…';
+    const status = $('#admin-support-thread-status');
+    if (status) status.hidden = true;
+    $('#admin-support-form').hidden = true;
+    $('#admin-support-messages').innerHTML = `<div class="chat-empty-state"><span class="chat-empty-state-icon">${supportIcon('clock')}</span><h3>Opening conversation</h3><p class="muted">Loading the latest messages.</p></div>`;
+    updateSupportComposer();
     loadSupportMessages(selectedSupportUserId);
+    window.requestAnimationFrame(() => scrollSupportPanel('.admin-support-chat'));
   });
+  $('#admin-support-input').addEventListener('input', updateSupportComposer);
+  updateSupportComposer();
   $('#admin-support-form').addEventListener('submit', async event => {
     event.preventDefault();
-    const message = $('#admin-support-input').value.trim();
-    if (!selectedSupportUserId || !message) return;
+    const input = $('#admin-support-input');
     const button = $('#admin-support-send');
+    const message = input.value.trim();
+    if (!selectedSupportUserId || !message) {
+      updateSupportComposer();
+      return;
+    }
     button.disabled = true;
     try {
       await api(`/api/admin/support/conversations/${selectedSupportUserId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ message })
       });
-      $('#admin-support-input').value = '';
+      input.value = '';
+      updateSupportComposer();
+      toast('Reply sent.');
       await loadSupportMessages(selectedSupportUserId);
-    } catch (error) { window.alert(error.message); }
-    finally { button.disabled = false; }
+    } catch (error) {
+      toast(error.message || 'Unable to send this reply.', 'error');
+    } finally {
+      updateSupportComposer();
+      input.focus();
+    }
   });
   $('#admin-support-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -923,8 +1097,10 @@
   window.setInterval(() => {
     if (document.hidden) return;
     if (!$('#support').hidden) {
-      if (selectedSupportUserId) loadSupportMessages(selectedSupportUserId);
-      else loadSupportConversations();
+      if (selectedSupportUserId) loadSupportMessages(selectedSupportUserId, { silent: true });
+      else loadSupportConversations({ silent: true });
+    } else if (++supportBadgeTick % 3 === 0) {
+      loadSupportConversations({ silent: true });
     }
     refreshReportsBadge();
   }, 10000);
@@ -936,5 +1112,6 @@
   else if (location.hash === '#reports') showAdminPage('reports');
   else if (location.hash === '#announcements') showAdminPage('announcements');
   loadOverview();
+  loadSupportConversations({ silent: true });
   refreshReportsBadge();
 })();

@@ -99,9 +99,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261030-1">
-  <link rel="stylesheet" href="admin.css?v=20261030-1">
+  <link rel="stylesheet" href="admin.css?v=20261030-2">
   <script src="table-cards.js?v=20261029-2" defer></script>
-  <script src="admin.js?v=20261029-1" defer></script>
+  <script src="admin.js?v=20261030-2" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -156,17 +156,38 @@
         </section>
 
         <section class="page" id="support" hidden>
-          <div class="page-heading"><div><p class="eyebrow">CUSTOMER CARE</p><h1>Support inbox</h1><p class="muted">Reply to users who contact CornGrid support from Terminal Chat.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">CUSTOMER CARE</p><h1>Support inbox</h1><p class="muted">Reply to users who contact CornGrid support from Terminal Chat.</p></div><div class="admin-support-head-actions"><span class="admin-support-unread-summary" id="admin-support-unread-summary" hidden>0 unread</span><button class="button button-secondary" id="admin-support-refresh" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Refresh inbox</button></div></div>
           <div class="admin-support-layout">
             <aside class="panel admin-support-list-panel">
-              <div class="panel-header"><div><p class="eyebrow">INBOX</p><h2>Conversations</h2></div><button class="button button-small" id="admin-support-refresh" type="button">Refresh</button></div>
-              <div class="admin-support-list" id="admin-support-list" aria-live="polite"><p class="table-empty">Loading support conversations…</p></div>
+              <div class="panel-header admin-support-list-head">
+                <div><p class="eyebrow">INBOX</p><h2>Conversations <span class="admin-support-total" id="admin-support-total">0</span></h2></div>
+              </div>
+              <div class="admin-support-filters">
+                <label class="admin-support-search" for="admin-support-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="admin-support-search" type="search" placeholder="Search username, email or message" aria-label="Search support conversations" autocomplete="off"></label>
+                <select id="admin-support-filter" class="select-control" aria-label="Filter support conversations"><option value="all">All chats</option><option value="unread">Unread</option></select>
+              </div>
+              <div class="admin-support-list" id="admin-support-list" aria-live="polite"><p class="table-empty">Loading support conversations.</p></div>
             </aside>
             <section class="panel admin-support-chat">
-              <header class="admin-support-chat-header"><div><p class="eyebrow">SELECTED USER</p><h2 id="admin-support-user">Choose a conversation</h2><span class="muted small" id="admin-support-email"></span></div></header>
-              <div class="admin-support-messages" id="admin-support-messages" aria-live="polite"><div class="chat-empty-state"><h3>No conversation selected</h3><p class="muted">Choose a user from the inbox to view and reply.</p></div></div>
-              <form class="admin-support-composer" id="admin-support-form" hidden><textarea class="input-control" id="admin-support-input" maxlength="2000" rows="2" placeholder="Write a reply…" required></textarea><button class="button button-primary" id="admin-support-send" type="submit">Send reply</button></form>
+              <header class="admin-support-chat-header">
+                <button class="chat-icon-btn admin-support-back" id="admin-support-back" type="button" aria-label="Back to support inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+                <div class="admin-support-profile">
+                  <span class="admin-support-avatar" id="admin-support-avatar" aria-hidden="true">?</span>
+                  <div class="admin-support-profile-copy"><p class="eyebrow">SELECTED USER</p><h2 id="admin-support-user">Choose a conversation</h2><span class="muted small" id="admin-support-email">Select a user from the inbox to view and reply.</span></div>
+                </div>
+                <span class="pill pill-muted" id="admin-support-thread-status" hidden></span>
+              </header>
+              <div class="admin-support-messages" id="admin-support-messages" aria-live="polite"><div class="chat-empty-state"><span class="chat-empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/></svg></span><h3>No conversation selected</h3><p class="muted">Choose a user from the inbox to view and reply.</p></div></div>
+              <form class="admin-support-composer" id="admin-support-form" hidden>
+                <div class="admin-support-compose-field">
+                  <textarea class="input-control" id="admin-support-input" maxlength="2000" rows="1" placeholder="Write a reply…" aria-label="Write a support reply" required></textarea>
+                  <div class="admin-support-compose-meta"><span>Enter to send · Shift+Enter for new line</span><span id="admin-support-char-count">0 / 2000</span></div>
+                </div>
+                <button class="button button-primary admin-support-send" id="admin-support-send" type="submit"><span>Send reply</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
+              </form>
             </section>
+          </div>
+        </section>
           </div>
         </section>
 

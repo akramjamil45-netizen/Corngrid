@@ -58,3 +58,16 @@ test('the admin reports panel is styled for the CornGrid admin surface', () => {
   assert.match(adminCss, /\.admin-report-item/);
   assert.match(adminCss, /\.admin-report-actions/);
 });
+
+test('the admin support inbox can search, filter, and safely render conversations', () => {
+  assert.match(adminHtml, /id="admin-support-search"/);
+  assert.match(adminHtml, /id="admin-support-filter"/);
+  assert.match(adminHtml, /id="admin-support-char-count"/);
+  assert.match(adminHtml, /id="admin-support-unread-summary"/);
+  assert.match(adminJs, /function filterSupportConversations\(\)/);
+  assert.match(adminJs, /escapeHtml\(conversation\.lastMessage\)/);
+  assert.match(adminJs, /escapeHtml\(message\.message\)/);
+  assert.match(adminJs, /event\.key === 'Enter' && !event\.shiftKey/);
+  assert.match(adminCss, /\.admin-support-avatar/);
+  assert.match(adminCss, /\.admin-support-compose-field/);
+});
