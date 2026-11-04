@@ -1,3 +1,5 @@
+const { avatarUrl } = require('./avatar-api');
+
 function get(db, sql, params = []) {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (error, row) => error ? reject(error) : resolve(row));
@@ -308,16 +310,23 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
           GROUP BY user_id
         )
         SELECT u.id AS "userId", u.username, u.email, u.created_at AS "createdAt",
+          av.file AS "avatarFile",
           m.message AS "lastMessage", m.sender_role AS "lastSenderRole", m.created_at AS "lastMessageAt",
           (SELECT COUNT(*) FROM support_messages unread
            WHERE unread.user_id = u.id AND unread.sender_role = 'user' AND unread.read_at IS NULL) AS "unreadCount"
         FROM latest
         JOIN users u ON u.id = latest.user_id
         JOIN support_messages m ON m.id = latest.latest_id
+        LEFT JOIN user_avatars av ON av.user_id = u.id
         ORDER BY m.id DESC
         LIMIT 200
       `);
-      return res.json({ conversations });
+      return res.json({
+        conversations: conversations.map(({ avatarFile, ...conversation }) => ({
+          ...conversation,
+          avatarUrl: avatarUrl(avatarFile)
+        }))
+      });
     } catch (error) {
       console.error('Failed to load administrator support inbox:', error.message);
       return res.status(500).json({ error: 'Unable to load support conversations.' });
@@ -328,7 +337,12 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     const userId = Number.parseInt(req.params.userId, 10);
     if (!Number.isSafeInteger(userId) || userId < 1) return res.status(400).json({ error: 'Invalid user ID.' });
     try {
-      const user = await get(db, 'SELECT id, username, email FROM users WHERE id = ?', [userId]);
+      const user = await get(db, `
+        SELECT u.id, u.username, u.email, av.file AS "avatarFile"
+        FROM users u
+        LEFT JOIN user_avatars av ON av.user_id = u.id
+        WHERE u.id = ?
+      `, [userId]);
       if (!user) return res.status(404).json({ error: 'User not found.' });
       await run(db, `
         UPDATE support_messages SET read_at = ?
@@ -341,7 +355,11 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         ORDER BY id DESC
         LIMIT 150
       `, [userId]);
-      return res.json({ user, messages: messages.reverse() });
+      const { avatarFile, ...userProfile } = user;
+      return res.json({
+        user: { ...userProfile, avatarUrl: avatarUrl(avatarFile) },
+        messages: messages.reverse()
+      });
     } catch (error) {
       console.error('Failed to load support conversation:', error.message);
       return res.status(500).json({ error: 'Unable to load this support conversation.' });

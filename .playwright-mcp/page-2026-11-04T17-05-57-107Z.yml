@@ -1,0 +1,145 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - complementary [ref=f1e3]:
+      - link "CornGrid dashboard home" [ref=f1e4] [cursor=pointer]:
+        - /url: dashboard.html
+        - generic [ref=f1e5]:
+          - text: CORNGRID
+          - generic [ref=f1e6]: TRADING TERMINAL
+      - generic [ref=f1e7]: WORKSPACE
+      - navigation "Main navigation" [ref=f1e8]:
+        - button "Live Feed" [ref=f1e9] [cursor=pointer]
+        - button "Chat" [ref=f1e14] [cursor=pointer]
+        - button "Overview" [ref=f1e19] [cursor=pointer]
+        - button "Market Overview" [ref=f1e26] [cursor=pointer]
+        - button "Economic News" [ref=f1e31] [cursor=pointer]
+        - button "Open Positions" [ref=f1e37] [cursor=pointer]
+        - button "EA Monitoring" [ref=f1e42] [cursor=pointer]
+        - button "Trade History" [ref=f1e46] [cursor=pointer]
+        - button "MT5 Accounts" [ref=f1e51] [cursor=pointer]
+        - button "Subscription" [ref=f1e56] [cursor=pointer]
+        - button "Sandbox" [ref=f1e61] [cursor=pointer]
+        - button "Partner Program" [ref=f1e67] [cursor=pointer]
+        - button "Downloads" [ref=f1e73] [cursor=pointer]
+      - generic [ref=f1e77]:
+        - button "Settings" [ref=f1e78] [cursor=pointer]
+        - button "Sign out" [ref=f1e84] [cursor=pointer]
+        - generic [ref=f1e88]: Trading involves risk. Past performance does not guarantee future results.
+    - main [ref=f1e89]:
+      - generic [ref=f1e90]:
+        - generic [ref=f1e91]:
+          - generic [ref=f1e92]: Workspace
+          - generic [ref=f1e93]: /
+          - strong [ref=f1e94]: Overview
+        - generic [ref=f1e95]:
+          - generic [ref=f1e96]: NO LIVE FEED
+          - button "Toggle theme" [ref=f1e99] [cursor=pointer]: ◐
+          - generic [ref=f1e100]:
+            - img "sandboxtester profile photo" [ref=f1e101]:
+              - generic [aria-hidden] [ref=f1e102]: S
+            - generic [ref=f1e103]: sandboxtester
+      - generic [ref=f1e105]:
+        - generic [ref=f1e106]:
+          - generic [ref=f1e107]:
+            - paragraph [ref=f1e108]: YOUR ACCOUNT, AT A GLANCE
+            - heading "Trading overview" [level=1] [ref=f1e109]
+            - paragraph [ref=f1e110]: Monitor verified account data and portfolio performance.
+          - generic [ref=f1e111]:
+            - generic [ref=f1e112]:
+              - generic [ref=f1e113]: Trading account
+              - combobox "Choose an MT5 account for the overview" [disabled] [ref=f1e114]:
+                - option "No linked MT5 accounts — link one in MT5 Accounts" [selected]
+              - generic [ref=f1e115]: Link an account from the MT5 Accounts page to see its performance.
+            - generic [ref=f1e116]:
+              - generic [ref=f1e117]: Performance period
+              - combobox "Performance period" [ref=f1e118]:
+                - option "Today"
+                - option "7 days"
+                - option "30 days" [selected]
+                - option "90 days"
+                - option "All time"
+                - option "Custom range"
+            - button "↻ Refresh" [ref=f1e119] [cursor=pointer]:
+              - text: ↻
+              - generic [ref=f1e120]: Refresh
+        - generic [ref=f1e121]:
+          - article [ref=f1e122]:
+            - generic [ref=f1e123]: Balance
+            - strong [ref=f1e130]: N/A
+            - text: Account funds
+          - article [ref=f1e131]:
+            - generic [ref=f1e132]: Equity
+            - strong [ref=f1e138]: N/A
+            - text: Including floating P/L
+          - article [ref=f1e139]:
+            - generic [ref=f1e140]: Floating P/L
+            - strong [ref=f1e145]: N/A
+            - text: Open trades
+          - article [ref=f1e146]:
+            - generic [ref=f1e147]: Net profit
+            - strong [ref=f1e153]: N/A
+            - text: Closed deals · 30 days
+          - article [ref=f1e154]:
+            - generic [ref=f1e155]: Today
+            - strong [ref=f1e161]: N/A
+            - text: Closed trade P/L
+          - article [ref=f1e162]:
+            - generic [ref=f1e163]: Win rate
+            - strong [ref=f1e170]: N/A
+            - text: Closed deals · N/A
+        - generic [ref=f1e171]:
+          - generic [ref=f1e172]:
+            - generic [ref=f1e173]:
+              - generic [ref=f1e174]:
+                - paragraph [ref=f1e175]: SELECTED ACCOUNT PERFORMANCE
+                - heading "Balance & equity" [level=2] [ref=f1e176]
+              - generic [ref=f1e177]:
+                - generic [ref=f1e178]: Equity
+                - generic [ref=f1e180]: Balance
+            - generic [ref=f1e183]:
+              - strong [ref=f1e186]: Waiting for account history
+              - generic [ref=f1e187]: Historical chart data will appear after a linked EA sends account snapshots.
+            - generic [ref=f1e188]:
+              - generic [ref=f1e189]: Historical values are reported by the selected MT5 account.
+              - generic [ref=f1e190]: "Last update: N/A"
+          - generic [ref=f1e191]:
+            - generic [ref=f1e192]:
+              - generic [ref=f1e193]:
+                - paragraph [ref=f1e194]: CONNECTIVITY
+                - heading "EA status" [level=2] [ref=f1e195]
+              - generic [ref=f1e196]: No account
+            - generic [ref=f1e197]:
+              - strong [ref=f1e202]: No MT5 account linked
+              - paragraph [ref=f1e203]: Link an account to see balance, performance and trade activity here.
+              - button "Link an MT5 account" [ref=f1e204] [cursor=pointer]
+        - group [ref=f1e205]:
+          - generic "MORE INSIGHTS Trading statistics View details" [ref=f1e206] [cursor=pointer]:
+            - generic [ref=f1e207]:
+              - generic [ref=f1e208]: MORE INSIGHTS
+              - strong [ref=f1e209]: Trading statistics
+            - generic [ref=f1e210]: View details ＋
+        - generic [ref=f1e211]:
+          - generic [ref=f1e212]:
+            - generic [ref=f1e213]:
+              - paragraph [ref=f1e214]: LIVE ACCOUNT DATA
+              - heading "Open positions" [level=2] [ref=f1e215]
+            - button "View all positions →" [ref=f1e216] [cursor=pointer]
+          - table [ref=f1e218]:
+            - rowgroup [ref=f1e219]:
+              - row [ref=f1e220]:
+                - columnheader "Symbol" [ref=f1e221]
+                - columnheader "Direction" [ref=f1e222]
+                - columnheader "Volume" [ref=f1e223]
+                - columnheader "Entry price" [ref=f1e224]
+                - columnheader "Current price" [ref=f1e225]
+                - columnheader "Floating P/L" [ref=f1e226]
+                - columnheader "Opened" [ref=f1e227]
+            - rowgroup [ref=f1e228]:
+              - row [ref=f1e229]:
+                - cell "Link an MT5 account to view positions." [ref=f1e230]
+  - region "Install CornGrid EA" [ref=f1e231]:
+    - generic [ref=f1e232]:
+      - strong [ref=f1e233]: Install CornGrid EA
+      - generic [ref=f1e234]: Add CornGrid to your home screen for a focused, app-like experience.
+    - button "Install" [ref=f1e235] [cursor=pointer]
+    - button "Dismiss" [ref=f1e236] [cursor=pointer]: ×

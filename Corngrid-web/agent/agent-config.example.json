@@ -1,0 +1,9 @@
+{
+  "backendUrl": "https://corngrid.com",
+  "nodeUid": "node_xxxxxxxxxxxxxxxxxx",
+  "nodeToken": "cgn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "mt5BaseDir": "C:\\CornGrid\\Sandbox\\MT5",
+  "sandboxUsersDir": "C:\\CornGrid\\Sandbox\\Users",
+  "agentDataDir": "C:\\CornGrid\\Sandbox\\AgentData",
+  "heartbeatIntervalMs": 15000
+}

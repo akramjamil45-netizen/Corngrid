@@ -83,6 +83,11 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
       closed_at INTEGER NOT NULL
     );
     CREATE TABLE user_auth_versions (user_id INTEGER PRIMARY KEY, version INTEGER DEFAULT 0);
+    CREATE TABLE user_avatars (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      file TEXT NOT NULL UNIQUE,
+      updated_at INTEGER NOT NULL
+    );
     CREATE TABLE public_portfolio_accounts (
       user_id INTEGER NOT NULL,
       account_id INTEGER NOT NULL
@@ -97,6 +102,8 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
       (1, 'alice-share', 1),
       (2, 'bob-share', 0),
       (3, 'charlie-share', 1);
+    INSERT INTO user_avatars (user_id, file, updated_at) VALUES
+      (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png', 1);
   `);
   const freshHeartbeat = Date.now();
   await execute(db,
@@ -180,8 +187,10 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
     const inbox = await inboxResponse.json();
     assert.equal(inbox.conversations[0].username, 'Alice');
     assert.equal(inbox.conversations[0].unreadCount, 1);
+    assert.equal(inbox.conversations[0].avatarUrl, '/uploads/avatars/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png');
     const supportThread = await (await request('/api/admin/support/conversations/1/messages', token)).json();
     assert.equal(supportThread.messages.length, 1);
+    assert.equal(supportThread.user.avatarUrl, '/uploads/avatars/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png');
     const replyResponse = await mutate('/api/admin/support/conversations/1/messages', token, 'POST', {
       message: 'We can help you with that.'
     });

@@ -12,6 +12,26 @@
     filter: 'all',
     threadSignature: ''
   };
+  const emailState = {
+    tab: 'compose',
+    settings: null,
+    templates: [],
+    drafts: [],
+    recipients: [],
+    selectedRecipientIds: new Set(),
+    selectedRecipientMap: new Map(),
+    recipientSearch: '',
+    recipientSearchTimer: null,
+    recipientTotal: 0,
+    eligibleTotal: 0,
+    editingTemplateId: null,
+    historyPage: 1,
+    historyTotalPages: 0,
+    historySearch: '',
+    historyStatus: '',
+    historySearchTimer: null,
+    loaded: { settings: false, templates: false, history: false, recipients: false, drafts: false }
+  };
   const $ = selector => document.querySelector(selector);
   const $$ = selector => Array.from(document.querySelectorAll(selector));
 
@@ -189,9 +209,23 @@
     return (value[0] || '?').toUpperCase();
   }
 
-  function supportAvatar(username, extraClass = '') {
-    return `<span class="admin-support-avatar${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true">${escapeHtml(supportInitial(username))}</span>`;
+  const SUPPORT_AVATAR_PATTERN = /^\/uploads\/avatars\/[a-f0-9]{32}\.(jpg|png|webp)$/;
+
+  function supportAvatarContent(username, avatarUrl) {
+    const image = SUPPORT_AVATAR_PATTERN.test(avatarUrl || '')
+      ? `<img src="${escapeHtml(avatarUrl)}" alt="" decoding="async">`
+      : '';
+    return `<span class="admin-support-avatar-initials" aria-hidden="true">${escapeHtml(supportInitial(username))}</span>${image}`;
   }
+
+  function supportAvatar(username, avatarUrl, extraClass = '') {
+    return `<span class="admin-support-avatar${extraClass ? ` ${extraClass}` : ''}" aria-hidden="true">${supportAvatarContent(username, avatarUrl)}</span>`;
+  }
+
+  document.addEventListener('error', event => {
+    const image = event.target;
+    if (image && image.tagName === 'IMG' && image.closest('.admin-support-avatar')) image.remove();
+  }, true);
 
   function supportIcon(name) {
     const icons = {
@@ -257,7 +291,7 @@
       const selected = String(selectedSupportUserId) === String(conversation.userId);
       return `
         <button class="admin-support-item${selected ? ' is-selected' : ''}" type="button" data-support-user="${conversation.userId}" aria-pressed="${selected}">
-          ${supportAvatar(conversation.username)}
+            ${supportAvatar(conversation.username, conversation.avatarUrl)}
           <span class="admin-support-item-body">
             <span class="admin-support-item-top"><strong>${escapeHtml(conversation.username)}</strong><time title="${escapeHtml(formatDateTime(conversation.lastMessageAt))}">${escapeHtml(formatSupportTime(conversation.lastMessageAt))}</time></span>
             <span class="admin-support-item-email">${escapeHtml(conversation.email)}</span>
@@ -297,7 +331,7 @@
       if (String(selectedSupportUserId) !== String(userId)) return;
       if ($('#admin-support-user')) $('#admin-support-user').textContent = data.user.username;
       if ($('#admin-support-email')) $('#admin-support-email').textContent = data.user.email;
-      if ($('#admin-support-avatar')) $('#admin-support-avatar').textContent = supportInitial(data.user.username);
+      if ($('#admin-support-avatar')) $('#admin-support-avatar').innerHTML = supportAvatarContent(data.user.username, data.user.avatarUrl);
       if ($('#admin-support-form')) $('#admin-support-form').hidden = false;
       const status = $('#admin-support-thread-status');
       if (status) {
@@ -591,6 +625,703 @@
       toast(error.message, 'error');
     }
   });
+
+  // ------------------------------- Email -------------------------------
+  function emailStatusMessage(element, message, tone = '') {
+    if (!element) return;
+    element.textContent = message || '';
+    element.classList.remove('is-success', 'is-error', 'is-pending');
+    if (tone) element.classList.add(`is-${tone}`);
+  }
+
+  function emailStatusPill(status) {
+    const map = {
+      sent: ['pill-online', 'Sent'],
+      failed: ['pill-offline', 'Failed'],
+      pending: ['pill-delayed', 'Pending']
+    };
+    const [className, label] = map[status] || ['pill-muted', status || 'Unknown'];
+    return `<span class="pill ${className}">${escapeHtml(label)}</span>`;
+  }
+
+  function splitEmailAddresses(value) {
+    return String(value || '').split(/[,;]/).map(item => item.trim()).filter(Boolean);
+  }
+
+  function emailBodyHtml() {
+    const source = $('#email-html-source');
+    return source && !source.hidden ? source.value : ($('#email-editor') ? $('#email-editor').innerHTML : '');
+  }
+
+  function setEmailBodyHtml(html) {
+    const editor = $('#email-editor');
+    const source = $('#email-html-source');
+    if (editor) editor.innerHTML = html || '';
+    if (source) source.value = html || '';
+  }
+
+  function syncEmailSource(showSource) {
+    const editor = $('#email-editor');
+    const source = $('#email-html-source');
+    const toggle = $('#email-source-toggle');
+    if (!editor || !source || !toggle) return;
+    if (showSource) {
+      source.value = editor.innerHTML;
+      editor.hidden = true;
+      source.hidden = false;
+      toggle.classList.add('is-active');
+      toggle.setAttribute('aria-pressed', 'true');
+      source.focus();
+    } else {
+      editor.innerHTML = source.value;
+      source.hidden = true;
+      editor.hidden = false;
+      toggle.classList.remove('is-active');
+      toggle.setAttribute('aria-pressed', 'false');
+      editor.focus();
+    }
+  }
+
+  function applyEmailTemplateVariables(value) {
+    const origin = window.location.origin;
+    const sender = emailState.settings?.fromEmail || 'support@corngrid.com';
+    return String(value || '')
+      .replace(/\{\{\s*app_name\s*\}\}/gi, 'CornGrid')
+      .replace(/\{\{\s*app_url\s*\}\}/gi, origin)
+      .replace(/\{\{\s*login_url\s*\}\}/gi, `${origin}/login`)
+      .replace(/\{\{\s*support_email\s*\}\}/gi, sender);
+  }
+
+  function updateEmailSmtpBadge() {
+    const badge = $('#email-smtp-badge');
+    if (!badge) return;
+    const settings = emailState.settings;
+    if (!settings) {
+      badge.className = 'pill pill-muted';
+      badge.textContent = 'Checking SMTP…';
+      return;
+    }
+    if (settings.enabled && settings.smtpHost && settings.fromEmail) {
+      badge.className = 'pill pill-online';
+      badge.textContent = 'SMTP enabled';
+    } else if (settings.smtpHost) {
+      badge.className = 'pill pill-delayed';
+      badge.textContent = 'SMTP disabled';
+    } else {
+      badge.className = 'pill pill-muted';
+      badge.textContent = 'SMTP not configured';
+    }
+  }
+
+  async function loadEmailSettings() {
+    try {
+      const data = await api('/api/admin/email/settings');
+      emailState.settings = data.settings;
+      emailState.loaded.settings = true;
+      const settings = data.settings;
+      $('#email-smtp-host').value = settings.smtpHost || '';
+      $('#email-smtp-port').value = settings.smtpPort || 587;
+      $('#email-smtp-username').value = settings.smtpUsername || '';
+      $('#email-smtp-password').value = '';
+      $('#email-from-email').value = settings.fromEmail || '';
+      $('#email-from-name').value = settings.fromName || '';
+      $('#email-smtp-encryption').value = settings.encryption || 'tls';
+      $('#email-smtp-enabled').checked = Boolean(settings.enabled);
+      const passwordState = $('#email-settings-password-state');
+      passwordState.textContent = settings.passwordConfigured ? 'Password stored securely' : 'No password stored';
+      passwordState.className = `pill ${settings.passwordConfigured ? 'pill-online' : 'pill-muted'}`;
+      updateEmailSmtpBadge();
+      return settings;
+    } catch (error) {
+      updateEmailSmtpBadge();
+      emailStatusMessage($('#email-settings-result'), error.message, 'error');
+      $('#email-settings-result').hidden = false;
+      return null;
+    }
+  }
+
+  function renderEmailTemplateOptions() {
+    const select = $('#email-template-select');
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = '<option value="">Blank email</option>' + emailState.templates.map(template =>
+      `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)}</option>`
+    ).join('');
+    if (current && emailState.templates.some(template => String(template.id) === current)) select.value = current;
+  }
+
+  function renderEmailTemplateList() {
+    const list = $('#email-template-list');
+    const count = $('#email-template-count');
+    if (count) count.textContent = String(emailState.templates.length);
+    if (!list) return;
+    if (!emailState.templates.length) {
+      list.innerHTML = '<p class="table-empty">No templates yet.</p>';
+      return;
+    }
+    list.innerHTML = emailState.templates.map(template => `
+      <button class="email-template-item${String(template.id) === String(emailState.editingTemplateId) ? ' is-selected' : ''}" type="button" data-template-id="${escapeHtml(template.id)}">
+        <strong>${escapeHtml(template.name)}</strong>
+        <span>${escapeHtml(template.slug)}${template.isSystem ? ' · CornGrid default' : ''}</span>
+        <em>${escapeHtml(template.description || template.subject)}</em>
+      </button>`).join('');
+  }
+
+  async function loadEmailTemplates() {
+    try {
+      const data = await api('/api/admin/email/templates');
+      emailState.templates = data.templates || [];
+      emailState.loaded.templates = true;
+      renderEmailTemplateList();
+      renderEmailTemplateOptions();
+    } catch (error) {
+      $('#email-template-list').innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  function resetEmailTemplateForm() {
+    emailState.editingTemplateId = null;
+    $('#email-template-form').reset();
+    $('#email-template-id').value = '';
+    $('#email-template-form-title').textContent = 'New template';
+    $('#email-template-system-badge').hidden = true;
+    $('#email-template-delete').hidden = true;
+    emailStatusMessage($('#email-template-status'), '');
+    renderEmailTemplateList();
+  }
+
+  function editEmailTemplate(id) {
+    const template = emailState.templates.find(item => String(item.id) === String(id));
+    if (!template) return;
+    emailState.editingTemplateId = template.id;
+    $('#email-template-id').value = template.id;
+    $('#email-template-name').value = template.name || '';
+    $('#email-template-slug').value = template.slug || '';
+    $('#email-template-description').value = template.description || '';
+    $('#email-template-subject').value = template.subject || '';
+    $('#email-template-html').value = template.html || '';
+    $('#email-template-text').value = template.text || '';
+    $('#email-template-form-title').textContent = 'Edit template';
+    $('#email-template-system-badge').hidden = !template.isSystem;
+    $('#email-template-delete').hidden = false;
+    emailStatusMessage($('#email-template-status'), '');
+    renderEmailTemplateList();
+  }
+
+  function emailTemplatePayload() {
+    return {
+      name: $('#email-template-name').value.trim(),
+      slug: $('#email-template-slug').value.trim(),
+      description: $('#email-template-description').value.trim(),
+      subject: $('#email-template-subject').value.trim(),
+      html: $('#email-template-html').value,
+      text: $('#email-template-text').value
+    };
+  }
+
+  async function saveEmailTemplate(event) {
+    event.preventDefault();
+    const payload = emailTemplatePayload();
+    if (!payload.name || !payload.subject || (!payload.html.trim() && !payload.text.trim())) {
+      return emailStatusMessage($('#email-template-status'), 'Name, subject, and a body are required.', 'error');
+    }
+    const button = $('#email-template-save');
+    button.disabled = true;
+    emailStatusMessage($('#email-template-status'), 'Saving template…', 'pending');
+    try {
+      if (emailState.editingTemplateId) {
+        await api(`/api/admin/email/templates/${encodeURIComponent(emailState.editingTemplateId)}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        toast('Template updated.', 'success');
+      } else {
+        const created = await api('/api/admin/email/templates', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        emailState.editingTemplateId = created.id;
+        toast('Template created.', 'success');
+      }
+      await loadEmailTemplates();
+      if (emailState.editingTemplateId) editEmailTemplate(emailState.editingTemplateId);
+      emailStatusMessage($('#email-template-status'), 'Template saved.', 'success');
+    } catch (error) {
+      emailStatusMessage($('#email-template-status'), error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function deleteEmailTemplate() {
+    if (!emailState.editingTemplateId) return;
+    const template = emailState.templates.find(item => String(item.id) === String(emailState.editingTemplateId));
+    if (!window.confirm(`Delete the template "${template ? template.name : 'this template'}"?`)) return;
+    try {
+      await api(`/api/admin/email/templates/${encodeURIComponent(emailState.editingTemplateId)}`, { method: 'DELETE' });
+      toast('Template deleted.', 'success');
+      resetEmailTemplateForm();
+      await loadEmailTemplates();
+    } catch (error) {
+      emailStatusMessage($('#email-template-status'), error.message, 'error');
+    }
+  }
+
+  function renderEmailDraftOptions() {
+    const select = $('#email-draft-select');
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = '<option value="">No draft selected</option>' + emailState.drafts.map(draft =>
+      `<option value="${escapeHtml(draft.id)}">${escapeHtml(draft.name || draft.subject || `Draft #${draft.id}`)}</option>`
+    ).join('');
+    if (current && emailState.drafts.some(draft => String(draft.id) === current)) select.value = current;
+  }
+
+  async function loadEmailDrafts() {
+    try {
+      const data = await api('/api/admin/email/drafts');
+      emailState.drafts = data.drafts || [];
+      emailState.loaded.drafts = true;
+      renderEmailDraftOptions();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  async function saveEmailDraft() {
+    const payload = {
+      name: $('#email-subject').value.trim() || `Draft ${new Date().toLocaleString()}`,
+      to: splitEmailAddresses($('#email-to').value),
+      cc: splitEmailAddresses($('#email-cc').value),
+      bcc: splitEmailAddresses($('#email-bcc').value),
+      subject: $('#email-subject').value.trim(),
+      html: emailBodyHtml(),
+      text: $('#email-text').value
+    };
+    try {
+      await api('/api/admin/email/drafts', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Draft saved.', 'success');
+      emailStatusMessage($('#email-compose-status'), 'Draft saved.', 'success');
+      await loadEmailDrafts();
+    } catch (error) {
+      emailStatusMessage($('#email-compose-status'), error.message, 'error');
+    }
+  }
+
+  function loadSelectedEmailDraft() {
+    const id = $('#email-draft-select').value;
+    if (!id) return emailStatusMessage($('#email-compose-status'), 'Choose a draft to load.', 'error');
+    const draft = emailState.drafts.find(item => String(item.id) === String(id));
+    if (!draft) return;
+    $('#email-to').value = (draft.to || []).join(', ');
+    $('#email-cc').value = (draft.cc || []).join(', ');
+    $('#email-bcc').value = (draft.bcc || []).join(', ');
+    $('#email-subject').value = draft.subject || '';
+    setEmailBodyHtml(draft.html || '');
+    $('#email-text').value = draft.text || '';
+    emailStatusMessage($('#email-compose-status'), 'Draft loaded.', 'success');
+  }
+
+  async function deleteSelectedEmailDraft() {
+    const id = $('#email-draft-select').value;
+    if (!id) return emailStatusMessage($('#email-compose-status'), 'Choose a draft to delete.', 'error');
+    if (!window.confirm('Delete this saved draft?')) return;
+    try {
+      await api(`/api/admin/email/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      toast('Draft deleted.', 'success');
+      await loadEmailDrafts();
+    } catch (error) {
+      emailStatusMessage($('#email-compose-status'), error.message, 'error');
+    }
+  }
+
+  function renderEmailRecipients() {
+    const list = $('#email-recipient-list');
+    if (!list) return;
+    if (!emailState.recipients.length) {
+      list.innerHTML = '<p class="table-empty">No eligible registered users match this search.</p>';
+    } else {
+      list.innerHTML = emailState.recipients.map(user => {
+        const selected = emailState.selectedRecipientIds.has(String(user.id));
+        return `<label class="email-recipient-item${selected ? ' is-selected' : ''}">
+          <input type="checkbox" data-recipient-id="${escapeHtml(user.id)}"${selected ? ' checked' : ''}>
+          <span class="email-recipient-copy"><strong>${escapeHtml(user.username || 'Unnamed user')}</strong><span>${escapeHtml(user.email)}</span></span>
+        </label>`;
+      }).join('');
+    }
+    const count = $('#email-recipient-count');
+    if (count) count.textContent = String(emailState.recipientTotal);
+    const selectAll = $('#email-recipient-select-all');
+    if (selectAll) {
+      const visibleIds = emailState.recipients.map(user => String(user.id));
+      selectAll.checked = visibleIds.length > 0 && visibleIds.every(id => emailState.selectedRecipientIds.has(id));
+      selectAll.indeterminate = !selectAll.checked && visibleIds.some(id => emailState.selectedRecipientIds.has(id));
+    }
+    updateEmailAudienceButtons();
+  }
+
+  async function loadEmailRecipients() {
+    try {
+      const query = new URLSearchParams({ limit: '50', search: emailState.recipientSearch });
+      const data = await api(`/api/admin/email/recipients?${query}`);
+      emailState.recipients = data.users || [];
+      emailState.recipientTotal = data.total || 0;
+      emailState.eligibleTotal = data.eligibleTotal || 0;
+      emailState.loaded.recipients = true;
+      renderEmailRecipients();
+      const note = $('#email-audience-note');
+      if (note) note.textContent = `${emailState.eligibleTotal} eligible registered user${emailState.eligibleTotal === 1 ? '' : 's'}. Bulk announcements are queued one recipient at a time to protect the SMTP server.`;
+    } catch (error) {
+      $('#email-recipient-list').innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  function updateEmailAudienceButtons() {
+    const selected = emailState.selectedRecipientIds.size;
+    const sendSelected = $('#email-send-selected');
+    const addSelected = $('#email-add-selected');
+    if (sendSelected) {
+      sendSelected.textContent = `Send to selected (${selected})`;
+      sendSelected.disabled = selected === 0;
+    }
+    if (addSelected) addSelected.disabled = selected === 0;
+    const sendAll = $('#email-send-all');
+    if (sendAll) sendAll.disabled = emailState.eligibleTotal === 0;
+  }
+
+  function addSelectedRecipientsToTo() {
+    if (!emailState.selectedRecipientIds.size) return;
+    const existing = new Set(splitEmailAddresses($('#email-to').value).map(item => item.toLowerCase()));
+    const additions = [];
+    for (const id of emailState.selectedRecipientIds) {
+      const user = emailState.selectedRecipientMap.get(String(id));
+      if (!user || !user.email) continue;
+      if (existing.has(String(user.email).toLowerCase())) continue;
+      existing.add(String(user.email).toLowerCase());
+      additions.push(user.email);
+    }
+    if (!additions.length) return emailStatusMessage($('#email-compose-status'), 'The selected users are already in the To field.', 'pending');
+    $('#email-to').value = [...splitEmailAddresses($('#email-to').value), ...additions].join(', ');
+    emailStatusMessage($('#email-compose-status'), `${additions.length} recipient${additions.length === 1 ? '' : 's'} added to To.`, 'success');
+  }
+
+  function openEmailPreview({ subject, html, text, meta }) {
+    const dialog = $('#email-preview-dialog');
+    $('#email-preview-subject').textContent = subject || 'Email preview';
+    $('#email-preview-meta').textContent = meta || '';
+    $('#email-preview-frame').srcdoc = html || '<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;color:#333;">No HTML body.</body></html>';
+    $('#email-preview-text').textContent = text || '(No plain text alternative)';
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function previewComposeEmail() {
+    openEmailPreview({
+      subject: $('#email-subject').value.trim() || 'Email preview',
+      html: emailBodyHtml(),
+      text: $('#email-text').value,
+      meta: `To: ${$('#email-to').value.trim() || 'No recipient'}`
+    });
+  }
+
+  function emailComposePayload() {
+    return {
+      to: splitEmailAddresses($('#email-to').value),
+      cc: splitEmailAddresses($('#email-cc').value),
+      bcc: splitEmailAddresses($('#email-bcc').value),
+      subject: $('#email-subject').value.trim(),
+      html: emailBodyHtml(),
+      text: $('#email-text').value
+    };
+  }
+
+  function validateComposePayload(payload, requireRecipient = true) {
+    if (requireRecipient && !payload.to.length) {
+      emailStatusMessage($('#email-compose-status'), 'Add at least one recipient in the To field.', 'error');
+      return false;
+    }
+    if (!payload.subject) {
+      emailStatusMessage($('#email-compose-status'), 'Add a subject before continuing.', 'error');
+      return false;
+    }
+    if (!payload.html.trim() && !payload.text.trim()) {
+      emailStatusMessage($('#email-compose-status'), 'Add a message body before continuing.', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  async function sendComposeEmail(event) {
+    event.preventDefault();
+    const payload = emailComposePayload();
+    if (!validateComposePayload(payload)) return;
+    const button = $('#email-send-button');
+    button.disabled = true;
+    emailStatusMessage($('#email-compose-status'), 'Sending through SMTP…', 'pending');
+    try {
+      const data = await api('/api/admin/email/send', { method: 'POST', body: JSON.stringify(payload) });
+      emailStatusMessage($('#email-compose-status'), data.message || 'The SMTP server accepted the email.', 'success');
+      toast('Email accepted by the SMTP server.', 'success');
+      if (emailState.loaded.history) loadEmailHistory(emailState.historyPage);
+    } catch (error) {
+      emailStatusMessage($('#email-compose-status'), error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function sendBulkEmail({ allEligible }) {
+    const payload = emailComposePayload();
+    if (!validateComposePayload(payload, false)) return;
+    const count = allEligible ? emailState.eligibleTotal : emailState.selectedRecipientIds.size;
+    if (!count) {
+      return emailStatusMessage($('#email-compose-status'), allEligible ? 'No eligible registered users were found.' : 'Select at least one registered user.', 'error');
+    }
+    const confirmation = window.confirm(
+      allEligible
+        ? `Queue this announcement for all ${count} eligible registered users? Each recipient receives an individual email.`
+        : `Queue this announcement for ${count} selected user${count === 1 ? '' : 's'}? Each recipient receives an individual email.`
+    );
+    if (!confirmation) return;
+    const button = allEligible ? $('#email-send-all') : $('#email-send-selected');
+    button.disabled = true;
+    emailStatusMessage($('#email-compose-status'), 'Queueing the announcement…', 'pending');
+    try {
+      const body = {
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        confirm: true,
+        ...(allEligible ? { allEligible: true } : { userIds: [...emailState.selectedRecipientIds].map(Number) })
+      };
+      const data = await api('/api/admin/email/bulk', { method: 'POST', body: JSON.stringify(body) });
+      emailStatusMessage($('#email-compose-status'), data.message || `${data.queued} email(s) queued.`, 'success');
+      toast(`${data.queued} email${data.queued === 1 ? '' : 's'} queued.`, 'success');
+      loadEmailQueue();
+      if (emailState.loaded.history) loadEmailHistory(1);
+    } catch (error) {
+      emailStatusMessage($('#email-compose-status'), error.message, 'error');
+    } finally {
+      button.disabled = false;
+      updateEmailAudienceButtons();
+    }
+  }
+
+  async function saveEmailSettings(event) {
+    event.preventDefault();
+    const result = $('#email-settings-result');
+    const payload = {
+      smtpHost: $('#email-smtp-host').value.trim(),
+      smtpPort: Number($('#email-smtp-port').value),
+      smtpUsername: $('#email-smtp-username').value.trim(),
+      fromEmail: $('#email-from-email').value.trim(),
+      fromName: $('#email-from-name').value.trim(),
+      encryption: $('#email-smtp-encryption').value,
+      enabled: $('#email-smtp-enabled').checked
+    };
+    const password = $('#email-smtp-password').value;
+    if (password) payload.password = password;
+    const button = $('#email-smtp-save');
+    button.disabled = true;
+    result.hidden = false;
+    result.className = 'notice notice-info email-settings-result';
+    result.textContent = 'Saving SMTP settings…';
+    try {
+      await api('/api/admin/email/settings', { method: 'PUT', body: JSON.stringify(payload) });
+      $('#email-smtp-password').value = '';
+      result.className = 'notice email-settings-result is-success';
+      result.textContent = 'SMTP settings saved. Run a connection test before sending.';
+      toast('SMTP settings saved.', 'success');
+      await loadEmailSettings();
+    } catch (error) {
+      result.className = 'notice email-settings-result is-error';
+      result.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function testEmailSmtp() {
+    const result = $('#email-settings-result');
+    const payload = {
+      smtpHost: $('#email-smtp-host').value.trim(),
+      smtpPort: Number($('#email-smtp-port').value),
+      smtpUsername: $('#email-smtp-username').value.trim(),
+      fromEmail: $('#email-from-email').value.trim(),
+      fromName: $('#email-from-name').value.trim(),
+      encryption: $('#email-smtp-encryption').value,
+      enabled: true
+    };
+    const password = $('#email-smtp-password').value;
+    if (password) payload.password = password;
+    const button = $('#email-smtp-test');
+    button.disabled = true;
+    result.hidden = false;
+    result.className = 'notice notice-info email-settings-result';
+    result.textContent = 'Testing the SMTP connection…';
+    try {
+      const data = await api('/api/admin/email/settings/test', { method: 'POST', body: JSON.stringify(payload) });
+      result.className = 'notice email-settings-result is-success';
+      result.textContent = data.message || 'SMTP connection established successfully.';
+      toast('SMTP connection successful.', 'success');
+    } catch (error) {
+      result.className = 'notice email-settings-result is-error';
+      result.textContent = error.message;
+    } finally {
+      button.disabled = false;
+      updateEmailSmtpBadge();
+    }
+  }
+
+  function renderEmailHistory(logs) {
+    const body = $('#email-history-body');
+    if (!body) return;
+    if (!logs.length) {
+      body.innerHTML = '<tr><td class="table-empty" colspan="7">No email activity matches these filters.</td></tr>';
+      return;
+    }
+    body.innerHTML = logs.map(log => {
+      const sender = log.senderName ? `${log.senderName} <${log.senderEmail}>` : (log.senderEmail || '—');
+      const retry = log.status === 'failed'
+        ? `<button class="button button-small" type="button" data-email-retry="${escapeHtml(log.id)}">Retry</button>`
+        : '';
+      return `<tr>
+        <td data-label="Recipient" class="cell-primary"><span class="email-log-subject">${escapeHtml(log.recipient)}</span></td>
+        <td data-label="Subject"><span class="email-log-subject" title="${escapeHtml(log.subject)}">${escapeHtml(log.subject)}</span></td>
+        <td data-label="Sender" class="cell-extra">${escapeHtml(sender)}</td>
+        <td data-label="Date and time" class="cell-extra">${escapeHtml(formatDateTime(log.createdAt))}</td>
+        <td data-label="Status">${emailStatusPill(log.status)}</td>
+        <td data-label="Error"><span class="email-log-error" title="${escapeHtml(log.errorMessage || '')}">${escapeHtml(log.errorMessage || '—')}</span></td>
+        <td data-label="Actions" class="cell-actions">
+          <button class="button button-small" type="button" data-email-view="${escapeHtml(log.id)}">View</button>
+          ${retry}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function loadEmailHistory(page = 1) {
+    const body = $('#email-history-body');
+    if (body) body.innerHTML = '<tr><td class="table-empty" colspan="7">Loading email history…</td></tr>';
+    try {
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: '20',
+        search: emailState.historySearch,
+        status: emailState.historyStatus
+      });
+      const data = await api(`/api/admin/email/logs?${query}`);
+      emailState.loaded.history = true;
+      emailState.historyPage = data.pagination.page;
+      emailState.historyTotalPages = data.pagination.totalPages;
+      renderEmailHistory(data.logs || []);
+      $('#email-history-page-label').textContent = data.pagination.totalPages
+        ? `Page ${data.pagination.page} of ${data.pagination.totalPages} · ${data.pagination.total} email${data.pagination.total === 1 ? '' : 's'}`
+        : 'No email activity found';
+      $('#email-history-prev').disabled = data.pagination.page <= 1;
+      $('#email-history-next').disabled = data.pagination.page >= data.pagination.totalPages;
+    } catch (error) {
+      if (body) body.innerHTML = `<tr><td class="table-empty admin-error" colspan="7">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+
+  async function openEmailDetail(id) {
+    const content = $('#email-detail-content');
+    const dialog = $('#email-detail-dialog');
+    content.innerHTML = '<p class="table-empty">Loading email details…</p>';
+    if (!dialog.open) dialog.showModal();
+    try {
+      const data = await api(`/api/admin/email/logs/${encodeURIComponent(id)}`);
+      const email = data.email;
+      const sender = email.senderName ? `${email.senderName} <${email.senderEmail}>` : (email.senderEmail || '—');
+      content.innerHTML = `
+        <p class="eyebrow">EMAIL DETAILS</p>
+        <h2>${escapeHtml(email.subject)}</h2>
+        <p class="muted small">${emailStatusPill(email.status)} ${email.deliveryStatus === 'accepted_by_smtp' ? '<span class="muted small">SMTP accepted · inbox delivery not confirmed</span>' : ''}</p>
+        <div class="email-detail-grid">
+          <div><span>Recipient</span><strong>${escapeHtml(email.recipient)}</strong></div>
+          <div><span>To</span><strong>${escapeHtml((email.to || []).join(', ') || '—')}</strong></div>
+          <div><span>CC</span><strong>${escapeHtml((email.cc || []).join(', ') || '—')}</strong></div>
+          <div><span>BCC</span><strong>${escapeHtml((email.bcc || []).join(', ') || '—')}</strong></div>
+          <div><span>Sender</span><strong>${escapeHtml(sender)}</strong></div>
+          <div><span>Created</span><strong>${escapeHtml(formatDateTime(email.createdAt))}</strong></div>
+          <div><span>SMTP accepted</span><strong>${escapeHtml(email.sentAt ? formatDateTime(email.sentAt) : '—')}</strong></div>
+          <div><span>Attempts</span><strong>${escapeHtml(email.attempts)}</strong></div>
+          <div><span>Message ID</span><strong>${escapeHtml(email.messageId || '—')}</strong></div>
+          <div><span>Source</span><strong>${escapeHtml(email.source)}</strong></div>
+        </div>
+        ${email.errorMessage ? `<div class="notice notice-warning"><span class="notice-icon" aria-hidden="true">!</span><span>${escapeHtml(email.errorMessage)}</span></div>` : ''}
+        <div class="email-detail-actions">
+          ${email.status === 'failed' ? `<button class="button button-primary" type="button" data-email-retry="${escapeHtml(email.id)}">Retry this email</button>` : ''}
+          <button class="button button-secondary" type="button" id="email-detail-close">Close</button>
+        </div>
+        <h3>HTML preview</h3>
+        <div id="email-detail-preview"></div>`;
+      const frame = document.createElement('iframe');
+      frame.className = 'email-preview-frame';
+      frame.setAttribute('sandbox', '');
+      frame.title = 'Email HTML preview';
+      frame.srcdoc = email.html || '<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;color:#333;">No HTML body was stored.</body></html>';
+      $('#email-detail-preview').append(frame);
+    } catch (error) {
+      content.innerHTML = `<p class="table-empty admin-error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  async function retryEmail(id) {
+    if (!window.confirm('Retry sending this email through SMTP?')) return;
+    try {
+      await api(`/api/admin/email/logs/${encodeURIComponent(id)}/retry`, { method: 'POST' });
+      toast('The SMTP server accepted the email on retry.', 'success');
+      if (emailState.loaded.history) loadEmailHistory(emailState.historyPage);
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  async function loadEmailQueue() {
+    try {
+      const data = await api('/api/admin/email/queue');
+      const badge = $('#email-queue-badge');
+      if (!badge) return;
+      const pending = (data.queue.pending || 0) + (data.queue.sending || 0);
+      badge.hidden = pending === 0;
+      badge.textContent = pending ? `Queue: ${pending} pending` : '';
+      badge.className = 'pill pill-delayed';
+    } catch {
+      // A queue badge refresh must never interrupt the email workflow.
+    }
+  }
+
+  async function loadEmailPage() {
+    if (!emailState.loaded.settings) await loadEmailSettings();
+    else updateEmailSmtpBadge();
+    if (!emailState.loaded.templates) await loadEmailTemplates();
+    if (!emailState.loaded.recipients) await loadEmailRecipients();
+    if (!emailState.loaded.drafts) await loadEmailDrafts();
+    loadEmailQueue();
+    showEmailTab(emailState.tab);
+  }
+
+  function showEmailTab(name) {
+    const tabs = ['compose', 'templates', 'history', 'settings'];
+    const active = tabs.includes(name) ? name : 'compose';
+    emailState.tab = active;
+    $$('[data-email-tab]').forEach(tab => {
+      const isActive = tab.dataset.emailTab === active;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+    tabs.forEach(tabName => {
+      const panel = document.getElementById(`email-tab-${tabName}`);
+      if (!panel) return;
+      panel.hidden = tabName !== active;
+      panel.classList.toggle('is-active', tabName === active);
+    });
+    if (active === 'history' && !emailState.loaded.history) loadEmailHistory(1);
+    if (active === 'templates' && !emailState.loaded.templates) loadEmailTemplates();
+    if (active === 'settings' && !emailState.loaded.settings) loadEmailSettings();
+    if (active === 'compose' && !emailState.loaded.recipients) loadEmailRecipients();
+  }
 
   // --------------------------- Subscriptions ---------------------------
   function subStatusBadge(status) {
@@ -910,8 +1641,172 @@
   });
   $('#ea-upload').addEventListener('click', uploadEaBuild);
 
+  // ------------------------- Email event wiring -------------------------
+  function syncEmailRecipientSelectAll() {
+    const selectAll = $('#email-recipient-select-all');
+    if (!selectAll) return;
+    const visibleIds = emailState.recipients.map(user => String(user.id));
+    selectAll.checked = visibleIds.length > 0 && visibleIds.every(id => emailState.selectedRecipientIds.has(id));
+    selectAll.indeterminate = !selectAll.checked && visibleIds.some(id => emailState.selectedRecipientIds.has(id));
+  }
+
+  $$('[data-email-tab]').forEach(tab => {
+    tab.addEventListener('click', () => showEmailTab(tab.dataset.emailTab));
+  });
+
+  $$('.email-tool[data-editor-cmd]').forEach(button => {
+    button.addEventListener('click', () => {
+      const editor = $('#email-editor');
+      if (!editor || editor.hidden) return;
+      editor.focus();
+      document.execCommand(button.dataset.editorCmd, false, button.dataset.editorValue || null);
+    });
+  });
+
+  $('#email-link-button').addEventListener('click', () => {
+    const editor = $('#email-editor');
+    if (!editor || editor.hidden) return;
+    const url = window.prompt('Enter the link URL (https://… or mailto:…)');
+    if (!url) return;
+    if (!/^(https?:\/\/|mailto:)/i.test(url.trim())) return toast('Enter an http(s) or mailto link.', 'error');
+    editor.focus();
+    document.execCommand('createLink', false, url.trim());
+  });
+
+  $('#email-source-toggle').addEventListener('click', () => {
+    const source = $('#email-html-source');
+    syncEmailSource(source.hidden);
+  });
+
+  $('#email-template-insert').addEventListener('click', () => {
+    const id = $('#email-template-select').value;
+    if (!id) return;
+    const template = emailState.templates.find(item => String(item.id) === String(id));
+    if (!template) return;
+    const hasContent = $('#email-subject').value.trim() || emailBodyHtml().trim();
+    if (hasContent && !window.confirm('Replace the current subject and message with this template?')) return;
+    const subject = applyEmailTemplateVariables(template.subject);
+    const html = applyEmailTemplateVariables(template.html);
+    const text = applyEmailTemplateVariables(template.text);
+    $('#email-subject').value = subject;
+    setEmailBodyHtml(html);
+    $('#email-text').value = text;
+    const hasPlaceholders = /\{\{[A-Za-z0-9_]+\}\}/.test(`${subject} ${html} ${text}`);
+    emailStatusMessage(
+      $('#email-compose-status'),
+      hasPlaceholders
+        ? 'Template inserted. Replace the remaining {{variables}} before sending.'
+        : 'Template inserted.',
+      'success'
+    );
+  });
+
+  $('#email-preview-button').addEventListener('click', previewComposeEmail);
+  $('#email-save-draft').addEventListener('click', saveEmailDraft);
+  $('#email-draft-load').addEventListener('click', loadSelectedEmailDraft);
+  $('#email-draft-delete').addEventListener('click', deleteSelectedEmailDraft);
+  $('#email-compose-form').addEventListener('submit', sendComposeEmail);
+
+  $('#email-recipient-search').addEventListener('input', event => {
+    emailState.recipientSearch = event.target.value.trim();
+    window.clearTimeout(emailState.recipientSearchTimer);
+    emailState.recipientSearchTimer = window.setTimeout(loadEmailRecipients, 250);
+  });
+  $('#email-recipient-refresh').addEventListener('click', loadEmailRecipients);
+  $('#email-recipient-select-all').addEventListener('change', event => {
+    const visible = emailState.recipients;
+    for (const user of visible) {
+      const id = String(user.id);
+      if (event.target.checked) {
+        emailState.selectedRecipientIds.add(id);
+        emailState.selectedRecipientMap.set(id, user);
+      } else {
+        emailState.selectedRecipientIds.delete(id);
+        emailState.selectedRecipientMap.delete(id);
+      }
+    }
+    renderEmailRecipients();
+  });
+  $('#email-recipient-list').addEventListener('change', event => {
+    const checkbox = event.target.closest('[data-recipient-id]');
+    if (!checkbox) return;
+    const id = String(checkbox.dataset.recipientId);
+    if (checkbox.checked) {
+      emailState.selectedRecipientIds.add(id);
+      const user = emailState.recipients.find(item => String(item.id) === id);
+      if (user) emailState.selectedRecipientMap.set(id, user);
+    } else {
+      emailState.selectedRecipientIds.delete(id);
+      emailState.selectedRecipientMap.delete(id);
+    }
+    const item = checkbox.closest('.email-recipient-item');
+    if (item) item.classList.toggle('is-selected', checkbox.checked);
+    updateEmailAudienceButtons();
+    syncEmailRecipientSelectAll();
+  });
+  $('#email-add-selected').addEventListener('click', addSelectedRecipientsToTo);
+  $('#email-send-selected').addEventListener('click', () => sendBulkEmail({ allEligible: false }));
+  $('#email-send-all').addEventListener('click', () => sendBulkEmail({ allEligible: true }));
+
+  $('#email-template-new').addEventListener('click', resetEmailTemplateForm);
+  $('#email-template-list').addEventListener('click', event => {
+    const item = event.target.closest('[data-template-id]');
+    if (item) editEmailTemplate(item.dataset.templateId);
+  });
+  $('#email-template-form').addEventListener('submit', saveEmailTemplate);
+  $('#email-template-preview').addEventListener('click', () => {
+    openEmailPreview({
+      subject: $('#email-template-subject').value.trim() || 'Template preview',
+      html: $('#email-template-html').value,
+      text: $('#email-template-text').value,
+      meta: 'Template preview'
+    });
+  });
+  $('#email-template-delete').addEventListener('click', deleteEmailTemplate);
+
+  $('#email-history-refresh').addEventListener('click', () => loadEmailHistory(emailState.historyPage));
+  $('#email-history-search').addEventListener('input', event => {
+    emailState.historySearch = event.target.value.trim();
+    window.clearTimeout(emailState.historySearchTimer);
+    emailState.historySearchTimer = window.setTimeout(() => loadEmailHistory(1), 250);
+  });
+  $('#email-history-status').addEventListener('change', event => {
+    emailState.historyStatus = event.target.value;
+    loadEmailHistory(1);
+  });
+  $('#email-history-prev').addEventListener('click', () => {
+    if (emailState.historyPage > 1) loadEmailHistory(emailState.historyPage - 1);
+  });
+  $('#email-history-next').addEventListener('click', () => {
+    if (emailState.historyPage < emailState.historyTotalPages) loadEmailHistory(emailState.historyPage + 1);
+  });
+  $('#email-history-body').addEventListener('click', event => {
+    const view = event.target.closest('[data-email-view]');
+    if (view) return openEmailDetail(view.dataset.emailView);
+    const retry = event.target.closest('[data-email-retry]');
+    if (retry) return retryEmail(retry.dataset.emailRetry);
+  });
+
+  $('#email-settings-form').addEventListener('submit', saveEmailSettings);
+  $('#email-smtp-test').addEventListener('click', testEmailSmtp);
+
+  $('#email-detail-content').addEventListener('click', event => {
+    if (event.target.closest('#email-detail-close')) return $('#email-detail-dialog').close();
+    const retry = event.target.closest('[data-email-retry]');
+    if (retry) {
+      $('#email-detail-dialog').close();
+      retryEmail(retry.dataset.emailRetry);
+    }
+  });
+  $('#email-preview-dialog').addEventListener('click', event => {
+    if (event.target === $('#email-preview-dialog')) $('#email-preview-dialog').close();
+  });
+  $('#email-detail-dialog').addEventListener('click', event => {
+    if (event.target === $('#email-detail-dialog')) $('#email-detail-dialog').close();
+  });
+
   function showAdminPage(name) {
-    const pages = ['overview', 'subscriptions', 'support', 'reports', 'announcements'];
+    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -924,18 +1819,36 @@
       if (link.dataset.adminPage === active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', reports: 'Reports', announcements: 'Announcements' };
+    const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
     $('#admin-breadcrumb-page').textContent = labels[active];
     if (active === 'subscriptions') loadAdminSubscriptionsPage();
     if (active === 'support') loadSupportConversations();
+    if (active === 'email') loadEmailPage();
     if (active === 'reports') loadReports();
     if (active === 'announcements') loadAnnouncements();
+    if (window.CornGridAdminSandbox) {
+      if (active === 'sandbox') window.CornGridAdminSandbox.openSandbox();
+      else window.CornGridAdminSandbox.closeSandbox();
+      if (active === 'ea-submissions') window.CornGridAdminSandbox.loadSubmissions();
+      if (active === 'commissions') window.CornGridAdminSandbox.loadCommissions();
+    }
     closeSidebarOnNavigation();
   }
 
   $('#admin-refresh').addEventListener('click', () => {
     if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
     else if (!$('#support').hidden) refreshSupportInbox();
+    else if (!$('#email').hidden) {
+      if (emailState.tab === 'history') loadEmailHistory(emailState.historyPage);
+      else if (emailState.tab === 'templates') loadEmailTemplates();
+      else if (emailState.tab === 'settings') loadEmailSettings();
+      else {
+        loadEmailSettings();
+        loadEmailRecipients();
+        loadEmailDrafts();
+      }
+      loadEmailQueue();
+    }
     else if (!$('#reports').hidden) loadReports();
     else if (!$('#announcements').hidden) loadAnnouncements();
     else loadOverview();
@@ -1047,7 +1960,7 @@
     renderSupportConversations();
     $('#admin-support-user').textContent = 'Loading conversation…';
     $('#admin-support-email').textContent = 'Fetching the latest messages.';
-    $('#admin-support-avatar').textContent = '…';
+    $('#admin-support-avatar').innerHTML = supportAvatarContent('?', null);
     const status = $('#admin-support-thread-status');
     if (status) status.hidden = true;
     $('#admin-support-form').hidden = true;
@@ -1092,7 +2005,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['subscriptions', 'support', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -1102,6 +2015,10 @@
     } else if (++supportBadgeTick % 3 === 0) {
       loadSupportConversations({ silent: true });
     }
+    if (!$('#email').hidden) {
+      loadEmailQueue();
+      if (emailState.tab === 'history' && emailState.loaded.history) loadEmailHistory(emailState.historyPage);
+    }
     refreshReportsBadge();
   }, 10000);
   $('#admin-trading-dialog').addEventListener('click', event => {
@@ -1109,6 +2026,7 @@
   });
   if (location.hash === '#subscriptions') showAdminPage('subscriptions');
   else if (location.hash === '#support') showAdminPage('support');
+  else if (location.hash === '#email') showAdminPage('email');
   else if (location.hash === '#reports') showAdminPage('reports');
   else if (location.hash === '#announcements') showAdminPage('announcements');
   loadOverview();

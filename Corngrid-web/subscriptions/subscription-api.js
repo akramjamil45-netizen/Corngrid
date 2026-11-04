@@ -979,6 +979,14 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   });
 
+  // Listeners notified after a payment is approved (e.g. partner commissions).
+  // They run outside the approval transaction; failures are logged, never fatal.
+  const paymentApprovedListeners = new Set();
+  function onPaymentApproved(listener) {
+    paymentApprovedListeners.add(listener);
+    return () => paymentApprovedListeners.delete(listener);
+  }
+
   app.post('/api/admin/subscription-payments/:id/approve', adminAuth.verifyToken, async (req, res) => {
     try {
       const paymentId = Number.parseInt(req.params.id, 10);
@@ -1049,6 +1057,17 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
         return { http: 200, body: { message: 'Payment approved and subscription activated.', startsAt, expiresAt } };
       });
+
+      if (outcome.http === 200) {
+        const approvedPayment = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
+        for (const listener of paymentApprovedListeners) {
+          try {
+            await listener(approvedPayment);
+          } catch (listenerError) {
+            console.error('Payment-approved listener failed:', listenerError.message);
+          }
+        }
+      }
 
       return res.status(outcome.http).json(outcome.body);
     } catch (error) {
@@ -1518,7 +1537,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   });
 
-  return { ready };
+  // Exposed for sibling modules (e.g. the sandbox manager) so subscription
+  // eligibility is evaluated in exactly one place.
+  return { ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, logAudit, notify, onPaymentApproved };
 }
 
 function maskAccount(accountNumber) {

@@ -1,0 +1,138 @@
+- generic [ref=f2e2]:
+  - complementary [ref=f2e3]:
+    - link "CornGrid dashboard home" [ref=f2e4] [cursor=pointer]:
+      - /url: dashboard.html
+      - generic [ref=f2e5]:
+        - text: CORNGRID
+        - generic [ref=f2e6]: TRADING TERMINAL
+    - generic [ref=f2e7]: WORKSPACE
+    - navigation "Main navigation" [ref=f2e8]:
+      - button "Live Feed" [ref=f2e9] [cursor=pointer]
+      - button "Chat" [ref=f2e14] [cursor=pointer]
+      - button "Overview" [ref=f2e19] [cursor=pointer]
+      - button "Market Overview" [ref=f2e26] [cursor=pointer]
+      - button "Economic News" [ref=f2e31] [cursor=pointer]
+      - button "Open Positions" [ref=f2e37] [cursor=pointer]
+      - button "EA Monitoring" [ref=f2e42] [cursor=pointer]
+      - button "Trade History" [ref=f2e46] [cursor=pointer]
+      - button "MT5 Accounts" [ref=f2e51] [cursor=pointer]
+      - button "Subscription" [ref=f2e56] [cursor=pointer]
+      - button "Sandbox" [ref=f2e61] [cursor=pointer]
+      - button "Partner Program" [ref=f2e67] [cursor=pointer]
+      - button "Downloads" [ref=f2e73] [cursor=pointer]
+    - generic [ref=f2e77]:
+      - button "Settings" [ref=f2e78] [cursor=pointer]
+      - button "Sign out" [ref=f2e84] [cursor=pointer]
+      - generic [ref=f2e88]: Trading involves risk. Past performance does not guarantee future results.
+  - main [ref=f2e89]:
+    - generic [ref=f2e90]:
+      - generic [ref=f2e91]:
+        - generic [ref=f2e92]: Workspace
+        - generic [ref=f2e93]: /
+        - strong [ref=f2e94]: Overview
+      - generic [ref=f2e95]:
+        - generic [ref=f2e96]: NO LIVE FEED
+        - button "Toggle theme" [ref=f2e99] [cursor=pointer]: ◐
+        - generic [ref=f2e100]:
+          - img "sandboxtester profile photo" [ref=f2e101]:
+            - generic [aria-hidden] [ref=f2e102]: S
+          - generic [ref=f2e103]: sandboxtester
+    - generic [ref=f2e105]:
+      - generic [ref=f2e106]:
+        - generic [ref=f2e107]:
+          - paragraph [ref=f2e108]: YOUR ACCOUNT, AT A GLANCE
+          - heading "Trading overview" [level=1] [ref=f2e109]
+          - paragraph [ref=f2e110]: Monitor verified account data and portfolio performance.
+        - generic [ref=f2e111]:
+          - generic [ref=f2e112]:
+            - generic [ref=f2e113]: Trading account
+            - combobox "Choose an MT5 account for the overview" [ref=f2e114]:
+              - option "CornGrid Sandbox · •••••5678 · USD · Waiting for data" [selected]
+            - generic [ref=f2e115]: 1 linked account · Summary shows one account at a time.
+          - generic [ref=f2e116]:
+            - generic [ref=f2e117]: Performance period
+            - combobox "Performance period" [ref=f2e118]:
+              - option "Today"
+              - option "7 days"
+              - option "30 days" [selected]
+              - option "90 days"
+              - option "All time"
+              - option "Custom range"
+          - button "↻ Refresh" [ref=f2e119] [cursor=pointer]:
+            - text: ↻
+            - generic [ref=f2e120]: Refresh
+      - generic [ref=f2e121]:
+        - article [ref=f2e122]:
+          - generic [ref=f2e123]: Balance
+          - strong [ref=f2e130]: N/A
+          - text: Account funds
+        - article [ref=f2e131]:
+          - generic [ref=f2e132]: Equity
+          - strong [ref=f2e138]: N/A
+          - text: Including floating P/L
+        - article [ref=f2e139]:
+          - generic [ref=f2e140]: Floating P/L
+          - strong [ref=f2e145]: N/A
+          - text: Open trades
+        - article [ref=f2e146]:
+          - generic [ref=f2e147]: Net profit
+          - strong [ref=f2e153]: N/A
+          - text: Closed deals · 30 days
+        - article [ref=f2e154]:
+          - generic [ref=f2e155]: Today
+          - strong [ref=f2e161]: N/A
+          - text: Closed trade P/L
+        - article [ref=f2e162]:
+          - generic [ref=f2e163]: Win rate
+          - strong [ref=f2e170]: N/A
+          - text: Closed deals · N/A
+      - generic [ref=f2e171]:
+        - generic [ref=f2e172]:
+          - generic [ref=f2e173]:
+            - generic [ref=f2e174]:
+              - paragraph [ref=f2e175]: SELECTED ACCOUNT PERFORMANCE
+              - heading "Balance & equity" [level=2] [ref=f2e176]
+            - generic [ref=f2e177]:
+              - generic [ref=f2e178]: Equity
+              - generic [ref=f2e180]: Balance
+          - generic [ref=f2e183]:
+            - strong [ref=f2e186]: Waiting for account history
+            - generic [ref=f2e187]: Historical chart data will appear after a linked EA sends account snapshots.
+          - generic [ref=f2e188]:
+            - generic [ref=f2e189]: Historical values are reported by the selected MT5 account.
+            - generic [ref=f2e190]: "Last update: N/A"
+        - generic [ref=f2e191]:
+          - generic [ref=f2e192]:
+            - generic [ref=f2e193]:
+              - paragraph [ref=f2e194]: CONNECTIVITY
+              - heading "EA status" [level=2] [ref=f2e195]
+            - generic [ref=f2e196]: No data
+          - generic [ref=f2e197]:
+            - strong [ref=f2e206]: No EA connected
+            - paragraph [ref=f2e207]: Link an MT5 account to start securely receiving monitoring data.
+            - button "Link an MT5 account" [ref=f2e208] [cursor=pointer]
+      - group [ref=f2e209]:
+        - generic "MORE INSIGHTS Trading statistics View details" [ref=f2e210] [cursor=pointer]:
+          - generic [ref=f2e211]:
+            - generic [ref=f2e212]: MORE INSIGHTS
+            - strong [ref=f2e213]: Trading statistics
+          - generic [ref=f2e214]: View details ＋
+      - generic [ref=f2e215]:
+        - generic [ref=f2e216]:
+          - generic [ref=f2e217]:
+            - paragraph [ref=f2e218]: LIVE ACCOUNT DATA
+            - heading "Open positions" [level=2] [ref=f2e219]
+          - button "View all positions →" [ref=f2e220] [cursor=pointer]
+        - table [ref=f2e222]:
+          - rowgroup [ref=f2e223]:
+            - row [ref=f2e224]:
+              - columnheader "Symbol" [ref=f2e225]
+              - columnheader "Direction" [ref=f2e226]
+              - columnheader "Volume" [ref=f2e227]
+              - columnheader "Entry price" [ref=f2e228]
+              - columnheader "Current price" [ref=f2e229]
+              - columnheader "Floating P/L" [ref=f2e230]
+              - columnheader "Opened" [ref=f2e231]
+          - rowgroup [ref=f2e232]:
+            - row [ref=f2e233]:
+              - cell "No position data received yet." [ref=f2e234]

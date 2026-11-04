@@ -1,0 +1,26 @@
+[    6265ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3399/dashboard.html:0
+[    6542ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:3399/dashboard.html:0
+[  856163ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/85cd23cdd5894e7e96015c81b5b21812.webp:0
+[  856173ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/b383514cdf5a3c1ece7d953d90c77c40.webp:0
+[  856226ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/9985b78d9f2243ff2283cab919763224.png:0
+[  856229ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/fcef4e4c67f491d750c2546aeb3f61e6.jpg:0
+[  856243ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/e24625e83cfafde7f743cea548fabadf.jpg:0
+[  856243ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/de0af668d13dfc3665efcabb4fc3d520.png:0
+[  856497ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/85cd23cdd5894e7e96015c81b5b21812.webp:0
+[  856511ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/b383514cdf5a3c1ece7d953d90c77c40.webp:0
+[  869602ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/8b2aa874f1123b80123866a604667b98.webp:0
+[  869604ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/ae80b1ed431514d4d3a218f3a7f08e1b.webp:0
+[  869605ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/55044acde2bab6bf2411bb5f1b161f43.webp:0
+[  869610ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/1014e5bfe9f059bb5d063592b8a2bd91.webp:0
+[  869612ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/5a1f45c23f13c5f082eb21d6b07b804f.webp:0
+[  869615ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/f27550c07ab4ee3a674bb5194e93424e.webp:0
+[  869651ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/10bac3e6d76d319245ad8e0bb60ca02f.webp:0
+[  869651ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/36f9c8d51bde7765d8dee1c05e696be1.webp:0
+[  869653ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/631d16929ac518ba18c6eab13a1fb364.webp:0
+[  873229ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/85cd23cdd5894e7e96015c81b5b21812.webp:0
+[  873241ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/avatars/b383514cdf5a3c1ece7d953d90c77c40.webp:0
+[  873256ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/fcef4e4c67f491d750c2546aeb3f61e6.jpg:0
+[  873257ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/e24625e83cfafde7f743cea548fabadf.jpg:0
+[  873261ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/9985b78d9f2243ff2283cab919763224.png:0
+[  873264ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3399/uploads/feed/de0af668d13dfc3665efcabb4fc3d520.png:0
+[  905927ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3399/api/chat/unread-count:0

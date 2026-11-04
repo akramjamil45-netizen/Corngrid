@@ -139,6 +139,8 @@
         <button class="nav-item" data-page="history"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>Trade History</button>
         <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
         <button class="nav-item" data-page="subscription"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription</button>
+        <button class="nav-item" data-page="sandbox"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 9l2.5 2L7 13M12 13h4"/></svg></span>Sandbox</button>
+        <button class="nav-item" data-page="partner"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Partner Program</button>
         <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
       </nav>
       <div class="sidebar-bottom">
@@ -784,6 +786,151 @@
             <section class="panel settings-panel" id="setting-privacy" hidden><div class="panel-header"><div><p class="eyebrow">DATA &amp; PRIVACY</p><h2>Privacy</h2></div></div><div class="privacy-copy"><h3>Portfolio visibility</h3><p>Choose which linked trading accounts appear on your public portfolio. Only selected accounts and their portfolio data are shown publicly. You can keep everything private or revoke public access at any time.</p><div class="portfolio-sharing-controls"><label for="portfolio-visibility">Portfolio visibility<select id="portfolio-visibility" class="select-control"><option value="private">Private — only me</option><option value="public">Public — listed for everyone</option></select></label><button class="button button-primary" id="save-portfolio-visibility" type="button">Save sharing settings</button></div><p class="portfolio-sharing-status" id="portfolio-sharing-status" aria-live="polite">Loading portfolio sharing settings…</p><div class="public-account-selection"><div class="public-account-selection-heading"><h3>Trading accounts to include</h3><span id="public-account-selection-count" class="muted small">Loading accounts…</span></div><div id="public-account-selection-list" class="public-account-selection-list"><div class="empty-settings"><p>Loading linked MT5 accounts…</p></div></div></div><div class="portfolio-share-link" id="portfolio-share-link" hidden><label for="portfolio-share-url">Public portfolio link</label><div><input id="portfolio-share-url" class="input-control" type="url" readonly><button class="button button-secondary" id="copy-portfolio-link" type="button">Copy link</button></div></div><h3>Public data shown</h3><p>For each selected account, public pages show its masked account identifier, account summary, open positions and recent trade details. They never show your email, broker server, full account number, ticket or deal identifiers, or trading credentials. Accounts you do not select remain private.</p><h3>Data collected</h3><p>When you link an EA, CornGrid can store the MT5 account identifier, broker/server, account currency, balance and equity snapshots, open positions, imported trade deals, EA version, and heartbeat timestamps sent by that installation.</p><h3>How data is used</h3><p>This information is used to display account monitoring and portfolio analytics to the authenticated owner of the linked account. No MT5 trading password is requested or stored.</p><h3>Retention and export</h3><p>Linked account data remains stored until the account is unlinked or the applicable account-retention process removes it. Contact support for a personal data export or deletion request.</p></div></section>
           </div>
         </section>
+
+        <section class="page" id="page-sandbox">
+          <div class="page-heading">
+            <div><p class="eyebrow">CLOUD HOSTED TRADING</p><h1>Sandbox</h1><p class="muted">Run CornGrid EA automatically on a managed Windows server — your MT5 terminal trades 24/7, even when your computer is off.</p></div>
+            <span class="pill pill-muted" id="sandbox-status-pill">Loading…</span>
+          </div>
+
+          <div class="notice notice-warning" id="sandbox-error" hidden></div>
+
+          <!-- Activation: shown when no sandbox exists -->
+          <div id="sandbox-activation-section" hidden>
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">GET STARTED</p><h2>Activate your sandbox</h2></div></div>
+              <div class="subscription-panel-body">
+                <p class="muted small">Connect your MT5 trading account. CornGrid deploys an isolated MT5 terminal with the licensed EA on a sandbox server — no installation, no license key, no VPS setup on your side.</p>
+                <form id="sandbox-activate-form" class="settings-form sandbox-form">
+                  <label>Trading strategy
+                    <select id="sandbox-strategy" class="select-control" required>
+                      <option value="">Loading strategies…</option>
+                    </select>
+                  </label>
+                  <label>Broker server
+                    <input id="sandbox-broker-server" class="input-control" type="text" maxlength="100" placeholder="e.g. Exness-MT5Real9" required autocomplete="off">
+                  </label>
+                  <label>MT5 account number
+                    <input id="sandbox-account-number" class="input-control" type="text" inputmode="numeric" pattern="[0-9]{1,32}" maxlength="32" placeholder="e.g. 210045678" required autocomplete="off">
+                  </label>
+                  <label>MT5 password
+                    <input id="sandbox-password" class="input-control" type="password" maxlength="128" required autocomplete="new-password">
+                  </label>
+                  <p class="muted small">Your credentials are encrypted (AES-256-GCM) and used only to sign the sandbox terminal into your broker. They are never shown back to you or exposed in logs.</p>
+                  <div class="sandbox-form-actions">
+                    <button class="button button-primary" type="submit" id="sandbox-activate-btn">Activate Sandbox</button>
+                  </div>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <!-- Live sandbox: shown when a sandbox exists -->
+          <div id="sandbox-live-section" hidden>
+            <div class="stat-grid sandbox-stat-grid">
+              <article class="stat-card"><div class="stat-top"><span>Sandbox status</span></div><strong class="stat-value" id="sandbox-stat-status">—</strong><small id="sandbox-stat-subscription">Subscription: —</small></article>
+              <article class="stat-card"><div class="stat-top"><span>MT5 connection</span></div><strong class="stat-value" id="sandbox-stat-connection">—</strong><small id="sandbox-stat-account">Account: —</small></article>
+              <article class="stat-card"><div class="stat-top"><span>CPU usage</span></div><strong class="stat-value" id="sandbox-stat-cpu">—</strong><small id="sandbox-stat-node">Node: —</small></article>
+              <article class="stat-card"><div class="stat-top"><span>Memory</span></div><strong class="stat-value" id="sandbox-stat-memory">—</strong><small id="sandbox-stat-uptime">Uptime: —</small></article>
+            </div>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">DEPLOYED ENVIRONMENT</p><h2>Sandbox details</h2></div><span class="pill" id="sandbox-ea-status">EA: —</span></div>
+              <div class="subscription-panel-body">
+                <dl class="sandbox-detail-grid">
+                  <div><dt>Strategy</dt><dd id="sandbox-detail-strategy">—</dd></div>
+                  <div><dt>Broker server</dt><dd id="sandbox-detail-broker">—</dd></div>
+                  <div><dt>MT5 account</dt><dd id="sandbox-detail-account">—</dd></div>
+                  <div><dt>Assigned node</dt><dd id="sandbox-detail-node">—</dd></div>
+                  <div><dt>Last heartbeat</dt><dd id="sandbox-detail-heartbeat">—</dd></div>
+                  <div><dt>Last error</dt><dd id="sandbox-detail-error">None</dd></div>
+                </dl>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">CONTROL</p><h2>Sandbox controls</h2></div></div>
+              <div class="subscription-panel-body">
+                <div class="sandbox-controls">
+                  <button class="button button-primary" id="sandbox-start-btn" type="button">Start</button>
+                  <button class="button button-secondary" id="sandbox-stop-btn" type="button">Stop</button>
+                  <button class="button button-secondary" id="sandbox-restart-btn" type="button">Restart</button>
+                  <button class="button button-secondary" id="sandbox-pause-btn" type="button">Pause Trading</button>
+                  <button class="button button-secondary" id="sandbox-resume-btn" type="button" hidden>Resume Trading</button>
+                  <button class="button button-secondary" id="sandbox-reconnect-btn" type="button">Reconnect MT5</button>
+                  <button class="button button-danger" id="sandbox-delete-btn" type="button">Delete Sandbox</button>
+                </div>
+                <p class="muted small">Stopping keeps your account configuration and subscription. Deleting removes the sandbox environment; your subscription is unaffected.</p>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-partner">
+          <div class="page-heading">
+            <div><p class="eyebrow">EA DEVELOPER PROGRAM</p><h1>Partner Program</h1><p class="muted">Submit your Expert Advisor for review and earn commission on every subscription sold through CornGrid.</p></div>
+            <span class="pill pill-muted" id="partner-status-pill">—</span>
+          </div>
+
+          <div class="notice notice-warning" id="partner-error" hidden></div>
+
+          <div id="partner-register-section" hidden>
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">BECOME A PARTNER</p><h2>Register as an EA developer</h2></div></div>
+              <div class="subscription-panel-body">
+                <form id="partner-register-form" class="settings-form">
+                  <label>Display name<input id="partner-display-name" class="input-control" type="text" maxlength="80" required></label>
+                  <label>Company (optional)<input id="partner-company" class="input-control" type="text" maxlength="120"></label>
+                  <label>Website (optional)<input id="partner-website" class="input-control" type="url" maxlength="200" placeholder="https://"></label>
+                  <button class="button button-primary" type="submit">Register as partner</button>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="partner-dashboard-section" hidden>
+            <div class="stat-grid">
+              <article class="stat-card"><div class="stat-top"><span>Total earnings</span></div><strong class="stat-value" id="partner-stat-earnings">—</strong><small>Approved + paid commissions</small></article>
+              <article class="stat-card"><div class="stat-top"><span>Pending</span></div><strong class="stat-value" id="partner-stat-pending">—</strong><small>Awaiting admin approval</small></article>
+              <article class="stat-card"><div class="stat-top"><span>Paid out</span></div><strong class="stat-value" id="partner-stat-paid">—</strong><small id="partner-stat-payouts">0 payouts</small></article>
+              <article class="stat-card"><div class="stat-top"><span>Submissions</span></div><strong class="stat-value" id="partner-stat-submissions">—</strong><small id="partner-stat-published">0 published</small></article>
+            </div>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">NEW SUBMISSION</p><h2>Submit an EA for review</h2></div></div>
+              <div class="subscription-panel-body">
+                <form id="partner-submit-form" class="settings-form" enctype="multipart/form-data">
+                  <label>EA name<input id="ea-name" class="input-control" type="text" maxlength="80" required></label>
+                  <label>Version<input id="ea-version" class="input-control" type="text" maxlength="20" placeholder="e.g. 1.0" required></label>
+                  <label>Description<textarea id="ea-description" class="input-control" rows="3" maxlength="2000" required></textarea></label>
+                  <label>Supported symbols<input id="ea-symbols" class="input-control" type="text" maxlength="200" placeholder="e.g. XAUUSD, EURUSD"></label>
+                  <label>Trading strategy description<textarea id="ea-strategy-desc" class="input-control" rows="3" maxlength="2000"></textarea></label>
+                  <label>Risk management description<textarea id="ea-risk-desc" class="input-control" rows="3" maxlength="2000"></textarea></label>
+                  <label>Documentation (optional)<textarea id="ea-documentation" class="input-control" rows="2" maxlength="4000"></textarea></label>
+                  <label>Source files (.mq5, .mqh, or .zip project)<input id="ea-files" class="input-control" type="file" accept=".mq5,.mqh,.zip" multiple required></label>
+                  <p class="muted small">Source code is reviewed and tested in an isolated environment before publication. It is never executed on production servers.</p>
+                  <button class="button button-primary" type="submit" id="ea-submit-btn">Submit for review</button>
+                </form>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">MY SUBMISSIONS</p><h2>EA submissions</h2></div></div>
+              <div class="subscription-panel-body"><div id="partner-submissions-list" class="subscription-list"></div></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">EARNINGS</p><h2>Commission history</h2></div></div>
+              <div class="subscription-panel-body"><div id="partner-transactions-list" class="subscription-list"></div></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header"><div><p class="eyebrow">PAYOUTS</p><h2>Payment history</h2></div></div>
+              <div class="subscription-panel-body"><div id="partner-payouts-list" class="subscription-list"></div></div>
+            </section>
+          </div>
+        </section>
+
         <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
       </div>
     </main>
@@ -805,5 +952,7 @@
   <script src="market.js?v=20261026-1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261030-1"></script>
+  <script src="sandbox.js?v=20261104-1"></script>
+  <script src="partner.js?v=20261104-1"></script>
 </body>
 </html>

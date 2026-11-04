@@ -1,0 +1,67 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - img "CornGrid Logo" [ref=e7]
+      - generic [ref=e8]: CORNGRID
+    - generic [ref=e9]:
+      - heading "Mastering Risk, Executing Vision" [level=2] [ref=e10]
+      - paragraph [ref=e11]: "\"In the realm of uncertainty, clarity is the ultimate leverage and discipline is the key to mastery.\""
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: 
+          - text: Protection Status
+        - generic [ref=e16]:
+          - generic [ref=e17]: 
+          - text: Active
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: 
+          - text: Latency
+        - generic [ref=e21]: < 5.0 ms
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: 
+          - text: System Version
+        - generic [ref=e25]: v2.70
+    - generic [ref=e27]:
+      - generic [ref=e28]: 
+      - text: 64-Bit SSL Encrypted Connection
+  - generic [ref=e30]:
+    - generic [ref=e31]:
+      - heading "Account Login" [level=3] [ref=e32]
+      - paragraph [ref=e33]: Enter your credentials to access the CornGrid Terminal Portal.
+    - generic [ref=e34]:
+      - text: 
+      - generic [ref=e35]:
+        - generic [ref=e36]: Account Email
+        - generic [ref=e37]:
+          - generic [ref=e38]: 
+          - textbox "Account Email" [ref=e39]:
+            - /placeholder: name@domain.com
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]: Password
+          - link "Forgot?" [ref=e43] [cursor=pointer]:
+            - /url: "#"
+        - generic [ref=e44]:
+          - generic [ref=e45]: 
+          - textbox "Password" [ref=e46]:
+            - /placeholder: ••••••••••••
+          - button "Show password" [ref=e47] [cursor=pointer]: 
+      - generic [ref=e49] [cursor=pointer]:
+        - checkbox "Remember my login (Stay signed in)" [checked] [ref=e50]
+        - generic [ref=e51]: Remember my login (Stay signed in)
+      - button "Sign In to Terminal " [ref=e52] [cursor=pointer]:
+        - generic [ref=e53]: Sign In to Terminal
+        - generic [ref=e54]: 
+    - generic [ref=e55]:
+      - paragraph [ref=e56]:
+        - button "Don't have an account yet? Sign up" [ref=e57] [cursor=pointer]
+      - paragraph [ref=e58]:
+        - text: Need a license or practice account?
+        - link "Get Free Demo EA" [ref=e59] [cursor=pointer]:
+          - /url: https://corngrid.com
+      - generic [ref=e60]:
+        - generic [ref=e61]: 
+        - generic [ref=e62]: Trading involves substantial risk. Ensure your risk parameters are tested via MT5 prior to deployment.

@@ -2905,3 +2905,28 @@ tbody tr:hover {
   .account-stats { gap: 6px; margin: 12px 0; padding: 10px 0; }
   .account-meta { font-size: 10.5px; }
 }
+
+/* CornGrid Sandbox & Partner Program */
+.button-danger { border-color: rgba(255, 115, 125, .4); background: rgba(255, 115, 125, .1); color: var(--red); }
+.button-danger:hover { border-color: var(--red); background: rgba(255, 115, 125, .18); }
+.button:disabled { opacity: .45; cursor: not-allowed; }
+
+.sandbox-form { max-width: 560px; }
+.sandbox-form-actions { display: flex; gap: 10px; margin-top: 6px; }
+.sandbox-stat-grid { margin-bottom: 18px; }
+.sandbox-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 22px; margin: 0; }
+.sandbox-detail-grid dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.sandbox-detail-grid dd { margin: 0; font-weight: 600; word-break: break-word; }
+.sandbox-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+
+.partner-submission-item, .partner-ledger-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.partner-submission-item:last-child, .partner-ledger-item:last-child { border-bottom: 0; }
+.partner-item-body { min-width: 0; }
+.partner-item-body strong { display: block; }
+.partner-item-body .muted { display: block; margin-top: 2px; }
+.partner-item-amount { text-align: right; white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .sandbox-controls .button { flex: 1 1 45%; }
+  .sandbox-detail-grid { grid-template-columns: 1fr 1fr; }
+}

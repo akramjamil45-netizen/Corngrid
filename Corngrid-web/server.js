@@ -23,6 +23,7 @@ const registerFeedApi = require('./feed-api');
 const registerChatApi = require('./chat-api');
 const createAdminAuth = require('./admin-auth');
 const registerAdminApi = require('./admin-api');
+const registerEmailAdmin = require('./email-admin');
 const createUserAuth = require('./user-auth');
 const createEmailVerification = require('./email-verification');
 const createLoginHandler = require('./login-handler');
@@ -30,6 +31,8 @@ const createBackupScheduler = require('./db-backup');
 const createDatabaseRouter = require('./db-router');
 const createPostgresDatabase = require('./db-postgres');
 const createSubscriptionApi = require('./subscriptions/subscription-api');
+const { createSandboxSystem } = require('./sandbox');
+const { createPartnerSystem } = require('./partner');
 const {
   clearAuthCookie,
   isSameOriginRequest,
@@ -120,6 +123,9 @@ app.use(cors());
 // Payment proofs are submitted as base64 JSON (5 MB decoded is ~6.7 MB of
 // text), so this route needs a larger parser than the global API limit.
 app.use('/api/subscription/payment-proof', express.json({ limit: '8mb' }));
+// EA source submissions carry base64-encoded .mq5/.mqh/.zip files (10 MB
+// decoded per file ≈ 13.4 MB of text each; the route validates real sizes).
+app.use('/api/partner/submissions', express.json({ limit: '30mb' }));
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
@@ -336,6 +342,36 @@ registerAdminApi(
   Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180
 );
 const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation);
+const sandboxSystem = createSandboxSystem(app, db, {
+  verifyToken,
+  adminAuth,
+  subscriptionApi,
+  rateLimit,
+  jwtSecret: SECRET_KEY
+});
+const partnerSystem = createPartnerSystem(app, db, {
+  verifyToken,
+  adminAuth,
+  events: sandboxSystem.events,
+  nodes: sandboxSystem.nodes,
+  crypto: sandboxSystem.crypto,
+  subscriptionApi,
+  rateLimit,
+  authenticateNodeRequest: sandboxSystem.nodeApi ? sandboxSystem.nodeApi.authenticateNodeRequest : undefined
+});
+const emailAdmin = registerEmailAdmin(app, db, adminAuth.verifyToken, {
+  encryptionKey: process.env.EMAIL_ENCRYPTION_KEY || SECRET_KEY,
+  appBaseUrl: process.env.APP_BASE_URL,
+  supportEmail: process.env.SUPPORT_EMAIL || SMTP_FROM,
+  envSettings: {
+    host: SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    username: process.env.SMTP_USER,
+    password: process.env.SMTP_PASS,
+    from: SMTP_FROM,
+    secure: process.env.SMTP_SECURE === 'true'
+  }
+});
 
 
 const downloadableResources = Object.freeze({
@@ -808,6 +844,8 @@ backupScheduler.start();
     // (PostgreSQL) must finish before the first request is accepted.
     await emailVerification.ready();
     await subscriptionApi.ready();
+    await emailAdmin.ready();
+    await sandboxSystem.ready;
   } catch (error) {
     console.error('Database initialization failed; aborting startup:', error.message);
     process.exit(1);
@@ -816,6 +854,10 @@ backupScheduler.start();
   const server = app.listen(PORT, () => {
     console.log(`CornGrid backend is running at http://localhost:${PORT}`);
   });
+
+  // WebSocket hub for sandbox node agents (/ws/sandbox/node) and the admin
+  // realtime monitor (/ws/admin/sandbox).
+  sandboxSystem.realtime.attach(server);
 
   // Keep-alive must outlive the proxy's idle timeout so a reused connection is not
   // closed mid-request; requestTimeout caps a single slow request. IIS/ARR
@@ -840,6 +882,7 @@ backupScheduler.start();
     if (checkpointTimer) clearInterval(checkpointTimer);
     if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
     emailVerification.close();
+    if (emailAdmin && typeof emailAdmin.close === 'function') emailAdmin.close();
     server.close(() => {
       try {
         if (typeof marketFeed.close === 'function') marketFeed.close();

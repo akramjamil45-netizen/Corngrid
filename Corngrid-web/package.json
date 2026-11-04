@@ -34,7 +34,8 @@
     "lightweight-charts": "^4.2.3",
     "nodemailer": "^10.1.2",
     "pg": "^8.23.1",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
     "pngjs": "^7.0.0"

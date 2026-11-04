@@ -1,0 +1,6 @@
+[    2249ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3399/dashboard.html:0
+[    3853ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:3399/dashboard.html:0
+[   46376ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3399/api/sandbox/strategies:0
+[  258658ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3399/api/sandbox/strategies:0
+[  331775ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3399/api/chat/unread-count:0
+[  362470ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3399/api/chat/unread-count:0

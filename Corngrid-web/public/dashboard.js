@@ -51,7 +51,7 @@
 
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', subscription: 'Subscription', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', subscription: 'Subscription', sandbox: 'Sandbox', partner: 'Partner Program', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
   const statCounters = new WeakMap();
   const statUpdateTimers = new WeakMap();
@@ -360,6 +360,10 @@
     if (name === 'economic' && window.CornGridEconomic) window.CornGridEconomic.onOpen();
     if (name !== 'feed' && window.CornGridFeed) window.CornGridFeed.onClose();
     if (name === 'feed' && window.CornGridFeed) window.CornGridFeed.onOpen();
+    if (name !== 'sandbox' && window.CornGridSandbox) window.CornGridSandbox.onClose();
+    if (name === 'sandbox' && window.CornGridSandbox) window.CornGridSandbox.onOpen();
+    if (name !== 'partner' && window.CornGridPartner) window.CornGridPartner.onClose();
+    if (name === 'partner' && window.CornGridPartner) window.CornGridPartner.onOpen();
   }
 
   function setChatMobileView(showConversation = state.chat.mobileShowConversation) {

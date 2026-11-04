@@ -3918,3 +3918,292 @@ footer {
         margin-top: 0;
     }
 }
+/* =========================================
+   15. MOTION & INTERACTION LAYER
+   Adds load-in, scroll reveal, counters and
+   hover micro-interactions. Values stay inside
+   the existing gold/dark palette.
+========================================= */
+:root {
+    --cg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --cg-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---------- Hero load-in ---------- */
+@keyframes cgRiseIn {
+    from { opacity: 0; transform: translate3d(0, 34px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes cgSlideInRight {
+    from { opacity: 0; transform: translate3d(48px, 0, 0) scale(0.97); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes cgFloatY {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes cgGlowPulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes cgCountPop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+.anim-enabled .hero-content > * {
+    animation: cgRiseIn 0.9s var(--cg-ease-out) both;
+}
+
+.anim-enabled .hero-content > *:nth-child(1) { animation-delay: 0.05s; }
+.anim-enabled .hero-content > *:nth-child(2) { animation-delay: 0.16s; }
+.anim-enabled .hero-content > *:nth-child(3) { animation-delay: 0.27s; }
+.anim-enabled .hero-content > *:nth-child(4) { animation-delay: 0.38s; }
+
+.anim-enabled .hero-visual {
+    animation: cgSlideInRight 1s var(--cg-ease-out) 0.3s both;
+}
+
+.anim-enabled .hero-image-wrapper {
+    animation: cgFloatY 7s ease-in-out 1.6s infinite;
+}
+
+.anim-enabled .hero-stat-card {
+    animation: cgFloatY 4.5s ease-in-out infinite;
+}
+
+.anim-enabled .hero-stat-card:nth-child(2) {
+    animation-delay: 0.9s;
+}
+
+.anim-enabled .hero-glow {
+    animation: cgGlowPulse 9s ease-in-out infinite;
+}
+
+.anim-enabled .floating-badge {
+    animation: cgFloatY 5.5s ease-in-out infinite;
+}
+
+.anim-enabled .badge-bottom-right {
+    animation-delay: 1.3s;
+}
+
+/* ---------- Scroll reveal (progressive enhancement) ---------- */
+.reveal {
+    opacity: 0;
+    transform: translate3d(0, 30px, 0);
+    transition:
+        opacity 0.75s var(--cg-ease-out) var(--reveal-delay, 0ms),
+        transform 0.75s var(--cg-ease-out) var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+}
+
+.reveal.reveal-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    will-change: auto;
+}
+
+/* ---------- Scroll progress bar ---------- */
+.cg-scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    z-index: 10001;
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg, #FFD400 0%, #ffb800 55%, #ffe873 100%);
+    box-shadow: 0 0 12px rgba(255, 212, 0, 0.55);
+    pointer-events: none;
+}
+
+/* ---------- Number counters ---------- */
+.metric-box h3 {
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-box h3.count-pop {
+    animation: cgCountPop 0.5s var(--cg-ease-spring);
+}
+
+/* ---------- Hover micro-interactions ---------- */
+.metric-box,
+.card,
+.step-card,
+.algo-card,
+.setup-card,
+.vault-card,
+.broker-card-white,
+.feature-quant-card,
+.channel-item {
+    will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .metric-box {
+        position: relative;
+        transition:
+            transform 0.35s var(--cg-ease-out),
+            box-shadow 0.35s ease,
+            border-color 0.3s ease;
+    }
+
+    .metric-box:hover {
+        transform: translateY(-6px);
+        border-color: rgba(255, 212, 0, 0.55);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+
+    .card:hover,
+    .feature-quant-card:hover {
+        transform: translateY(-7px);
+        box-shadow: 0 22px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    .step-card:hover,
+    .setup-card:hover,
+    .broker-card-white:hover,
+    .faq-item-white:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.14);
+    }
+
+    .algo-card:hover {
+        transform: translateY(-7px);
+        box-shadow: 0 18px 42px rgba(255, 212, 0, 0.14);
+    }
+
+    .vault-card:hover {
+        transform: translateY(-7px);
+        box-shadow: 0 18px 42px rgba(255, 212, 0, 0.18);
+    }
+
+    .channel-item:hover {
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Icon + logo reactions */
+    .step-badge,
+    .algo-icon,
+    .vault-icon,
+    .feature-icon-wrapper,
+    .channel-icon,
+    .broker-logo-box img {
+        transition: transform 0.35s var(--cg-ease-spring), box-shadow 0.35s ease;
+    }
+
+    .step-card:hover .step-badge {
+        transform: rotate(-7deg) scale(1.08);
+    }
+
+    .algo-card:hover .algo-icon,
+    .vault-card:hover .vault-icon,
+    .feature-quant-card:hover .feature-icon-wrapper,
+    .channel-item:hover .channel-icon {
+        transform: translateY(-3px) scale(1.08);
+    }
+
+    .broker-card-white:hover .broker-logo-box img {
+        transform: scale(1.08);
+    }
+
+    /* Diagonal light sweep on dark surfaces */
+    .feature-quant-card::after,
+    .algo-card::after,
+    .metric-box::after,
+    .channel-item::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(
+            120deg,
+            transparent 32%,
+            rgba(255, 255, 255, 0.08) 50%,
+            transparent 68%
+        );
+        transform: translateX(-130%);
+        transition: transform 0.75s var(--cg-ease-out);
+        pointer-events: none;
+    }
+
+    .feature-quant-card:hover::after,
+    .algo-card:hover::after,
+    .metric-box:hover::after,
+    .channel-item:hover::after {
+        transform: translateX(130%);
+    }
+
+    .algo-card,
+    .channel-item {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .feature-quant-card {
+        overflow: hidden;
+    }
+
+    .metric-box {
+        overflow: hidden;
+    }
+
+    /* Shine sweep on primary gold buttons */
+    .btn-hero-yellow,
+    .dashboard-btn-gold,
+    .btn-myfxbook,
+    .broker-btn-white.featured-btn,
+    .btn-pdf-download {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-hero-yellow::after,
+    .dashboard-btn-gold::after,
+    .btn-myfxbook::after,
+    .broker-btn-white.featured-btn::after,
+    .btn-pdf-download::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -140%;
+        width: 55%;
+        height: 100%;
+        background: linear-gradient(
+            100deg,
+            transparent,
+            rgba(255, 255, 255, 0.45),
+            transparent
+        );
+        transform: skewX(-20deg);
+        transition: left 0.65s ease;
+        pointer-events: none;
+    }
+
+    .btn-hero-yellow:hover::after,
+    .dashboard-btn-gold:hover::after,
+    .btn-myfxbook:hover::after,
+    .broker-btn-white.featured-btn:hover::after,
+    .btn-pdf-download:hover::after {
+        left: 140%;
+    }
+}
+
+/* ---------- Motion preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .reveal {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+
+    .cg-scroll-progress {
+        display: none;
+    }
+}

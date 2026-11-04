@@ -35,7 +35,7 @@ test('the admin navigation includes a Reports page', () => {
   assert.match(adminHtml, /<section class="page" id="reports"/);
   assert.match(adminHtml, /id="admin-reports-list"/);
   // The routing table must know about the new page.
-  assert.match(adminJs, /const pages = \['overview', 'subscriptions', 'support', 'reports', 'announcements'\]/);
+  assert.match(adminJs, /const pages = \['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions'\]/);
   assert.match(adminJs, /if \(active === 'reports'\) loadReports\(\)/);
   assert.match(adminJs, /reports: 'Reports'/);
 });
@@ -59,6 +59,21 @@ test('the admin reports panel is styled for the CornGrid admin surface', () => {
   assert.match(adminCss, /\.admin-report-actions/);
 });
 
+test('the admin navigation includes a full email management page', () => {
+  assert.match(adminHtml, /data-admin-page="email"/);
+  assert.match(adminHtml, /<section class="page" id="email"/);
+  assert.match(adminHtml, /id="email-compose-form"/);
+  assert.match(adminHtml, /data-email-tab="templates"/);
+  assert.match(adminHtml, /data-email-tab="history"/);
+  assert.match(adminHtml, /data-email-tab="settings"/);
+  assert.match(adminHtml, /id="email-settings-form"/);
+  assert.match(adminJs, /if \(active === 'email'\) loadEmailPage\(\)/);
+  assert.match(adminJs, /email: 'Email'/);
+  assert.match(adminJs, /function loadEmailPage\(\)/);
+  assert.match(adminCss, /\.email-tabs/);
+  assert.match(adminCss, /\.email-recipient-list/);
+});
+
 test('the admin support inbox can search, filter, and safely render conversations', () => {
   assert.match(adminHtml, /id="admin-support-search"/);
   assert.match(adminHtml, /id="admin-support-filter"/);
@@ -68,6 +83,23 @@ test('the admin support inbox can search, filter, and safely render conversation
   assert.match(adminJs, /escapeHtml\(conversation\.lastMessage\)/);
   assert.match(adminJs, /escapeHtml\(message\.message\)/);
   assert.match(adminJs, /event\.key === 'Enter' && !event\.shiftKey/);
+  assert.match(adminJs, /function supportAvatarContent\(/);
+  assert.match(adminJs, /conversation\.avatarUrl/);
   assert.match(adminCss, /\.admin-support-avatar/);
+  assert.match(adminCss, /\.admin-support-avatar img/);
   assert.match(adminCss, /\.admin-support-compose-field/);
+});
+
+test('every admin page stays inside the padded page wrapper', () => {
+  assert.equal((adminHtml.match(/<section\b/g) || []).length, (adminHtml.match(/<\/section>/g) || []).length);
+  assert.equal((adminHtml.match(/<div\b/g) || []).length, (adminHtml.match(/<\/div>/g) || []).length);
+
+  const wrapperStart = adminHtml.indexOf('<div class="page-wrap">');
+  const wrapperEnd = adminHtml.indexOf('<div class="toast-region"');
+  assert.ok(wrapperStart > -1 && wrapperEnd > wrapperStart);
+
+  for (const pageName of ['overview', 'support', 'email', 'reports', 'subscriptions', 'announcements']) {
+    const pageStart = adminHtml.indexOf(`id="${pageName}"`);
+    assert.ok(pageStart > wrapperStart && pageStart < wrapperEnd, `${pageName} must stay inside .page-wrap`);
+  }
 });

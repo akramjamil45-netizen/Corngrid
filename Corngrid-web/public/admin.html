@@ -99,9 +99,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261030-1">
-  <link rel="stylesheet" href="admin.css?v=20261030-2">
-  <script src="table-cards.js?v=20261029-2" defer></script>
-  <script src="admin.js?v=20261030-2" defer></script>
+<link rel="stylesheet" href="admin.css?v=20261102-2">
+<script src="table-cards.js?v=20261029-2" defer></script>
+<script src="admin.js?v=20261102-2" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -114,8 +114,12 @@
       <nav class="main-nav" aria-label="Administrator navigation">
         <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
         <a class="nav-item admin-nav-link" href="#support" data-admin-page="support"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>Support <span class="admin-unread-badge" id="admin-support-unread" hidden>0</span></a>
+        <a class="nav-item admin-nav-link" href="#email" data-admin-page="email"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>Email</a>
         <a class="nav-item admin-nav-link" href="#reports" data-admin-page="reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>Reports <span class="admin-unread-badge" id="admin-reports-unread" hidden>0</span></a>
         <a class="nav-item admin-nav-link" href="#subscriptions" data-admin-page="subscriptions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription Monitor</a>
+        <a class="nav-item admin-nav-link" href="#sandbox" data-admin-page="sandbox"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 9l2.5 2L7 13M12 13h4"/></svg></span>Sandbox Management</a>
+        <a class="nav-item admin-nav-link" href="#ea-submissions" data-admin-page="ea-submissions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></span>EA Submissions</a>
+        <a class="nav-item admin-nav-link" href="#commissions" data-admin-page="commissions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>Commissions</a>
         <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
       </nav>
       <div class="sidebar-bottom">
@@ -188,8 +192,6 @@
             </section>
           </div>
         </section>
-          </div>
-        </section>
 
         <section class="page" id="reports" hidden>
           <div class="page-heading"><div><p class="eyebrow">COMMUNITY MODERATION</p><h1>Reported content</h1><p class="muted">Posts and comments flagged by community members. Review each report and take action if the content breaks the rules.</p></div><button class="button button-secondary" id="admin-reports-refresh" type="button">↻ Refresh</button></div>
@@ -201,7 +203,7 @@
 
         <section class="page" id="subscriptions" hidden>
           <div class="page-heading"><div><p class="eyebrow">SUBSCRIPTION MANAGEMENT</p><h1>Subscription Monitor</h1><p class="muted">Manage plans, payments, subscriptions, and activations.</p></div></div>
-          
+
           <div class="stat-grid admin-stat-grid">
             <article class="stat-card"><div class="stat-top"><span>Total Subscriptions</span></div><strong class="stat-value" id="sub-stat-total">—</strong></article>
             <article class="stat-card"><div class="stat-top"><span>Active</span></div><strong class="stat-value" id="sub-stat-active">—</strong></article>
@@ -274,6 +276,256 @@
             </section>
           </div>
         </section>
+        <section class="page" id="email" hidden>
+          <div class="page-heading">
+            <div><p class="eyebrow">ADMIN COMMUNICATIONS</p><h1>Email management</h1><p class="muted">Compose announcements, manage templates, review delivery activity, and configure SMTP.</p></div>
+            <div class="email-head-status"><span class="pill pill-muted" id="email-smtp-badge">Checking SMTP…</span><span class="pill pill-muted" id="email-queue-badge" hidden></span></div>
+          </div>
+
+          <div class="email-tabs" role="tablist" aria-label="Email management sections">
+            <button class="email-tab is-active" type="button" role="tab" aria-selected="true" data-email-tab="compose">Compose</button>
+            <button class="email-tab" type="button" role="tab" aria-selected="false" data-email-tab="templates">Templates</button>
+            <button class="email-tab" type="button" role="tab" aria-selected="false" data-email-tab="history">History</button>
+            <button class="email-tab" type="button" role="tab" aria-selected="false" data-email-tab="settings">SMTP Settings</button>
+          </div>
+
+          <section class="email-panel is-active" id="email-tab-compose" role="tabpanel">
+            <div class="email-compose-layout">
+              <section class="panel email-compose-main">
+                <div class="panel-header"><div><p class="eyebrow">COMPOSER</p><h2>New email</h2></div><span class="muted small" id="email-compose-mode">Manual recipients</span></div>
+                <form id="email-compose-form" class="email-form">
+                  <div class="email-template-row">
+                    <label class="email-field">Start from a template
+                      <select class="select-control" id="email-template-select"><option value="">Blank email</option></select>
+                    </label>
+                    <button class="button button-secondary" type="button" id="email-template-insert">Insert template</button>
+                  </div>
+                  <div class="email-address-grid">
+                    <label class="email-field">To <span class="email-hint">Separate multiple addresses with commas</span><input class="input-control" id="email-to" type="text" autocomplete="off" placeholder="trader@example.com" required></label>
+                    <label class="email-field">CC <span class="email-hint">Optional</span><input class="input-control" id="email-cc" type="text" autocomplete="off" placeholder="cc@example.com"></label>
+                    <label class="email-field">BCC <span class="email-hint">Optional</span><input class="input-control" id="email-bcc" type="text" autocomplete="off" placeholder="bcc@example.com"></label>
+                  </div>
+                  <label class="email-field">Subject<input class="input-control" id="email-subject" type="text" maxlength="200" placeholder="Your CornGrid announcement" required></label>
+                  <div class="email-field">
+                    <span>Message</span>
+                    <div class="email-editor-shell">
+                      <div class="email-editor-toolbar" role="toolbar" aria-label="Email formatting">
+                        <button type="button" class="email-tool" data-editor-cmd="bold" title="Bold" aria-label="Bold"><b>B</b></button>
+                        <button type="button" class="email-tool" data-editor-cmd="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+                        <button type="button" class="email-tool" data-editor-cmd="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+                        <button type="button" class="email-tool" data-editor-cmd="insertUnorderedList" title="Bulleted list" aria-label="Bulleted list">• List</button>
+                        <button type="button" class="email-tool" data-editor-cmd="insertOrderedList" title="Numbered list" aria-label="Numbered list">1. List</button>
+                        <button type="button" class="email-tool" data-editor-cmd="formatBlock" data-editor-value="h2" title="Heading" aria-label="Heading">H2</button>
+                        <button type="button" class="email-tool" id="email-link-button" title="Insert link" aria-label="Insert link">Link</button>
+                        <button type="button" class="email-tool" data-editor-cmd="removeFormat" title="Clear formatting" aria-label="Clear formatting">Clear</button>
+                        <button type="button" class="email-tool email-source-toggle" id="email-source-toggle" aria-pressed="false">HTML</button>
+                      </div>
+                      <div class="email-editor" id="email-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Email message"></div>
+                      <textarea class="input-control email-source" id="email-html-source" rows="12" hidden aria-label="HTML source"></textarea>
+                    </div>
+                  </div>
+                  <label class="email-field">Plain text alternative <span class="email-hint">Used by email clients that do not render HTML</span><textarea class="input-control" id="email-text" rows="4" maxlength="100000" placeholder="A plain text version of your message…"></textarea></label>
+                  <div class="email-draft-row">
+                    <label class="email-field">Saved drafts<select class="select-control" id="email-draft-select"><option value="">No draft selected</option></select></label>
+                    <button class="button button-secondary" type="button" id="email-draft-load">Load</button>
+                    <button class="button button-secondary" type="button" id="email-draft-delete">Delete</button>
+                  </div>
+                  <div class="email-compose-actions">
+                    <button class="button button-secondary" type="button" id="email-preview-button">Preview</button>
+                    <button class="button button-secondary" type="button" id="email-save-draft">Save draft</button>
+                    <button class="button button-primary" type="submit" id="email-send-button">Send email</button>
+                  </div>
+                  <p class="email-status" id="email-compose-status" role="status" aria-live="polite"></p>
+                </form>
+              </section>
+
+              <aside class="panel email-audience">
+                <div class="panel-header"><div><p class="eyebrow">AUDIENCE</p><h2>Registered users <span class="email-count" id="email-recipient-count">0</span></h2></div><button class="button button-small" type="button" id="email-recipient-refresh">Refresh</button></div>
+                <div class="email-audience-tools">
+                  <label class="email-search" for="email-recipient-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="email-recipient-search" type="search" placeholder="Search username or email" autocomplete="off" aria-label="Search registered recipients"></label>
+                  <label class="email-select-all"><input type="checkbox" id="email-recipient-select-all"> Select visible</label>
+                </div>
+                <div class="email-recipient-list" id="email-recipient-list" aria-live="polite"><p class="table-empty">Loading registered users…</p></div>
+                <div class="email-audience-footer">
+                  <button class="button button-secondary" type="button" id="email-add-selected">Add selected to To</button>
+                  <button class="button button-secondary" type="button" id="email-send-selected">Send to selected (0)</button>
+                  <button class="button button-primary" type="button" id="email-send-all">Send to all eligible</button>
+                  <p class="muted small" id="email-audience-note">Bulk announcements are queued one recipient at a time to protect the SMTP server.</p>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="email-panel" id="email-tab-templates" role="tabpanel" hidden>
+            <div class="email-templates-layout">
+              <aside class="panel email-template-list-panel">
+                <div class="panel-header"><div><p class="eyebrow">LIBRARY</p><h2>Templates <span class="email-count" id="email-template-count">0</span></h2></div><button class="button button-small" type="button" id="email-template-new">New template</button></div>
+                <div class="email-template-list" id="email-template-list" aria-live="polite"><p class="table-empty">Loading templates…</p></div>
+              </aside>
+              <section class="panel">
+                <div class="panel-header"><div><p class="eyebrow">EDITOR</p><h2 id="email-template-form-title">New template</h2></div><span class="muted small" id="email-template-system-badge" hidden>CornGrid default</span></div>
+                <form id="email-template-form" class="email-form">
+                  <input type="hidden" id="email-template-id">
+                  <div class="email-address-grid">
+                    <label class="email-field">Template name<input class="input-control" id="email-template-name" type="text" maxlength="120" required></label>
+                    <label class="email-field">Slug <span class="email-hint">Letters, numbers, and underscores</span><input class="input-control" id="email-template-slug" type="text" maxlength="80" placeholder="generated from the name"></label>
+                    <label class="email-field">Description<input class="input-control" id="email-template-description" type="text" maxlength="300"></label>
+                  </div>
+                  <label class="email-field">Subject<input class="input-control" id="email-template-subject" type="text" maxlength="200" required></label>
+                  <label class="email-field">HTML body<textarea class="input-control email-code" id="email-template-html" rows="12" maxlength="200000"></textarea></label>
+                  <label class="email-field">Plain text body<textarea class="input-control email-code" id="email-template-text" rows="6" maxlength="100000"></textarea></label>
+                  <p class="muted small">Available variables: {{username}}, {{email}}, {{app_name}}, {{login_url}}, {{support_email}}, {{plan_name}}, {{expiry_date}}, {{amount}}, {{currency}}, {{payment_reference}}, {{reason}}, {{suspended_until}}, {{verification_code}}, {{verification_url}}, {{expiry_minutes}}, {{announcement_title}}, {{announcement_body}}.</p>
+                  <div class="email-compose-actions">
+                    <button class="button button-secondary" type="button" id="email-template-preview">Preview</button>
+                    <button class="button button-secondary" type="button" id="email-template-delete" hidden>Delete</button>
+                    <button class="button button-primary" type="submit" id="email-template-save">Save template</button>
+                  </div>
+                  <p class="email-status" id="email-template-status" role="status" aria-live="polite"></p>
+                </form>
+              </section>
+            </div>
+          </section>
+
+          <section class="email-panel" id="email-tab-history" role="tabpanel" hidden>
+            <section class="panel email-history-panel">
+              <div class="panel-header"><div><p class="eyebrow">DELIVERY ACTIVITY</p><h2>Email history</h2></div><button class="button button-small" type="button" id="email-history-refresh">Refresh</button></div>
+              <div class="table-toolbar email-history-toolbar">
+                <label class="email-search" for="email-history-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="email-history-search" type="search" placeholder="Search recipient or subject" autocomplete="off" aria-label="Search email history"></label>
+                <select class="select-control" id="email-history-status" aria-label="Filter email status"><option value="">All statuses</option><option value="sent">Sent</option><option value="pending">Pending</option><option value="failed">Failed</option></select>
+              </div>
+              <div class="table-scroll"><table><thead><tr><th>Recipient</th><th>Subject</th><th>Sender</th><th>Date and time</th><th>Status</th><th>Error</th><th>Actions</th></tr></thead><tbody id="email-history-body"><tr><td class="table-empty" colspan="7">Loading email history…</td></tr></tbody></table></div>
+              <div class="pagination"><span id="email-history-page-label">—</span><div><button class="button button-small" id="email-history-prev" type="button" disabled>Previous</button><button class="button button-small" id="email-history-next" type="button" disabled>Next</button></div></div>
+              <p class="muted small email-delivery-note">“Sent” means the SMTP server accepted the message. It does not confirm inbox delivery; bounces and spam filtering happen after acceptance.</p>
+            </section>
+          </section>
+
+          <section class="email-panel" id="email-tab-settings" role="tabpanel" hidden>
+            <div class="email-settings-layout">
+              <section class="panel">
+                <div class="panel-header"><div><p class="eyebrow">SMTP CONFIGURATION</p><h2>Outgoing mail server</h2></div><span class="pill pill-muted" id="email-settings-password-state">No password stored</span></div>
+                <form id="email-settings-form" class="email-form">
+                  <div class="email-address-grid">
+                    <label class="email-field">SMTP host<input class="input-control" id="email-smtp-host" type="text" maxlength="255" placeholder="smtp.example.com" required></label>
+                    <label class="email-field">SMTP port<input class="input-control" id="email-smtp-port" type="number" min="1" max="65535" step="1" placeholder="587" required></label>
+                    <label class="email-field">Encryption<select class="select-control" id="email-smtp-encryption"><option value="ssl">SSL (implicit TLS)</option><option value="tls">TLS (STARTTLS required)</option><option value="starttls">STARTTLS (opportunistic)</option></select></label>
+                    <label class="email-field">SMTP username<input class="input-control" id="email-smtp-username" type="text" maxlength="320" autocomplete="off" placeholder="mailer@example.com"></label>
+                    <label class="email-field">SMTP password <span class="email-hint">Leave blank to keep the current password</span><input class="input-control" id="email-smtp-password" type="password" maxlength="1024" autocomplete="new-password" placeholder="Not displayed after saving"></label>
+                    <label class="email-field">Sender email<input class="input-control" id="email-from-email" type="email" maxlength="254" placeholder="support@corngrid.com" required></label>
+                    <label class="email-field">Sender name<input class="input-control" id="email-from-name" type="text" maxlength="120" placeholder="CornGrid Support"></label>
+                  </div>
+                  <label class="email-toggle"><input type="checkbox" id="email-smtp-enabled"> Enable SMTP sending</label>
+                  <div class="email-compose-actions">
+                    <button class="button button-secondary" type="button" id="email-smtp-test">Test SMTP connection</button>
+                    <button class="button button-primary" type="submit" id="email-smtp-save">Save settings</button>
+                  </div>
+                  <div class="notice notice-info email-settings-result" id="email-settings-result" hidden></div>
+                </form>
+              </section>
+              <aside class="panel email-settings-note">
+                <p class="eyebrow">SECURITY</p>
+                <h2>Credential handling</h2>
+                <ul class="email-security-list">
+                  <li>The SMTP password is encrypted at rest with AES-256-GCM and is never returned by the API.</li>
+                  <li>Only an authenticated administrator can read, update, test, or use these settings.</li>
+                  <li>Every email request is validated, rate-limited, and recorded in the email activity log.</li>
+                  <li>Bulk announcements are queued per recipient with retry and backoff.</li>
+                  <li>“Sent” records SMTP acceptance only. CornGrid does not claim inbox delivery.</li>
+                </ul>
+                <p class="muted small">After changing the host, port, or encryption, run Test SMTP connection before sending a campaign.</p>
+              </aside>
+            </div>
+          </section>
+        </section>
+
+        <section class="page" id="sandbox" hidden>
+          <div class="page-heading"><div><p class="eyebrow">SANDBOX INFRASTRUCTURE</p><h1>Sandbox Management</h1><p class="muted">Remote Windows nodes, user MT5 sandbox instances, deployment logs, and live system monitoring.</p></div><span class="pill pill-muted" id="sandbox-admin-live-pill">Connecting…</span></div>
+
+          <div class="stat-grid admin-stat-grid" id="sandbox-overview-stats">
+            <article class="stat-card"><div class="stat-top"><span>Sandbox nodes</span></div><strong class="stat-value" id="sb-stat-nodes">—</strong><small><span id="sb-stat-nodes-online">—</span> online · <span id="sb-stat-nodes-offline">—</span> offline</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Sandbox instances</span></div><strong class="stat-value" id="sb-stat-instances">—</strong><small><span id="sb-stat-running">—</span> running · <span id="sb-stat-failed">—</span> failed</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Active users</span></div><strong class="stat-value" id="sb-stat-users">—</strong><small>with a running sandbox</small></article>
+            <article class="stat-card"><div class="stat-top"><span>Hosting capacity</span></div><strong class="stat-value" id="sb-stat-capacity">—</strong><small>available slots</small></article>
+          </div>
+
+          <div class="settings-tabs sandbox-admin-tabs" role="tablist" aria-label="Sandbox management sections">
+            <button class="settings-tab is-active" data-sandbox-tab="nodes" type="button">Sandbox Nodes</button>
+            <button class="settings-tab" data-sandbox-tab="instances" type="button">User Instances</button>
+            <button class="settings-tab" data-sandbox-tab="logs" type="button">Deployment Logs</button>
+            <button class="settings-tab" data-sandbox-tab="events" type="button">System Events</button>
+          </div>
+
+          <section class="panel" id="sandbox-tab-nodes">
+            <div class="panel-header"><div><p class="eyebrow">REMOTE SERVERS</p><h2>Sandbox nodes</h2></div><button class="button button-primary button-small" id="sb-add-node" type="button">+ Add node</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Node</th><th>Status</th><th>Resources</th><th>Instances</th><th>Last heartbeat</th><th>Actions</th></tr></thead><tbody id="sb-nodes-body"><tr><td class="table-empty" colspan="6">Loading nodes…</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" id="sandbox-tab-instances" hidden>
+            <div class="panel-header"><div><p class="eyebrow">USER SANDBOXES</p><h2>Instances</h2></div></div>
+            <div class="table-toolbar admin-toolbar">
+              <input class="input-control" id="sb-instance-search" type="search" maxlength="100" placeholder="Search username or MT5 account" aria-label="Search instances">
+              <select class="select-control" id="sb-instance-status" aria-label="Filter status"><option value="">All statuses</option><option value="running">Running</option><option value="stopped">Stopped</option><option value="failed">Failed</option><option value="deploying">Deploying</option><option value="suspended">Suspended</option></select>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>User</th><th>MT5 account</th><th>Strategy</th><th>Node</th><th>Status</th><th>Actions</th></tr></thead><tbody id="sb-instances-body"><tr><td class="table-empty" colspan="6">Loading instances…</td></tr></tbody></table></div>
+            <div class="pagination"><span id="sb-instances-pagination">—</span><div><button class="button button-small" id="sb-instances-prev" type="button" disabled>Previous</button><button class="button button-small" id="sb-instances-next" type="button" disabled>Next</button></div></div>
+          </section>
+
+          <section class="panel" id="sandbox-tab-logs" hidden>
+            <div class="panel-header"><div><p class="eyebrow">TROUBLESHOOTING</p><h2>Deployment logs</h2></div></div>
+            <div class="table-toolbar admin-toolbar">
+              <select class="select-control" id="sb-log-level" aria-label="Filter level"><option value="">All levels</option><option value="info">Info</option><option value="warn">Warning</option><option value="error">Error</option></select>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Instance</th><th>Message</th></tr></thead><tbody id="sb-logs-body"><tr><td class="table-empty" colspan="5">Loading logs…</td></tr></tbody></table></div>
+            <div class="pagination"><span id="sb-logs-pagination">—</span><div><button class="button button-small" id="sb-logs-prev" type="button" disabled>Previous</button><button class="button button-small" id="sb-logs-next" type="button" disabled>Next</button></div></div>
+          </section>
+
+          <section class="panel" id="sandbox-tab-events" hidden>
+            <div class="panel-header"><div><p class="eyebrow">EVENT-DRIVEN AUDIT</p><h2>System events</h2></div></div>
+            <div class="table-scroll"><table><thead><tr><th>Time</th><th>Event</th><th>Actor</th><th>Details</th></tr></thead><tbody id="sb-events-body"><tr><td class="table-empty" colspan="4">Loading events…</td></tr></tbody></table></div>
+            <div class="pagination"><span id="sb-events-pagination">—</span><div><button class="button button-small" id="sb-events-prev" type="button" disabled>Previous</button><button class="button button-small" id="sb-events-next" type="button" disabled>Next</button></div></div>
+          </section>
+        </section>
+
+        <section class="page" id="ea-submissions" hidden>
+          <div class="page-heading"><div><p class="eyebrow">PARTNER PROGRAM</p><h1>EA Submissions</h1><p class="muted">Review partner-submitted Expert Advisors, run isolated tests, and publish approved strategies.</p></div></div>
+          <section class="panel">
+            <div class="panel-header"><div><p class="eyebrow">REVIEW QUEUE</p><h2>Submissions</h2></div>
+              <select class="select-control" id="ea-filter-status" aria-label="Filter status"><option value="">All statuses</option><option value="pending_review">Pending review</option><option value="under_review">Under review</option><option value="testing">Testing</option><option value="testing_passed">Testing passed</option><option value="testing_failed">Testing failed</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="published">Published</option></select>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>EA</th><th>Partner</th><th>Version</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody id="ea-submissions-body"><tr><td class="table-empty" colspan="6">Loading submissions…</td></tr></tbody></table></div>
+          </section>
+          <section class="panel" id="ea-detail-panel" hidden>
+            <div class="panel-header"><div><p class="eyebrow">SUBMISSION DETAIL</p><h2 id="ea-detail-title">—</h2></div><button class="button button-secondary button-small" id="ea-detail-close" type="button">Close</button></div>
+            <div class="subscription-panel-body" id="ea-detail-content"></div>
+          </section>
+        </section>
+
+        <section class="page" id="commissions" hidden>
+          <div class="page-heading"><div><p class="eyebrow">PARTNER REVENUE</p><h1>Commissions &amp; Payouts</h1><p class="muted">Configure partner commission rules, review the transaction ledger, and manage payouts.</p></div></div>
+
+          <div class="settings-tabs sandbox-admin-tabs" role="tablist" aria-label="Commission sections">
+            <button class="settings-tab is-active" data-commission-tab="rules" type="button">Commission Rules</button>
+            <button class="settings-tab" data-commission-tab="ledger" type="button">Transaction Ledger</button>
+            <button class="settings-tab" data-commission-tab="payouts" type="button">Payouts</button>
+          </div>
+
+          <section class="panel" id="commission-tab-rules">
+            <div class="panel-header"><div><p class="eyebrow">CONFIGURATION</p><h2>Commission rules</h2></div><button class="button button-primary button-small" id="cm-add-rule" type="button">+ Add rule</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Partner</th><th>Strategy</th><th>Model</th><th>Rate</th><th>Applies to</th><th>Min payout</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cm-rules-body"><tr><td class="table-empty" colspan="8">Loading rules…</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" id="commission-tab-ledger" hidden>
+            <div class="panel-header"><div><p class="eyebrow">IMMUTABLE LEDGER</p><h2>Commission transactions</h2></div>
+              <select class="select-control" id="cm-ledger-status" aria-label="Filter status"><option value="">All</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="paid">Paid</option><option value="rejected">Rejected</option></select>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>Reference</th><th>Partner</th><th>Strategy</th><th>Gross</th><th>Commission</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cm-ledger-body"><tr><td class="table-empty" colspan="7">Loading transactions…</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" id="commission-tab-payouts" hidden>
+            <div class="panel-header"><div><p class="eyebrow">SETTLEMENTS</p><h2>Payouts</h2></div><button class="button button-primary button-small" id="cm-record-payout" type="button">+ Record payout</button></div>
+            <div class="table-scroll"><table><thead><tr><th>Payout</th><th>Partner</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead><tbody id="cm-payouts-body"><tr><td class="table-empty" colspan="7">Loading payouts…</td></tr></tbody></table></div>
+          </section>
+        </section>
+
         <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
       </div>
     </main>
@@ -294,5 +546,75 @@
       </div>
     </form>
   </dialog>
+
+  <dialog class="admin-dialog email-preview-dialog" id="email-preview-dialog">
+    <form method="dialog"><button class="admin-dialog-close" aria-label="Close email preview">×</button></form>
+    <div class="admin-dialog-content email-preview-content">
+      <p class="eyebrow">EMAIL PREVIEW</p>
+      <h2 id="email-preview-subject">Preview</h2>
+      <p class="muted small" id="email-preview-meta"></p>
+      <iframe class="email-preview-frame" id="email-preview-frame" title="Email preview" sandbox=""></iframe>
+      <details class="email-preview-text"><summary>Plain text alternative</summary><pre id="email-preview-text"></pre></details>
+    </div>
+  </dialog>
+
+  <dialog class="admin-dialog email-detail-dialog" id="email-detail-dialog">
+    <form method="dialog"><button class="admin-dialog-close" aria-label="Close email details">×</button></form>
+    <div class="admin-dialog-content" id="email-detail-content"></div>
+  </dialog>
+
+  <dialog class="admin-dialog" id="sb-node-dialog">
+    <form id="sb-node-form">
+      <div class="admin-dialog-content"><p class="eyebrow">SANDBOX NODE</p><h2>Register a sandbox node</h2>
+        <p class="muted small">Create credentials for a remote Windows server. The authentication token is shown exactly once — copy it into the agent configuration on the node.</p>
+        <label class="admin-field">Node name<input class="input-control" id="sb-node-name" maxlength="80" required placeholder="e.g. VPS-Frankfurt-01"></label>
+        <label class="admin-field">Max instances<input class="input-control" id="sb-node-max" type="number" min="1" max="200" value="10"></label>
+        <label class="admin-field admin-checkbox"><input type="checkbox" id="sb-node-test"> Test node (isolated EA testing only — never hosts real user sandboxes)</label>
+        <div class="admin-dialog-actions"><button class="button button-secondary" type="button" data-close-dialog="sb-node-dialog">Cancel</button><button class="button button-primary" type="submit">Create node</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="admin-dialog" id="sb-token-dialog">
+    <form method="dialog">
+      <div class="admin-dialog-content"><p class="eyebrow">NODE CREDENTIALS</p><h2>Save this token</h2>
+        <p class="muted small">This is the only time the token is shown. Store it in the agent's <code>agent-config.json</code> on the node.</p>
+        <label class="admin-field">Node ID<input class="input-control" id="sb-token-node-uid" readonly></label>
+        <label class="admin-field">Authentication token<input class="input-control" id="sb-token-value" readonly></label>
+        <div class="admin-dialog-actions"><button class="button button-primary" type="submit">I have saved the token</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="admin-dialog" id="cm-rule-dialog">
+    <form id="cm-rule-form">
+      <div class="admin-dialog-content"><p class="eyebrow">COMMISSION RULE</p><h2 id="cm-rule-title">New commission rule</h2>
+        <input type="hidden" id="cm-rule-id">
+        <label class="admin-field">Partner<select class="select-control" id="cm-rule-partner" required></select></label>
+        <label class="admin-field">Strategy (optional — applies to all partner EAs when empty)<select class="select-control" id="cm-rule-strategy"></select></label>
+        <label class="admin-field">Model<select class="select-control" id="cm-rule-model"><option value="percent">Percentage</option><option value="fixed">Fixed amount</option></select></label>
+        <label class="admin-field" id="cm-rule-percent-wrap">Percent (%)<input class="input-control" id="cm-rule-percent" type="number" min="0.01" max="100" step="0.01" value="40"></label>
+        <label class="admin-field" id="cm-rule-fixed-wrap" hidden>Fixed amount (MYR)<input class="input-control" id="cm-rule-fixed" type="number" min="0.01" step="0.01" value="40"></label>
+        <label class="admin-field">Applies to<select class="select-control" id="cm-rule-applies"><option value="both">Subscriptions and renewals</option><option value="subscription">First subscription only</option><option value="renewal">Renewals only</option></select></label>
+        <label class="admin-field">Minimum payout threshold (MYR)<input class="input-control" id="cm-rule-threshold" type="number" min="0" step="0.01" value="100"></label>
+        <div class="admin-dialog-actions"><button class="button button-secondary" type="button" data-close-dialog="cm-rule-dialog">Cancel</button><button class="button button-primary" type="submit">Save rule</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="admin-dialog" id="cm-payout-dialog">
+    <form id="cm-payout-form">
+      <div class="admin-dialog-content"><p class="eyebrow">RECORD PAYOUT</p><h2>Record a partner payout</h2>
+        <label class="admin-field">Partner<select class="select-control" id="cm-payout-partner" required></select></label>
+        <p class="muted small" id="cm-payout-balance">Available balance: —</p>
+        <label class="admin-field">Amount (MYR)<input class="input-control" id="cm-payout-amount" type="number" min="0.01" step="0.01" required></label>
+        <label class="admin-field">Method<input class="input-control" id="cm-payout-method" maxlength="60" placeholder="e.g. DuitNow, bank transfer"></label>
+        <label class="admin-field">Reference<input class="input-control" id="cm-payout-reference" maxlength="120" placeholder="Transaction reference"></label>
+        <div class="admin-dialog-actions"><button class="button button-secondary" type="button" data-close-dialog="cm-payout-dialog">Cancel</button><button class="button button-primary" type="submit">Record payout</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="admin-sandbox.js?v=20261104-1" defer></script>
 </body>
 </html>

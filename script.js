@@ -690,14 +690,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Buka Modal & Muat Fail TXT
-    if (openModalBtn) {
-        openModalBtn.addEventListener("click", function (e) {
-            e.preventDefault();
-            termsModal.classList.add("active");
-            document.body.style.overflow = "hidden";
-            loadTermsTxt();
-        });
+    function openTermsModal(e) {
+        if (e) e.preventDefault();
+        if (!termsModal) return;
+        termsModal.classList.add("active");
+        document.body.style.overflow = "hidden";
+        loadTermsTxt();
     }
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener("click", openTermsModal);
+    }
+
+    document.querySelectorAll(".open-terms-modal-btn").forEach(function (btn) {
+        btn.addEventListener("click", openTermsModal);
+    });
 
     // Tutup Modal
     function closeModal() {
@@ -751,14 +758,175 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
-// Gantikan logik pembukaan modal sedia ada di script.js dengan kod ini:
-const openModalBtns = document.querySelectorAll("#openTermsModal, .open-terms-modal-btn");
+// =========================================
+// 6. SCROLL MOTION LAYER
+// Reveal-on-scroll, metric counters and the
+// top scroll progress indicator.
+// =========================================
+(function initScrollMotion() {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-openModalBtns.forEach(btn => {
-    btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        termsModal.classList.add("active");
-        document.body.style.overflow = "hidden";
-        loadTermsTxt();
+    // ---------- Top scroll progress ----------
+    const progressBar = document.createElement("div");
+    progressBar.className = "cg-scroll-progress";
+    progressBar.setAttribute("aria-hidden", "true");
+    document.body.appendChild(progressBar);
+
+    let progressTick = false;
+
+    function paintProgress() {
+        progressTick = false;
+        const doc = document.documentElement;
+        const scrollable = doc.scrollHeight - window.innerHeight;
+        const ratio = scrollable > 0 ? Math.min(Math.max(window.scrollY / scrollable, 0), 1) : 0;
+        progressBar.style.transform = `scaleX(${ratio})`;
+    }
+
+    function queueProgress() {
+        if (progressTick) return;
+        progressTick = true;
+        window.requestAnimationFrame(paintProgress);
+    }
+
+    window.addEventListener("scroll", queueProgress, { passive: true });
+    window.addEventListener("resize", queueProgress, { passive: true });
+    paintProgress();
+
+    if (reduceMotion) return;
+
+    // ---------- Reveal on scroll ----------
+    const revealGroups = [
+        ".section-header > *",
+        ".portfolio-header > *",
+        ".metrics-grid > .metric-box",
+        ".dashboard-card-dark",
+        ".cards > .card",
+        ".features-quant-grid > .feature-quant-card",
+        ".algo-specs-grid > .algo-card",
+        ".setup-grid > .setup-card",
+        ".steps-grid > .step-card",
+        ".pdf-banner-white",
+        ".setfile-container-card",
+        ".vault-grid > .vault-card",
+        ".broker-grid-white > .broker-card-white",
+        ".testimonial-slider-container",
+        ".faq-container-white > .faq-item-white",
+        ".support-grid > *",
+        ".warning-box-dark",
+        ".footer-grid > .footer-col"
+    ];
+
+    const revealItems = [];
+    const seen = new Set();
+
+    revealGroups.forEach((selector) => {
+        const groups = new Map();
+
+        document.querySelectorAll(selector).forEach((element) => {
+            if (seen.has(element)) return;
+            seen.add(element);
+
+            const parent = element.parentElement || document.body;
+            if (!groups.has(parent)) groups.set(parent, []);
+            groups.get(parent).push(element);
+        });
+
+        groups.forEach((children) => {
+            children.forEach((element, index) => {
+                element.classList.add("reveal");
+                element.style.setProperty("--reveal-delay", `${Math.min(index * 85, 340)}ms`);
+                revealItems.push(element);
+            });
+        });
     });
-});
+
+    if (!("IntersectionObserver" in window)) {
+        revealItems.forEach((element) => element.classList.add("reveal-visible"));
+        return;
+    }
+
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("reveal-visible");
+            revealObserver.unobserve(entry.target);
+        });
+    }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+
+    revealItems.forEach((element) => revealObserver.observe(element));
+
+    // Safety net: if the observer misfires, reveal anything already on screen.
+    window.setTimeout(() => {
+        revealItems.forEach((element) => {
+            if (element.classList.contains("reveal-visible")) return;
+            const rect = element.getBoundingClientRect();
+            if (rect.top < window.innerHeight && rect.bottom > 0) {
+                element.classList.add("reveal-visible");
+            }
+        });
+    }, 4000);
+
+    // ---------- Metric counters ----------
+    const metricGrid = document.querySelector(".metrics-grid");
+
+    if (metricGrid) {
+        const metricValues = metricGrid.querySelectorAll(".metric-box h3");
+        const parsedValues = [];
+
+        metricValues.forEach((node) => {
+            const raw = node.textContent.trim();
+            const match = raw.match(/^([+\-]?)(\d+(?:[.,]\d+)?)(.*)$/);
+            if (!match) return;
+
+            parsedValues.push({
+                node,
+                prefix: match[1],
+                number: match[2].replace(",", "."),
+                suffix: match[3]
+            });
+        });
+
+        const countObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                countObserver.disconnect();
+
+                parsedValues.forEach((item, index) => {
+                    const decimals = (item.number.split(".")[1] || "").length;
+                    const endValue = parseFloat(item.number);
+                    item.node.textContent = `${item.prefix}${(0).toFixed(decimals)}${item.suffix}`;
+
+                    window.setTimeout(() => {
+                        animateCounter(item, endValue, decimals);
+                    }, index * 90);
+                });
+            });
+        }, { threshold: 0.3 });
+
+        countObserver.observe(metricGrid);
+    }
+
+    function animateCounter(item, endValue, decimals) {
+        const duration = 1500;
+        const startedAt = performance.now();
+
+        function frame(now) {
+            const progress = Math.min((now - startedAt) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const value = endValue * eased;
+
+            item.node.textContent = `${item.prefix}${value.toFixed(decimals)}${item.suffix}`;
+
+            if (progress < 1) {
+                window.requestAnimationFrame(frame);
+                return;
+            }
+
+            item.node.textContent = `${item.prefix}${endValue.toFixed(decimals)}${item.suffix}`;
+            item.node.classList.add("count-pop");
+            window.setTimeout(() => item.node.classList.remove("count-pop"), 600);
+        }
+
+        window.requestAnimationFrame(frame);
+    }
+})();

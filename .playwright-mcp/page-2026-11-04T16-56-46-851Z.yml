@@ -1,0 +1,77 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - complementary [ref=f3e3]:
+      - link "CornGrid dashboard home" [ref=f3e4] [cursor=pointer]:
+        - /url: dashboard.html
+        - generic [ref=f3e5]:
+          - text: CORNGRID
+          - generic [ref=f3e6]: TRADING TERMINAL
+      - generic [ref=f3e7]: WORKSPACE
+      - navigation "Main navigation" [ref=f3e8]:
+        - button "Live Feed" [ref=f3e9] [cursor=pointer]
+        - button "Chat" [ref=f3e14] [cursor=pointer]
+        - button "Overview" [ref=f3e19] [cursor=pointer]
+        - button "Market Overview" [ref=f3e26] [cursor=pointer]
+        - button "Economic News" [ref=f3e31] [cursor=pointer]
+        - button "Open Positions" [ref=f3e37] [cursor=pointer]
+        - button "EA Monitoring" [ref=f3e42] [cursor=pointer]
+        - button "Trade History" [ref=f3e46] [cursor=pointer]
+        - button "MT5 Accounts" [ref=f3e51] [cursor=pointer]
+        - button "Subscription" [ref=f3e56] [cursor=pointer]
+        - button "Sandbox" [active] [ref=f3e61] [cursor=pointer]
+        - button "Partner Program" [ref=f3e67] [cursor=pointer]
+        - button "Downloads" [ref=f3e73] [cursor=pointer]
+      - generic [ref=f3e77]:
+        - button "Settings" [ref=f3e78] [cursor=pointer]
+        - button "Sign out" [ref=f3e84] [cursor=pointer]
+        - generic [ref=f3e88]: Trading involves risk. Past performance does not guarantee future results.
+    - main [ref=f3e89]:
+      - generic [ref=f3e90]:
+        - generic [ref=f3e91]:
+          - generic [ref=f3e92]: Workspace
+          - generic [ref=f3e93]: /
+          - strong [ref=f3e94]: Sandbox
+        - generic [ref=f3e95]:
+          - generic [ref=f3e96]: NO LIVE FEED
+          - button "Toggle theme" [ref=f3e99] [cursor=pointer]: ◐
+          - generic [ref=f3e100]:
+            - img "sandboxtester profile photo" [ref=f3e101]:
+              - generic [aria-hidden] [ref=f3e102]: S
+            - generic [ref=f3e103]: sandboxtester
+      - generic [ref=f3e246]:
+        - generic [ref=f3e247]:
+          - generic [ref=f3e248]:
+            - paragraph [ref=f3e249]: CLOUD HOSTED TRADING
+            - heading "Sandbox" [level=1] [ref=f3e250]
+            - paragraph [ref=f3e251]: Run CornGrid EA automatically on a managed Windows server — your MT5 terminal trades 24/7, even when your computer is off.
+          - generic [ref=f3e252]: No sandbox
+        - generic [ref=f3e254]:
+          - generic [ref=f3e256]:
+            - paragraph [ref=f3e257]: GET STARTED
+            - heading "Activate your sandbox" [level=2] [ref=f3e258]
+          - generic [ref=f3e259]:
+            - paragraph [ref=f3e260]: Connect your MT5 trading account. CornGrid deploys an isolated MT5 terminal with the licensed EA on a sandbox server — no installation, no license key, no VPS setup on your side.
+            - generic [ref=f3e261]:
+              - generic [ref=f3e262]:
+                - text: Trading strategy
+                - combobox "Trading strategy" [ref=f3e263]:
+                  - option "Unable to load strategies" [selected]
+              - generic [ref=f3e264]:
+                - text: Broker server
+                - textbox "Broker server" [ref=f3e265]:
+                  - /placeholder: e.g. Exness-MT5Real9
+              - generic [ref=f3e266]:
+                - text: MT5 account number
+                - textbox "MT5 account number" [ref=f3e267]:
+                  - /placeholder: e.g. 210045678
+              - generic [ref=f3e268]:
+                - text: MT5 password
+                - textbox "MT5 password" [ref=f3e269]
+              - paragraph [ref=f3e270]: Your credentials are encrypted (AES-256-GCM) and used only to sign the sandbox terminal into your broker. They are never shown back to you or exposed in logs.
+              - button "Activate Sandbox" [ref=f3e272] [cursor=pointer]
+  - region "Install CornGrid EA" [ref=f3e231]:
+    - generic [ref=f3e232]:
+      - strong [ref=f3e233]: Install CornGrid EA
+      - generic [ref=f3e234]: Add CornGrid to your home screen for a focused, app-like experience.
+    - button "Install" [ref=f3e235] [cursor=pointer]
+    - button "Dismiss" [ref=f3e236] [cursor=pointer]: ×
