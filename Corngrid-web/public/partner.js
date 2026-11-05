@@ -63,16 +63,22 @@
   }
 
   async function loadProfile() {
-    const data = await request('/partner/profile');
+    const [data, applicationData] = await Promise.all([request('/partner/profile'), request('/partner/application')]);
+    const application = applicationData.application;
+    const active = data.partner && data.partner.status === 'active';
+    const pending = !data.partner && application && application.status === 'pending';
+    $('partner-error').hidden = !pending && !(application && application.status === 'rejected') && !(data.partner && !active);
+    $('partner-error').textContent = pending ? 'Your partner application is awaiting administrator approval.' : data.partner && !active ? 'Your partner access is suspended. Contact support.' : application && application.status === 'rejected' ? 'Application declined: ' + (application.reviewNotes || 'Contact support.') + ' You may update your details and apply again.' : '';
+    $('partner-register-form').hidden = Boolean(pending);
     state.partner = data.partner;
     $('partner-register-section').hidden = Boolean(state.partner);
-    $('partner-dashboard-section').hidden = !state.partner;
-    if (state.partner) {
+    $('partner-dashboard-section').hidden = !active;
+    if (active) {
       setPill($('partner-status-pill'), state.partner.status === 'active' ? 'Partner' : 'Suspended',
         state.partner.status === 'active' ? 'pill-live' : 'pill-offline');
       await Promise.all([loadOverview(), loadSubmissions(), loadTransactions(), loadPayouts()]);
     } else {
-      setPill($('partner-status-pill'), 'Not registered', 'pill-muted');
+      setPill($('partner-status-pill'), pending ? 'Awaiting approval' : data.partner ? 'Suspended' : 'Not registered', pending ? 'pill-delayed' : 'pill-muted');
     }
   }
 
@@ -161,7 +167,7 @@
           website: $('partner-website').value.trim()
         })
       });
-      toast('Partner registration complete.', 'success');
+      toast('Application submitted for administrator approval.', 'success');
       await loadProfile();
     } catch (error) {
       toast(error.message, 'error');

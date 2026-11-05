@@ -283,9 +283,11 @@ const DEFAULT_STRATEGY = {
   description: 'The official CornGrid grid trading expert advisor.'
 };
 
+const PARTNER_APPLICATIONS_SCHEMA = "\nCREATE TABLE IF NOT EXISTS partner_applications (\n user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n display_name TEXT NOT NULL, company TEXT, website TEXT,\n status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),\n review_notes TEXT, reviewed_by TEXT, reviewed_at BIGINT,\n created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL\n);\n";
+
 function ensureSchema(db) {
   return new Promise((resolve, reject) => {
-    db.exec(SCHEMA, error => (error ? reject(error) : resolve()));
+    db.exec(SCHEMA + PARTNER_APPLICATIONS_SCHEMA, error => (error ? reject(error) : resolve()));
   });
 }
 

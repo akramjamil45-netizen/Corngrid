@@ -130,6 +130,8 @@ test('partner registration, EA submission, scanning, and review workflow', async
       token: partnerToken, method: 'POST', body: { displayName: 'EA Wizard', company: 'Wizard Labs' }
     });
     assert.equal(registered.status, 201);
+    assert.equal(registered.body.application.status, 'pending');
+    assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 200);
 
     // Submit a clean EA.
     const submitted = await request('/api/partner/submissions', {
@@ -194,6 +196,7 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
   try {
     // Partner registers and publishes an EA.
     await request('/api/partner/register', { token: partnerToken, method: 'POST', body: { displayName: 'EA Wizard' } });
+    assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 200);
     const submitted = await request('/api/partner/submissions', {
       token: partnerToken, method: 'POST',
       body: { name: 'Grid Master', version: '1.0', description: 'A grid trading EA.', files: [{ name: 'g.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
@@ -283,4 +286,59 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
   } finally {
     server.close();
   }
+});
+
+test('partner rejection, resubmission and admin-only approval preserve access boundaries', async () => {
+ const { server,request,partnerToken,traderToken,adminToken }=await createFixture();
+ try{
+  assert.equal((await request('/api/partner/register',{token:partnerToken,method:'POST',body:{displayName:'Applicant',status:'active'}})).body.application.status,'pending');
+  assert.equal((await request('/api/partner/overview',{token:partnerToken})).status,403);
+  const list=await request('/api/admin/partner-applications',{token:adminToken});
+  assert.equal(list.body.applications[0].status,'pending');
+  assert.equal((await request('/api/admin/partner-applications',{token:traderToken})).status,403);
+  assert.equal((await request('/api/admin/partner-applications/1/review',{token:adminToken,method:'POST',body:{status:'rejected'}})).status,400);
+  assert.equal((await request('/api/admin/partner-applications/1/review',{token:adminToken,method:'POST',body:{status:'rejected',reviewNotes:'Please provide developer details.'}})).status,200);
+  assert.equal((await request('/api/partner/profile',{token:partnerToken})).body.partner,null);
+  assert.equal((await request('/api/partner/application',{token:partnerToken})).body.application.reviewNotes,'Please provide developer details.');
+  assert.equal((await request('/api/partner/application',{token:traderToken})).body.application,null);
+  assert.equal((await request('/api/partner/register',{token:partnerToken,method:'POST',body:{displayName:'Updated Developer'}})).body.application.status,'pending');
+  assert.equal((await request('/api/admin/partner-applications/1/review',{token:adminToken,method:'POST',body:{status:'approved'}})).status,200);
+  assert.equal((await request('/api/partner/profile',{token:partnerToken})).body.partner.status,'active');
+ }finally{server.close();}
+});
+
+test('only admins can delete rejected applications and resubmitted or approved records stay protected', async () => {
+ const { db,server,request,partnerToken,traderToken,adminToken }=await createFixture();
+ const get=(sql,p=[])=>new Promise((resolve,reject)=>db.get(sql,p,(e,row)=>e?reject(e):resolve(row)));
+ const remove=(id,token=adminToken,body={confirm:true})=>request('/api/admin/partner-applications/'+id,{token,method:'DELETE',body});
+ const apply=token=>request('/api/partner/register',{token,method:'POST',body:{displayName:'Developer'}});
+ const review=(id,status)=>request('/api/admin/partner-applications/'+id+'/review',{token:adminToken,method:'POST',body:{status,reviewNotes:'Review complete.'}});
+ try {
+  await apply(partnerToken);
+  assert.equal((await remove(1,null)).status,403);
+  assert.equal((await remove(1,partnerToken)).status,403);
+  assert.equal((await remove('1bad')).status,400);
+  assert.equal((await remove(999999)).status,404);
+  assert.equal((await remove(1)).status,409);
+  await review(1,'rejected');
+  assert.equal((await remove(1,adminToken,{})).status,400);
+  assert.equal((await remove(1,adminToken,{confirm:'true'})).status,400);
+  assert.equal((await get('SELECT status FROM partner_applications WHERE user_id=1')).status,'rejected');
+  // A button from the old rejected row cannot delete a newly pending application.
+  await apply(partnerToken);
+  assert.equal((await remove(1)).status,409);
+  await review(1,'rejected');
+  await apply(traderToken); await review(2,'approved');
+  assert.equal((await remove(2)).status,409);
+  const deleted=await remove(1);
+  assert.equal(deleted.status,200); assert.equal(deleted.body.deleted,1);
+  assert.equal((await request('/api/partner/application',{token:partnerToken})).body.application,null);
+  assert.ok(await get('SELECT id FROM users WHERE id=1'));
+  assert.equal((await get('SELECT status FROM partner_profiles WHERE user_id=2')).status,'active');
+  assert.equal((await get('SELECT status FROM partner_applications WHERE user_id=2')).status,'approved');
+  assert.equal((await remove(1)).status,404);
+  const audit=await get("SELECT metadata FROM subscription_audit_logs WHERE action='partner_application_deleted' AND affected_id=1");
+  assert.equal(JSON.parse(audit.metadata).status,'rejected');
+  assert.equal((await apply(partnerToken)).body.application.status,'pending');
+ } finally { server.close(); }
 });

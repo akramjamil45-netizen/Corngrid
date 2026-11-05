@@ -316,7 +316,16 @@
   // EA Submissions
   // =========================================================================
 
+  async function loadPartnerApplications() {
+    const data = await api('/api/admin/partner-applications');
+    $('partner-applications-body').innerHTML = data.applications.map(application => `<tr>
+      <td>${escapeHtml(application.displayName)}</td><td>${escapeHtml(application.email)}</td>
+      <td>${statusPill(application.status)}</td><td>${escapeHtml(application.reviewNotes || '')}</td>
+      <td>${application.status === 'pending' ? '<button type="button" class="button button-small" data-partner-review="approved" data-partner-id="' + application.userId + '">Approve</button> <button type="button" class="button button-small" data-partner-review="rejected" data-partner-id="' + application.userId + '">Reject</button>' : application.status === 'rejected' ? '<button type="button" class="button button-small button-danger" data-partner-delete="' + application.userId + '" data-partner-name="' + escapeHtml(application.displayName) + '">Delete record</button>' : 'Reviewed'}</td></tr>`).join('') || '<tr><td colspan="5" class="table-empty">No partner applications.</td></tr>';
+  }
+
   async function loadSubmissions() {
+    await loadPartnerApplications().catch(error => toast(error.message, 'error'));
     try {
       const status = $('ea-filter-status').value;
       const data = await api(`/api/admin/ea-submissions${status ? `?status=${encodeURIComponent(status)}` : ''}`);
@@ -743,6 +752,32 @@
     $('sb-events-next').addEventListener('click', () => { state.events.page += 1; loadEvents(); });
 
     // EA submissions
+    $('partner-applications-body').addEventListener('click', async event => {
+      const button = event.target.closest('button[data-partner-delete]');
+      if (!button || button.disabled) return;
+      if (!window.confirm(`Permanently delete the rejected partner application for ${button.dataset.partnerName}? This removes the application record. The user account is preserved and can apply again.`)) return;
+      button.disabled = true;
+      try {
+        const result = await api(`/api/admin/partner-applications/${encodeURIComponent(button.dataset.partnerDelete)}`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
+        toast(result.message, 'success');
+        await loadPartnerApplications();
+      } catch (error) {
+        toast(error.message, 'error');
+        await loadPartnerApplications().catch(() => {});
+      } finally { button.disabled = false; }
+    });
+    $('partner-applications-body').addEventListener('click', async event => {
+      const button = event.target.closest('button[data-partner-review]');
+      if (!button) return;
+      const status = button.dataset.partnerReview;
+      const reviewNotes = status === 'rejected' ? window.prompt('Reason for declining this application:') : '';
+      if (status === 'rejected' && !reviewNotes) return;
+      button.disabled = true;
+      try {
+        const result = await api(`/api/admin/partner-applications/${button.dataset.partnerId}/review`, { method: 'POST', body: JSON.stringify({ status, reviewNotes }) });
+        toast(result.message, 'success'); await loadPartnerApplications();
+      } catch (error) { toast(error.message, 'error'); button.disabled = false; }
+    });
     $('ea-filter-status').addEventListener('change', loadSubmissions);
     $('ea-submissions-body').addEventListener('click', event => {
       const target = event.target.closest('button[data-ea-view]');

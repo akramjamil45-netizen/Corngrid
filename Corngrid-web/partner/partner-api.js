@@ -98,34 +98,6 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
     // -----------------------------------------------------------------------
     // Profile
     // -----------------------------------------------------------------------
-    app.post('/api/partner/register', verifyToken, async (req, res) => {
-      const body = req.body || {};
-      const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
-      if (displayName.length < 2 || displayName.length > 80) {
-        return res.status(400).json({ error: 'A display name between 2 and 80 characters is required.' });
-      }
-      const company = typeof body.company === 'string' ? body.company.trim().slice(0, 120) : null;
-      const website = typeof body.website === 'string' ? body.website.trim().slice(0, 200) : null;
-      if (website && !/^https?:\/\/.+\..+/.test(website)) {
-        return res.status(400).json({ error: 'The website must be a valid URL.' });
-      }
-      try {
-        const existing = await get('SELECT * FROM partner_profiles WHERE user_id = ?', [req.user.id]);
-        const timestamp = now();
-        if (existing) {
-          return res.status(200).json({ message: 'Already registered as a partner.', profile: { displayName: existing.display_name, status: existing.status } });
-        }
-        await run(
-          'INSERT INTO partner_profiles (user_id, display_name, company, website, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [req.user.id, displayName, company, website, 'active', timestamp, timestamp]
-        );
-        res.status(201).json({ message: 'Partner registration complete.', profile: { displayName, status: 'active' } });
-      } catch (error) {
-        console.error('Partner registration failed:', error.message);
-        res.status(500).json({ error: 'Unable to register as a partner.' });
-      }
-    });
-
     app.get('/api/partner/profile', verifyToken, async (req, res) => {
       try {
         const profile = await get('SELECT * FROM partner_profiles WHERE user_id = ?', [req.user.id]);
