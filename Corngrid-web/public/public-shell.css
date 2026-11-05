@@ -1,0 +1,12 @@
+/* Public portfolio shell only; dashboard styles and data components are retained. */
+.public-page {
+  --bg: var(--cg-bg); --surface: var(--cg-bg-elevated);
+  --surface-raised: var(--cg-surface); --border: var(--cg-border);
+  --muted: var(--cg-text-muted); --accent: var(--cg-accent);
+}
+.public-page .public-main { padding-top: 120px; }
+.public-page #mainHeader { background: rgba(10,10,10,.96); }
+.public-page #mainHeader nav { display: flex; justify-content: space-between; align-items: center; }
+.public-page .infra-footer { text-align: left; }
+.public-page .infra-footer .container { width: min(90%,1200px); }
+@media(max-width:1100px) { .public-page .public-main { padding-top: 100px; } }

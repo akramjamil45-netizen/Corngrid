@@ -433,6 +433,7 @@
   }
 
   async function loadChatHistory({ scroll = false } = {}) {
+    if (state.chat.clearing) return;
     if (!state.chat.peer) return;
     const peerId = state.chat.peer.id;
     const supportActive = state.chat.supportActive;
@@ -454,6 +455,9 @@
     }) && state.chat.avatarSignature === `${data.peer.avatarUrl || ''}|${state.profile?.avatarUrl || ''}`;
     state.chat.avatarSignature = `${data.peer.avatarUrl || ''}|${state.profile?.avatarUrl || ''}`;
     state.chat.messages = messages;
+    $('#chat-support-clear').hidden = !supportActive;
+    $('#chat-peer-header').classList.toggle('is-support', supportActive);
+    if (!state.chat.clearing) $('#chat-support-clear').disabled = !messages.length;
     $('#chat-peer-header').hidden = false;
     CornGridAvatar.fill($('#chat-peer-avatar'), data.peer);
     $('#chat-peer-username').textContent = data.peer.username;
@@ -487,6 +491,7 @@
   }
 
   async function selectChatPeer(peer) {
+    $('#chat-support-clear').hidden = true;
     state.chat.supportActive = false;
     state.chat.peer = { id: Number(peer.id), username: peer.username, bio: peer.bio, avatarUrl: peer.avatarUrl || null };
     state.chat.messages = null;
@@ -1667,6 +1672,23 @@
   $('#refresh-chat-btn').addEventListener('click', () => refreshChat());
   $('#chat-search-toggle')?.addEventListener('click', () => setChatSearchOpen($('#chat-search-wrap').hidden));
   $('#chat-support-entry').addEventListener('click', selectSupportChat);
+  $('#chat-support-clear').addEventListener('click', async () => {
+    if (!state.chat.supportActive || state.chat.clearing) return;
+    if (!window.confirm('Permanently delete your entire support chat history for both you and CornGrid Support? This cannot be undone.')) return;
+    const button = $('#chat-support-clear');
+    state.chat.clearing = true;
+    state.chat.historyRequestId++;
+    button.disabled = true;
+    try {
+      await request('/chat/support/messages', { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
+      state.chat.historyRequestId++;
+      state.chat.clearing = false;
+      if (state.chat.peer) { state.chat.messages = null; await loadChatHistory({ scroll: true }); }
+      await updateChatUnread();
+      toast('Support chat history deleted.', 'success');
+    } catch (error) { toast(error.message, 'error'); }
+    finally { state.chat.clearing = false; button.disabled = !state.chat.messages?.length; }
+  });
   $('#subtab-convos').addEventListener('click', () => setChatMode('conversations'));
   $('#subtab-search').addEventListener('click', () => setChatMode('search'));
   $('#chat-user-search').addEventListener('input', () => {
@@ -1880,5 +1902,13 @@
   loadOverview();
   loadProfile();
   loadPortfolioSharing();
+  const openLinkedPage = () => {
+    const page = window.location.hash.slice(1);
+    if (['subscription', 'sandbox', 'partner'].includes(page)) showPage(page);
+  };
+  window.addEventListener('hashchange', openLinkedPage);
+  // Public CTAs open existing menus once the dashboard modules have loaded.
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', openLinkedPage);
+  else openLinkedPage();
   updateChatUnread().catch(error => console.error('Unable to load unread chat count:', error));
 })();

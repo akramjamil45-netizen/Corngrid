@@ -434,6 +434,24 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       }
     });
 
+    function deleteAllRecords(resource) {
+      const table = resource === 'logs' ? 'sandbox_logs' : 'sandbox_events';
+      return async (req, res) => {
+        if (req.body?.confirm !== true) return res.status(400).json({ error: 'Confirm permanent deletion of all records.' });
+        try {
+          const removed = await run('DELETE FROM ' + table);
+          const deleted = Number(removed.changes) || 0;
+          await subscriptions.logAudit(null, 'admin', 'sandbox_' + resource + '_cleared', 'sandbox_' + resource, null, { deleted }, null, req.ip);
+          res.json({ message: 'All records deleted.', deleted });
+        } catch (error) {
+          console.error('Failed to clear sandbox ' + resource + ':', error.message);
+          res.status(500).json({ error: 'Unable to delete all records.' });
+        }
+      };
+    }
+    app.delete('/api/admin/sandbox/logs', verifyAdminToken, deleteAllRecords('logs'));
+    app.delete('/api/admin/sandbox/events', verifyAdminToken, deleteAllRecords('events'));
+
     app.get('/api/admin/sandbox/monitoring', verifyAdminToken, async (req, res) => {
       try {
         const hours = Math.min(72, Math.max(1, Number.parseInt(req.query.hours, 10) || 1));

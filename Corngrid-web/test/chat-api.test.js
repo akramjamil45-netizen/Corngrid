@@ -193,6 +193,23 @@ test('Chat API: user search, conversations, messaging, and unread count', async 
     });
     assert.equal(res.status, 400);
 
+    // Clearing support requires confirmation and never accepts a target owner.
+    const clear = (token, body) => request('/api/chat/support/messages', token, { method: 'DELETE', body: JSON.stringify(body) });
+    assert.equal((await clear(null, { confirm: true })).status, 401);
+    assert.equal((await clear(bobToken, {})).status, 400);
+    assert.equal((await clear(bobToken, { confirm: 'true' })).status, 400);
+    assert.equal((await (await request('/api/chat/support/messages', bobToken)).json()).messages.length, 2);
+    const spoof = await clear(aliceToken, { confirm: true, userId: 2 });
+    assert.equal(spoof.status, 200);
+    assert.equal((await spoof.json()).deleted, 0);
+    assert.equal((await (await request('/api/chat/support/messages', bobToken)).json()).messages.length, 2);
+    const cleared = await clear(bobToken, { confirm: true });
+    assert.equal(cleared.status, 200); assert.equal((await cleared.json()).deleted, 2);
+    assert.equal((await (await request('/api/chat/support/messages', bobToken)).json()).messages.length, 0);
+    assert.equal((await (await request('/api/chat/messages/2', aliceToken)).json()).messages.length, 2);
+    assert.equal((await (await clear(bobToken, { confirm: true })).json()).deleted, 0);
+    assert.equal((await request('/api/chat/support/messages', bobToken, { method: 'POST', body: JSON.stringify({ message: 'A fresh support request' }) })).status, 201);
+
   } finally {
     await new Promise(resolve => server.close(resolve));
     await new Promise(resolve => db.close(resolve));

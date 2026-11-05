@@ -200,6 +200,19 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
       (error, rows) => error ? reject(error) : resolve(rows)
     ));
     assert.deepEqual(supportRows.map(row => row.sender_role), ['user', 'admin']);
+    await execute(db,"INSERT INTO support_messages (user_id,sender_role,message,created_at) VALUES (2,'user','Other conversation',?)",[Date.now()]);
+    const clearPath='/api/admin/support/conversations/1/messages';
+    assert.equal((await mutate(clearPath,userToken,'DELETE',{confirm:true})).status,403);
+    assert.equal((await mutate(clearPath,token,'DELETE',{})).status,400);
+    assert.equal((await mutate('/api/admin/support/conversations/1bad/messages',token,'DELETE',{confirm:true})).status,400);
+    assert.equal((await mutate('/api/admin/support/conversations/999999/messages',token,'DELETE',{confirm:true})).status,404);
+    assert.equal((await (await request(clearPath,token)).json()).messages.length,2);
+    const clearResponse=await mutate(clearPath,token,'DELETE',{confirm:true});
+    assert.equal(clearResponse.status,200);assert.equal((await clearResponse.json()).deleted,2);
+    assert.equal((await (await request(clearPath,token)).json()).messages.length,0);
+    assert.equal((await (await request('/api/admin/support/conversations/2/messages',token)).json()).messages.length,1);
+    assert.equal((await (await request('/api/admin/support/conversations',token)).json()).conversations.some(c=>c.userId===1),false);
+    assert.equal((await (await mutate(clearPath,token,'DELETE',{confirm:true})).json()).deleted,0);
 
     const suspendResponse = await mutate('/api/admin/users/1/suspension', token, 'POST', {
       durationHours: 24,

@@ -197,6 +197,8 @@ app.use((req, res, next) => {
   next();
 });
 
+require('./marketing-routes')(app, ROOT_DIR);
+
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -420,14 +422,6 @@ app.get('/api/downloads/:resourceId', verifyToken, downloadRateLimit, (req, res)
 });
 
 // ------------------- ENDPOINTS LALUAN HALAMAN (ROUTING) -------------------
-
-app.get('/', (req, res) => {
-  const marketingPath = path.join(ROOT_DIR, 'index.html');
-  if (fs.existsSync(marketingPath)) {
-    return res.sendFile(marketingPath);
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));

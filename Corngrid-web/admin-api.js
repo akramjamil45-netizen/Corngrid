@@ -366,6 +366,20 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     }
   });
 
+  app.delete('/api/admin/support/conversations/:userId/messages', verifyAdminToken, async (req, res) => {
+    const userId = Number(req.params.userId);
+    if (!Number.isSafeInteger(userId) || userId < 1) return res.status(400).json({ error: 'Invalid user ID.' });
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'Confirm permanent deletion of this support conversation.' });
+    try {
+      if (!await get(db, 'SELECT id FROM users WHERE id = ?', [userId])) return res.status(404).json({ error: 'User not found.' });
+      const result = await run(db, 'DELETE FROM support_messages WHERE user_id = ?', [userId]);
+      return res.json({ deleted: result.changes });
+    } catch (error) {
+      console.error('Failed to delete administrator support history:', error.message);
+      return res.status(500).json({ error: 'Unable to delete support history.' });
+    }
+  });
+
   app.post('/api/admin/support/conversations/:userId/messages', verifyAdminToken, async (req, res) => {
     const userId = Number.parseInt(req.params.userId, 10);
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';

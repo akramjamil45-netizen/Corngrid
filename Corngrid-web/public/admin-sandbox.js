@@ -169,6 +169,23 @@
     $('sb-instances-next').disabled = state.instances.page >= pages;
   }
 
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-delete-all-records]');
+    if (!button || button.disabled) return;
+    const resource = button.dataset.deleteAllRecords;
+    if (!['logs', 'events'].includes(resource)) return;
+    const label = resource === 'logs' ? 'deployment logs' : 'system events';
+    if (!window.confirm(`Permanently delete ALL ${label}, across every page and filter? This cannot be undone. New records may appear as the system continues running.`)) return;
+    button.disabled = true;
+    try {
+      const result = await api(`/api/admin/sandbox/${resource}`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
+      state[resource].page = 1;
+      await (resource === 'logs' ? loadLogs() : loadEvents());
+      toast(`${result.deleted} ${label} deleted.`, 'success');
+    } catch (error) { toast(error.message, 'error'); }
+    finally { button.disabled = false; }
+  });
+
   async function loadLogs() {
     try {
       const params = new URLSearchParams({

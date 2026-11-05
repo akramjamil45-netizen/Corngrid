@@ -322,13 +322,15 @@
   }
 
   async function loadSupportMessages(userId, { silent = false } = {}) {
+    if (supportState.deleting) return;
+    const requestId = supportState.threadRequestId = (supportState.threadRequestId || 0) + 1;
     if (!Number.isSafeInteger(userId)) return;
     const pane = $('#admin-support-messages');
     if (!pane) return;
     if (!silent) pane.setAttribute('aria-busy', 'true');
     try {
       const data = await api(`/api/admin/support/conversations/${encodeURIComponent(userId)}/messages`);
-      if (String(selectedSupportUserId) !== String(userId)) return;
+      if (String(selectedSupportUserId) !== String(userId) || requestId !== supportState.threadRequestId) return;
       if ($('#admin-support-user')) $('#admin-support-user').textContent = data.user.username;
       if ($('#admin-support-email')) $('#admin-support-email').textContent = data.user.email;
       if ($('#admin-support-avatar')) $('#admin-support-avatar').innerHTML = supportAvatarContent(data.user.username, data.user.avatarUrl);
@@ -336,16 +338,24 @@
       const status = $('#admin-support-thread-status');
       if (status) {
         status.hidden = false;
-        status.textContent = 'Read';
+        status.textContent = `${(data.messages || []).length} recent messages`;
       }
       const messages = data.messages || [];
+      supportState.messageCount = messages.length;
+      $('#admin-support-clear').hidden = false;
+      $('#admin-support-clear').disabled = !messages.length;
       const stickToBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 90;
-      const signature = messages.map(message => `${message.id}:${message.readAt || ''}:${message.message}`).join('|');
+      const signature = userId + '|' + messages.map(message => `${message.id}:${message.readAt || ''}:${message.message}`).join('|');
       if (signature !== supportState.threadSignature) {
         supportState.threadSignature = signature;
+        let previousDay = '';
         pane.innerHTML = messages.length ? messages.map(message => {
           const mine = message.senderRole === 'admin';
+          const day = new Date(message.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+          const divider = day !== previousDay ? `<div class="support-date-divider"><span>${escapeHtml(day)}</span></div>` : '';
+          previousDay = day;
           return `
+            ${divider}
             <div class="chat-bubble-wrap ${mine ? 'is-mine' : 'is-peer'}">
               <div class="chat-bubble">${escapeHtml(message.message)}</div>
               <div class="chat-meta"><span>${escapeHtml(formatDateTime(message.createdAt))}</span><span>${mine ? 'Support' : escapeHtml(data.user.username)}</span></div>
@@ -356,9 +366,9 @@
       }
       await loadSupportConversations({ silent: true });
     } catch (error) {
-      if (!silent) pane.innerHTML = `<div class="chat-empty-state admin-error"><h3>Unable to open conversation</h3><p>${escapeHtml(error.message)}</p></div>`;
+      if (!silent && requestId === supportState.threadRequestId && selectedSupportUserId === userId) pane.innerHTML = `<div class="chat-empty-state admin-error"><h3>Unable to open conversation</h3><p>${escapeHtml(error.message)}</p></div>`;
     } finally {
-      pane.removeAttribute('aria-busy');
+      if (requestId === supportState.threadRequestId) pane.removeAttribute('aria-busy');
     }
   }
 
@@ -1938,7 +1948,30 @@
   });
   $('#admin-suspend-cancel').addEventListener('click', () => $('#admin-suspend-dialog').close());
   $('#admin-support-refresh').addEventListener('click', refreshSupportInbox);
-  $('#admin-support-back').addEventListener('click', () => scrollSupportPanel('.admin-support-list-panel'));
+  $('#admin-support-back').addEventListener('click', () => {
+    $('#support').classList.remove('support-thread-open');
+    ($(`[data-support-user="${selectedSupportUserId}"]`) || $('#admin-support-search'))?.focus();
+    scrollSupportPanel('.admin-support-list-panel');
+  });
+  $('#admin-support-clear').addEventListener('click', async () => {
+    const userId = selectedSupportUserId;
+    if (!userId || supportState.deleting) return;
+    const username = $('#admin-support-user').textContent;
+    if (!window.confirm(`Permanently delete the entire support conversation with ${username} for both the user and support team? This cannot be undone.`)) return;
+    const button = $('#admin-support-clear');
+    supportState.deleting = true;
+    supportState.threadRequestId = (supportState.threadRequestId || 0) + 1;
+    button.disabled = true;
+    try {
+      await api(`/api/admin/support/conversations/${userId}/messages`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) });
+      supportState.threadSignature = '';
+      supportState.deleting = false;
+      if (selectedSupportUserId === userId) await loadSupportMessages(userId);
+      else await loadSupportConversations();
+      toast('Support chat history deleted.', 'success');
+    } catch (error) { toast(error.message, 'error'); }
+    finally { supportState.deleting = false; button.disabled = !supportState.messageCount; }
+  });
   $('#admin-support-search').addEventListener('input', event => {
     supportState.search = event.target.value;
     renderSupportConversations();
@@ -1956,6 +1989,8 @@
       if (input) input.value = '';
     }
     selectedSupportUserId = userId;
+    $('#support').classList.add('support-thread-open');
+    $('#admin-support-clear').hidden = true;
     supportState.threadSignature = '';
     renderSupportConversations();
     $('#admin-support-user').textContent = 'Loading conversation…';

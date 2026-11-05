@@ -2930,3 +2930,14 @@ tbody tr:hover {
   .sandbox-controls .button { flex: 1 1 45%; }
   .sandbox-detail-grid { grid-template-columns: 1fr 1fr; }
 }
+.chat-peer-header .support-clear-history { flex: 0 0 auto; min-height: 40px; }
+.support-clear-history { border-color: rgba(255,102,102,.35); color: var(--red); }
+.support-clear-history:hover { background: rgba(255,102,102,.1); }
+.chat-peer-header { gap: 12px; }
+.chat-peer-header.is-support { background: linear-gradient(100deg,var(--accent-soft),var(--surface)); border-bottom-color: var(--accent); }
+.chat-support-entry { min-height: 48px; }
+@media(max-width: 640px) {
+  .chat-peer-header { flex-wrap: wrap; }
+  .chat-peer-info { min-width: 0; flex: 1 1 200px; }
+  .chat-peer-header .support-clear-history { margin-left: auto; }
+}

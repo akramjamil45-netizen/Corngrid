@@ -1,6 +1,11 @@
-const CACHE_NAME = 'corngrid-static-v18';
+const CACHE_NAME = 'corngrid-static-v20';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
+  '/pwa.js',
+  '/pwa.css',
+  '/manifest.webmanifest',
+  '/infrastructure.css',
+  '/site.js',
   '/mystyle.css',
   '/script.js',
   '/style.css',
@@ -41,6 +46,7 @@ const CORE_ASSETS = [
 ];
 
 const STATIC_ASSETS = new Set([
+  ...NETWORK_FIRST_ASSETS,
   ...CORE_ASSETS,
   '/mystyle.css',
   '/script.js',
@@ -79,7 +85,7 @@ self.addEventListener('install', event => {
         })
       );
       return Promise.all(addPromises);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 

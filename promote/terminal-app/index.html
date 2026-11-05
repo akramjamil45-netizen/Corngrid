@@ -23,39 +23,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="/promote/terminal-app/style.css?v=5">
     <script>document.documentElement.classList.add('js');</script>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/pwa.css">
+<link rel="stylesheet" href="/infrastructure.css?v=20261105-visual4">
+<script src="/pwa.js" defer></script>
+<script src="/site.js?v=20261105-visual4" defer></script>
 </head>
-<body>
+<body data-public-page="apps">
 
-<header id="mainHeader">
-    <div class="container">
-        <nav>
-            <div class="logo-container">
-                <img src="/images/Corngrid%20logo%204k.jpg" alt="CornGrid Logo" width="1024" height="1024" class="logo-img">
-                <div class="logo-text">CORNGRID</div>
-            </div>
-            <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="navMenu" aria-expanded="false">
-                <i class="fas fa-bars icon-open"></i>
-                <i class="fas fa-times icon-close"></i>
-            </button>
-            <div class="menu" id="navMenu">
-                <a href="/" class="nav-link" data-i18n="promo_nav_home">Home</a>
-                <a href="#terminal" class="nav-link" data-i18n="promo_nav_terminal">Terminal</a>
-                <a href="#android" class="nav-link" data-i18n="promo_nav_android">Android App</a>
-                <a href="#features" class="nav-link" data-i18n="promo_nav_features">Features</a>
-                <a href="#get-started" class="nav-link" data-i18n="promo_nav_get_started">Get Started</a>
-                <a href="/portfolios" class="nav-link" data-i18n="promo_nav_portfolios">Portfolios</a>
-                <a href="/login" class="nav-login-btn" data-i18n="promo_nav_login">Sign in</a>
-
-                <!-- LANGUAGE SWITCHER BUTTONS -->
-                <div class="lang-switch-box">
-                    <button class="lang-btn active" id="btnEn" type="button" onclick="PromoI18n.switchLanguage('en')">EN</button>
-                    <span class="lang-divider">|</span>
-                    <button class="lang-btn" id="btnBm" type="button" onclick="PromoI18n.switchLanguage('bm')">BM</button>
-                </div>
-            </div>
-        </nav>
-    </div>
-</header>
+<header id="mainHeader"><div class="container"><nav aria-label="Main navigation"><a href="/" class="logo-container" data-home><img src="/images/Corngrid%20logo%204k.jpg" width="42" height="42" alt="CornGrid" class="logo-img"><div class="logo-text">CORNGRID</div></a><button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="navMenu" aria-expanded="false"><i class="fas fa-bars icon-open" aria-hidden="true"></i><i class="fas fa-times icon-close" aria-hidden="true"></i></button><div class="menu" id="navMenu"><a href="/" class="nav-link" data-home><span data-site-i18n="nav.home">Home</span></a><a href="/#infrastructure" class="nav-link"><span data-site-i18n="nav.infrastructure">Infrastructure</span></a><a href="/corngrid-ea" class="nav-link"><span data-site-i18n="nav.ea">CornGrid EA</span></a><a href="/promote/terminal-app/" class="nav-link"><span data-site-i18n="nav.apps">Terminal Apps</span></a><a href="/portfolios" class="nav-link"><span data-site-i18n="nav.portfolios">Public Portfolios</span></a><a href="/#pricing" class="nav-link"><span data-site-i18n="nav.pricing">Pricing</span></a><a href="/#support" class="nav-link"><span data-site-i18n="nav.support">Support</span></a><a href="/login" class="nav-login-btn"><span data-site-i18n="nav.signin">Sign In</span></a><div class="lang-switch-box" role="group" aria-label="Language"><button class="lang-btn" id="btnBm" type="button" data-language="ms" aria-pressed="false">BM</button><span class="lang-divider">|</span><button class="lang-btn active" id="btnEn" type="button" data-language="en" aria-pressed="true">EN</button></div></div></nav></div></header>
 
 <!-- =========================================
      SECTION A — HERO
@@ -405,50 +381,6 @@
     'use strict';
 
     /* ---------- Mobile navigation (uses .active, matching mystyle.css) ---------- */
-    var toggle = document.getElementById('menuToggle');
-    var menu = document.getElementById('navMenu');
-
-    function setOpen(open) {
-        if (!toggle || !menu) return;
-        toggle.classList.toggle('active', open);
-        menu.classList.toggle('active', open);
-        toggle.setAttribute('aria-expanded', String(open));
-        var aria = window.PromoI18n ? window.PromoI18n.translations : null;
-        var lang = window.PromoI18n ? window.PromoI18n.getStoredLang() : 'en';
-        var key = open ? 'promo_aria_close_nav' : 'promo_aria_open_nav';
-        var label = aria && aria[lang] ? aria[lang][key] : null;
-        toggle.setAttribute('aria-label', label || (open ? 'Close navigation' : 'Open navigation'));
-    }
-
-    if (toggle && menu) {
-        toggle.addEventListener('click', function () {
-            setOpen(toggle.getAttribute('aria-expanded') !== 'true');
-        });
-        menu.querySelectorAll('a').forEach(function (link) {
-            link.addEventListener('click', function () { setOpen(false); });
-        });
-        document.addEventListener('click', function (e) {
-            if (!menu.contains(e.target) && !toggle.contains(e.target)) setOpen(false);
-        });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') setOpen(false);
-        });
-        /* Leaving the drawer breakpoint must not strand an open drawer. */
-        window.addEventListener('resize', function () {
-            if (window.innerWidth > 1100) setOpen(false);
-        });
-    }
-
-    /* ---------- Header scrolled state (matches main website) ---------- */
-    var header = document.getElementById('mainHeader');
-    if (header) {
-        var onScroll = function () {
-            header.classList.toggle('header-scrolled', window.scrollY > 50);
-        };
-        window.addEventListener('scroll', onScroll, { passive: true });
-        onScroll();
-    }
-
     /* ---------- In-page section anchors ---------- */
     document.querySelectorAll('a[href^="#"]').forEach(function (link) {
         link.addEventListener('click', function () {
@@ -461,43 +393,6 @@
             target.focus({ preventScroll: true });
         });
     });
-
-    /* ---------- Floating support button (matches the main website widget) ---------- */
-    var cgContact = document.querySelector('.cg-contact');
-    var cgContactButton = document.getElementById('cgContactButton');
-
-    if (cgContact && cgContactButton) {
-        cgContactButton.addEventListener('click', function (e) {
-            e.preventDefault();
-            var isOpen = cgContact.classList.toggle('open');
-            cgContactButton.setAttribute('aria-expanded', String(isOpen));
-            var lang = window.PromoI18n ? window.PromoI18n.getStoredLang() : 'en';
-            var dict = window.PromoI18n ? window.PromoI18n.translations[lang] : null;
-            var key = isOpen ? 'promo_support_aria_close' : 'promo_support_aria_open';
-            var label = dict && dict[key] ? dict[key] : (isOpen ? 'Close CornGrid Support' : 'Open CornGrid Support');
-            cgContactButton.setAttribute('aria-label', label);
-        });
-
-        /* Close the widget when the visitor clicks outside of it. */
-        document.addEventListener('click', function (e) {
-            if (!cgContact.contains(e.target) && cgContact.classList.contains('open')) {
-                cgContact.classList.remove('open');
-                cgContactButton.setAttribute('aria-expanded', 'false');
-                var lang = window.PromoI18n ? window.PromoI18n.getStoredLang() : 'en';
-                var dict = window.PromoI18n ? window.PromoI18n.translations[lang] : null;
-                var label = dict && dict.promo_support_aria_open ? dict.promo_support_aria_open : 'Open CornGrid Support';
-                cgContactButton.setAttribute('aria-label', label);
-            }
-        });
-
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && cgContact.classList.contains('open')) {
-                cgContact.classList.remove('open');
-                cgContactButton.setAttribute('aria-expanded', 'false');
-                cgContactButton.focus();
-            }
-        });
-    }
 
     /* ---------- Scroll-triggered reveal animations ---------- */
     var revealEls = document.querySelectorAll('[data-reveal]');

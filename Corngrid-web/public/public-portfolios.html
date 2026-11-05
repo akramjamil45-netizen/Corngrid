@@ -15,22 +15,50 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/dashboard.css?v=20261030-1">
+<link rel="stylesheet" href="/mystyle.css">
+<link rel="stylesheet" href="/infrastructure.css?v=20261105-visual4">
+<link rel="stylesheet" href="/public-shell.css">
+<script src="/site.js?v=20261105-visual4" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 </head>
 <body class="public-page">
-  <header class="public-topbar">
-    <a class="brand" href="/" aria-label="CornGrid home">
-      <img src="/images/Corngrid logo 4k.jpg" alt="" class="brand-mark">
-      <span>CORNGRID<small>PUBLIC PORTFOLIOS</small></span>
-    </a>
-    <nav class="public-topbar-links" aria-label="Public navigation">
-      <a href="/#features">Features</a>
-      <a href="/#support">Support</a>
-      <a href="/promote/terminal-app/">Terminal App</a>
-      <a href="/portfolios" aria-current="page">Portfolios</a>
-      <a href="/login">Sign in</a>
-    </nav>
-  </header>
-  <main class="public-main">
+  <header id="mainHeader"><div class="container"><nav aria-label="Main navigation"><a href="/" class="logo-container" data-home><img src="/images/Corngrid%20logo%204k.jpg" width="42" height="42" alt="CornGrid" class="logo-img"><div class="logo-text">CORNGRID</div></a><button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="navMenu" aria-expanded="false"><i class="fas fa-bars icon-open" aria-hidden="true"></i><i class="fas fa-times icon-close" aria-hidden="true"></i></button><div class="menu" id="navMenu"><a href="/" class="nav-link" data-home><span data-site-i18n="nav.home">Home</span></a><a href="/#infrastructure" class="nav-link"><span data-site-i18n="nav.infrastructure">Infrastructure</span></a><a href="/corngrid-ea" class="nav-link"><span data-site-i18n="nav.ea">CornGrid EA</span></a><a href="/promote/terminal-app/" class="nav-link"><span data-site-i18n="nav.apps">Terminal Apps</span></a><a href="/portfolios" class="nav-link"><span data-site-i18n="nav.portfolios">Public Portfolios</span></a><a href="/#pricing" class="nav-link"><span data-site-i18n="nav.pricing">Pricing</span></a><a href="/#support" class="nav-link"><span data-site-i18n="nav.support">Support</span></a><a href="/login" class="nav-login-btn"><span data-site-i18n="nav.signin">Sign In</span></a><div class="lang-switch-box" role="group" aria-label="Language"><button class="lang-btn" id="btnBm" type="button" data-language="ms" aria-pressed="false">BM</button><span class="lang-divider">|</span><button class="lang-btn active" id="btnEn" type="button" data-language="en" aria-pressed="true">EN</button></div></div></nav></div></header>
+  <div class="cg-contact">
+    <div class="cg-contact-menu" id="cgContactMenu">
+        <div class="cg-contact-title">
+            <div>
+                <strong>CornGrid Support Desk</strong>
+                <span>Institutional Client Support</span>
+            </div>
+        </div>
+        <a href="https://t.me/CornGridSupportbot" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+            <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+            <div><strong>Telegram Helpdesk</strong><span>@CornGridSupportbot</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="https://t.me/CornGridGroup" target="_blank" rel="noopener noreferrer" class="cg-contact-item telegram">
+            <div class="cg-contact-icon"><i class="fab fa-telegram-plane"></i></div>
+            <div><strong>Trader Network</strong><span>Join Official Community</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="https://wa.me/60175660753" target="_blank" rel="noopener noreferrer" class="cg-contact-item whatsapp">
+            <div class="cg-contact-icon"><i class="fab fa-whatsapp"></i></div>
+            <div><strong>Direct Client Line</strong><span>Chat via WhatsApp</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+        <a href="mailto:support@corngrid.com" class="cg-contact-item email">
+            <div class="cg-contact-icon"><i class="fas fa-envelope"></i></div>
+            <div><strong>Corporate Relations</strong><span>support@corngrid.com</span></div>
+            <i class="fas fa-chevron-right arrow"></i>
+        </a>
+    </div>
+    <button class="cg-contact-button" id="cgContactButton" aria-label="Open CornGrid Support">
+        <span class="cg-pulse"></span>
+        <i class="fas fa-headset cg-open-icon"></i>
+        <i class="fas fa-times cg-close-icon"></i>
+    </button>
+</div>
+<main class="public-main">
     <section class="public-heading">
       <p class="eyebrow">COMMUNITY PERFORMANCE</p>
       <h1>Public portfolios</h1>
@@ -42,5 +70,85 @@
     </section>
   </main>
   <script src="/public-portfolios.js?v=20261030-1"></script>
+<footer class="footer-section">
+    <div class="container">
+
+        <!-- Top Footer Grid -->
+        <div class="footer-grid">
+
+            <!-- Column 1: Brand & Overview -->
+            <div class="footer-col brand-col">
+                <div class="footer-logo">
+                    <img src="/images/Corngrid%20logo%204k.jpg" alt="CornGrid EA Logo" class="footer-logo-img">
+                    <span class="footer-logo-text">CORNGRID</span>
+                </div>
+                <p class="footer-about" data-site-i18n="ea-footer.footer_about">Next-generation trading algorithms for MetaTrader 5. We specialize in smart XAUUSD grid recovery, dynamic risk management, and keeping your capital safe.</p>
+                <div class="footer-status">
+                    <span class="status-dot"></span>
+                    <span>System Status: <strong>v2.70 Operational</strong></span>
+                </div>
+            </div>
+
+            <!-- Column 2: Quick Navigation -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-site-i18n="ea-footer.footer_nav">Navigation</h4>
+                <ul class="footer-links">
+                    <li><a href="/corngrid-ea#features" data-site-i18n="ea-footer.nav_features">Features</a></li>
+                    <li><a href="/corngrid-ea#dashboard" data-site-i18n="ea-footer.dash_title">Monitor Everything Easily</a></li>
+                    <li><a href="/corngrid-ea#setup" data-site-i18n="ea-footer.nav_setup">Setup</a></li>
+                    <li><a href="/corngrid-ea#setfiles" data-site-i18n="ea-footer.nav_presets">Preset Files</a></li>
+                    <li><a href="/corngrid-ea#faq" data-site-i18n="ea-footer.faq_title">Frequently Asked Questions</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 3: Resources & Downloads -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-site-i18n="ea-footer.footer_res">Resources &amp; Tools</h4>
+                <ul class="footer-links">
+                    <li><a href="/download/Corngrid Demo.rar" download="Corngrid Demo.zip" data-site-i18n="ea-footer.hero_btn_demo"> Download Free Demo</a></li>
+                    <li><a href="/files/Corngrid Setup Guide v1.1.pdf" download="Installation_Guide.pdf" data-site-i18n="ea-footer.pdf_banner_btn"> Download PDF Guide</a></li>
+                    <li><a href="/corngrid-ea#broker" data-site-i18n="ea-footer.broker_title">Recommended MT5 Brokers</a></li>
+                    <li><a href="https://www.mql5.com/en/market/product/185454" target="_blank" rel="noopener">MQL5 Official Store</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 4: Institutional Contact -->
+            <div class="footer-col">
+                <h4 class="footer-title" data-site-i18n="ea-footer.footer_contact">Contact Us</h4>
+                <ul class="footer-contact">
+                    <li>
+                        <i class="fab fa-telegram-plane"></i>
+                        <a href="https://t.me/CorngridSupport" target="_blank">@CorngridSupport</a>
+                    </li>
+                    <li>
+                        <i class="fab fa-whatsapp"></i>
+                        <a href="https://wa.me/60175660753" target="_blank">+60 17-566 0753</a>
+                    </li>
+                    <li>
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:support@corngrid.com">support@corngrid.com</a>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Footer Divider -->
+        <hr class="footer-divider">
+
+       <!-- Bottom Footer: Copyright & Legal -->
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+             <p>© 2026 <strong>CornGrid Technologies</strong>. All Rights Reserved.</p>
+                <span class="footer-motto" data-site-i18n="ea-footer.footer_motto">Trade Smart. Recover Smarter.</span>
+            </div>
+            <div class="footer-legal">
+                <a href="/files/terms,Condition,Risk policy.pdf" download="Risk_Policy.pdf" data-i18n="footer_risk_policy">Risk Policy</a>
+                <span class="sep">•</span>
+                <a href="/files/terms,Condition,Risk policy.pdf" download="Terms_of_Deployment.pdf" data-i18n="footer_terms_deployment">Terms of Deployment</a>
+            </div>
+        </div>
+    </div>
+</footer>
 </body>
 </html>

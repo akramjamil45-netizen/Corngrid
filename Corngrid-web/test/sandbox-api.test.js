@@ -243,7 +243,7 @@ test('sandbox activation requires a subscription and is idempotent', async () =>
     assert.ok(activation);
     assert.equal(activation.license_status, 'active');
 
-    // Credentials are encrypted at rest — the raw password never appears.
+    // Credentials are encrypted at rest ? the raw password never appears.
     const credential = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM sandbox_credentials', (e, row) => (e ? reject(e) : resolve(row)));
     });
@@ -371,4 +371,30 @@ test('admin overview, events and audit logging', async () => {
   } finally {
     server.close();
   }
+});
+
+test('admin bulk deletion requires confirmation, protects access and preserves other resources', async () => {
+  const { db, server, request, userToken, adminToken } = await createFixture();
+  try {
+    for (const resource of ['logs', 'events']) {
+      const sql = resource === 'logs' ? 'INSERT INTO sandbox_logs (message, created_at) VALUES (?, ?)' : 'INSERT INTO sandbox_events (event_type, created_at) VALUES (?, ?)';
+      for(let i=0;i<25;i++) await run(db,sql,['bulk-test',Date.now()]);
+    }
+    for (const resource of ['logs', 'events']) {
+      const url='/api/admin/sandbox/'+resource;
+      const before=await request(url,{token:adminToken});
+      assert.ok(before.body.total>=25);
+      for(const token of [undefined,userToken]) assert.equal((await request(url,{token,method:'DELETE',body:{confirm:true}})).status,403);
+      assert.equal((await request(url,{token:adminToken,method:'DELETE',body:{}})).status,400);
+      assert.equal((await request(url,{token:adminToken,method:'DELETE',body:{confirm:'true'}})).status,400);
+      assert.equal((await request(url,{token:adminToken})).body.total,before.body.total);
+      const cleared=await request(url+'?level=error&page=2',{token:adminToken,method:'DELETE',body:{confirm:true}});
+      assert.equal(cleared.status,200);assert.equal(cleared.body.deleted,before.body.total);
+      assert.equal((await request(url,{token:adminToken})).body.total,0);
+      assert.equal((await request(url,{token:adminToken,method:'DELETE',body:{confirm:true}})).body.deleted,0);
+      if(resource==='logs') assert.ok((await request('/api/admin/sandbox/events',{token:adminToken})).body.total>=25);
+    }
+    const audit=await new Promise((resolve,reject)=>db.all("SELECT * FROM subscription_audit_logs WHERE action IN ('sandbox_logs_cleared','sandbox_events_cleared')",(error,rows)=>error?reject(error):resolve(rows)));
+    assert.equal(audit.length,4);
+  } finally { server.close(); }
 });

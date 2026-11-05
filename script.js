@@ -1,19 +1,4 @@
 // =========================================
-// 1. DYNAMIC HEADER ON SCROLL
-// =========================================
-const mainHeader = document.querySelector("#mainHeader");
-
-if (mainHeader) {
-    window.addEventListener("scroll", () => {
-        if (window.scrollY > 50) {
-            mainHeader.classList.add("header-scrolled");
-        } else {
-            mainHeader.classList.remove("header-scrolled");
-        }
-    });
-}
-
-// =========================================
 // 2. FAQ ACCORDION (SUPPORTING WHITE & DARK THEME)
 // =========================================
 const faqItems = document.querySelectorAll(".faq-item-white, .faq-item");
@@ -47,69 +32,6 @@ faqItems.forEach((item, index) => {
         });
     });
 });
-
-// =========================================
-// 3. Support button
-// =========================================
-
-    const cgContact = document.querySelector(".cg-contact");
-    const cgContactButton = document.querySelector("#cgContactButton");
-
-    if (cgContact && cgContactButton) {
-    cgContactButton.addEventListener("click", (e) => {
-        e.preventDefault();
-        cgContact.classList.toggle("open");
-    });
-
-    // Petua Tambahan: Tutup widget jika pengguna menekan di luar butang/contact box
-    document.addEventListener("click", (e) => {
-        if (!cgContact.contains(e.target) && !cgContactButton.contains(e.target)) {
-            cgContact.classList.remove("open");
-        }
-    });
-    }
-
-// =========================================
-// 4. MOBILE NAVIGATION MENU TOGGLE
-// =========================================
-const menuToggle = document.querySelector("#menuToggle");
-const navMenu = document.querySelector("#navMenu");
-const navLinks = document.querySelectorAll(".nav-link");
-
-if (menuToggle && navMenu) {
-    const closeMenu = () => {
-        menuToggle.classList.remove("active");
-        navMenu.classList.remove("active");
-        menuToggle.setAttribute("aria-expanded", "false");
-        menuToggle.setAttribute("aria-label", "Open navigation");
-    };
-
-    menuToggle.addEventListener("click", () => {
-        const isOpen = menuToggle.classList.toggle("active");
-        navMenu.classList.toggle("active", isOpen);
-        menuToggle.setAttribute("aria-expanded", String(isOpen));
-        menuToggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
-    });
-
-    navLinks.forEach((link) => {
-        link.addEventListener("click", closeMenu);
-    });
-
-    document.addEventListener("click", (e) => {
-        if (!navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
-            closeMenu();
-        }
-    });
-
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeMenu();
-    });
-
-    // Leaving the drawer breakpoint must not strand an open drawer.
-    window.addEventListener("resize", () => {
-        if (window.innerWidth > 1100) closeMenu();
-    });
-}
 
 // =========================================
 // 5. TESTIMONIAL SLIDER ANIMATION (DARK QUANT THEME)
@@ -194,7 +116,8 @@ if (sliderTrack && testSlides.length > 0) {
 
 function switchLanguage(lang) {
     // Simpan pilihan bahasa pengguna di localStorage
-    localStorage.setItem("selectedLang", lang);
+    try { localStorage.setItem("selectedLang", lang); } catch {}
+    document.documentElement.lang = lang === "bm" ? "ms" : "en";
 
     // Kemas kini gaya aktif pada butang
     const btnEn = document.querySelector("#btnEn");
@@ -222,7 +145,9 @@ function switchLanguage(lang) {
 
 // Semak bahasa pilihan apabila laman web dibuka
 document.addEventListener("DOMContentLoaded", () => {
-    const savedLang = localStorage.getItem("selectedLang") || "en";
+    let savedLang = "bm";
+    try { savedLang = localStorage.getItem("selectedLang") || "bm"; } catch {}
+    if (!["bm", "en"].includes(savedLang)) savedLang = "bm";
     switchLanguage(savedLang);
 });
 

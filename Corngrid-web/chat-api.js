@@ -316,6 +316,18 @@ function registerChatApi(app, db, verifyToken) {
     }
   });
 
+  app.delete('/api/chat/support/messages', verifyToken, async (req, res) => {
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'Confirm permanent deletion of your support conversation.' });
+    try {
+      // Ownership comes exclusively from the authenticated session.
+      const result = await run(db, 'DELETE FROM support_messages WHERE user_id = ?', [req.user.id]);
+      return res.json({ deleted: result.changes });
+    } catch (error) {
+      console.error('Failed to delete support history:', error.message);
+      return res.status(500).json({ error: 'Unable to delete support history.' });
+    }
+  });
+
   app.post('/api/chat/support/messages', verifyToken, chatMessageRateLimit, async (req, res) => {
     try {
       const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
