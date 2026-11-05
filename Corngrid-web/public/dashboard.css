@@ -2943,3 +2943,9 @@ tbody tr:hover {
   .chat-peer-info { min-width: 0; flex: 1 1 200px; }
   .chat-peer-header .support-clear-history { margin-left: auto; }
 }
+
+.sandbox-broker-picker { display: grid; gap: 12px; grid-column: 1 / -1; min-width: 0; }
+.sandbox-broker-picker label { display: grid; gap: 8px; min-width: 0; }
+.sandbox-broker-picker [hidden] { display: none !important; }
+.sandbox-broker-picker :is(input,select) { width: 100%; min-width: 0; max-width: 100%; font-size: 16px; }
+.sandbox-broker-picker p { margin: 0; line-height: 1.5; }

@@ -25,6 +25,59 @@
 
   const $ = id => document.getElementById(id);
 
+  let brokers = [];
+  function syncServerMode() {
+    const manual = $('sandbox-broker').value === 'manual' || $('sandbox-server-select').value === 'manual';
+    $('sandbox-manual-server-label').hidden = !manual;
+    $('sandbox-broker-server').required = manual;
+    $('sandbox-server-select').required = !manual;
+  }
+
+  function filterServers() {
+    const broker = brokers.find(item => item.id === $('sandbox-broker').value);
+    const select = $('sandbox-server-select');
+    const previous = select.value;
+    const query = $('sandbox-server-search').value.trim().toLowerCase();
+    const matches = (broker?.servers || []).filter(name => name.toLowerCase().includes(query));
+    select.replaceChildren(new Option(matches.length ? 'Choose your MT5 server' : 'No matching servers', ''));
+    for (const name of matches) select.add(new Option(name, name));
+    select.add(new Option('Server not listed / enter manually', 'manual'));
+    if ([...select.options].some(option => option.value === previous)) select.value = previous;
+    syncServerMode();
+  }
+
+  function changeBroker() {
+    const manual = $('sandbox-broker').value === 'manual';
+    $('sandbox-server-search-label').hidden = manual;
+    $('sandbox-server-select-label').hidden = manual;
+    $('sandbox-server-select').disabled = manual;
+    $('sandbox-server-search').value = '';
+    $('sandbox-broker-server').value = '';
+    $('sandbox-server-select').replaceChildren();
+    filterServers();
+  }
+
+  async function loadBrokers() {
+    const select = $('sandbox-broker');
+    try {
+      const response = await fetch('/mt5-brokers.json?v=20261105-routefix2', { credentials: 'same-origin', signal: AbortSignal.timeout(15000) });
+      if (!response.ok) throw new Error('Catalogue unavailable');
+      const data = await response.json();
+      if (!Array.isArray(data.brokers) || !data.brokers.length) throw new Error('Invalid catalogue');
+      brokers = data.brokers;
+      select.replaceChildren(new Option('Choose broker', ''));
+      for (const broker of brokers) select.add(new Option(broker.name, broker.id));
+      select.add(new Option('Other / enter manually', 'manual'));
+      select.required = true;
+      $('sandbox-manual-server-label').hidden = true;
+      $('sandbox-broker-server').required = false;
+    } catch (_error) {
+      select.replaceChildren(new Option('Other / enter manually', 'manual'));
+      changeBroker();
+      $('sandbox-server-hint').textContent = 'Server list unavailable. Enter the exact MT5 server from your broker account.';
+    }
+  }
+
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
@@ -167,7 +220,7 @@
         method: 'POST',
         body: JSON.stringify({
           strategyCode: $('sandbox-strategy').value,
-          brokerServer: $('sandbox-broker-server').value.trim(),
+          brokerServer: ($('sandbox-manual-server-label').hidden ? $('sandbox-server-select').value : $('sandbox-broker-server').value).trim(),
           accountNumber: $('sandbox-account-number').value.trim(),
           password: $('sandbox-password').value
         })
@@ -215,6 +268,10 @@
   }
 
   function bind() {
+    $('sandbox-broker').addEventListener('change', changeBroker);
+    $('sandbox-server-search').addEventListener('input', filterServers);
+    $('sandbox-server-select').addEventListener('change', syncServerMode);
+    loadBrokers();
     $('sandbox-activate-form').addEventListener('submit', activate);
     $('sandbox-start-btn').addEventListener('click', () => control('start'));
     $('sandbox-stop-btn').addEventListener('click', () => control('stop'));

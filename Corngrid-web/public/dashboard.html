@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261105-chat-padding1">
+  <link rel="stylesheet" href="dashboard.css?v=20261105-broker-picker1">
 </head>
 <body>
   <div class="app-shell">
@@ -808,9 +808,21 @@
                       <option value="">Loading strategies…</option>
                     </select>
                   </label>
-                  <label>Broker server
-                    <input id="sandbox-broker-server" class="input-control" type="text" maxlength="100" placeholder="e.g. Exness-MT5Real9" required autocomplete="off">
-                  </label>
+                  <div class="sandbox-broker-picker">
+                    <label for="sandbox-broker">Broker
+                      <select id="sandbox-broker" class="select-control"><option value="">Loading brokers...</option><option value="manual">Other / enter manually</option></select>
+                    </label>
+                    <label for="sandbox-server-search" id="sandbox-server-search-label" hidden>Find server
+                      <input id="sandbox-server-search" class="input-control" type="search" placeholder="Search server name or number" autocomplete="off" aria-controls="sandbox-server-select">
+                    </label>
+                    <label for="sandbox-server-select" id="sandbox-server-select-label" hidden>MT5 server
+                      <select id="sandbox-server-select" class="select-control" aria-describedby="sandbox-server-hint"></select>
+                    </label>
+                    <label id="sandbox-manual-server-label" for="sandbox-broker-server">Broker server
+                      <input id="sandbox-broker-server" class="input-control" type="text" maxlength="100" placeholder="e.g. Exness-MT5Real9" required autocomplete="off" aria-describedby="sandbox-server-hint">
+                    </label>
+                    <p id="sandbox-server-hint" class="muted small" role="status">Use the exact MT5 server assigned to your account. Missing server? Choose enter manually.</p>
+                  </div>
                   <label>MT5 account number
                     <input id="sandbox-account-number" class="input-control" type="text" inputmode="numeric" pattern="[0-9]{1,32}" maxlength="32" placeholder="e.g. 210045678" required autocomplete="off">
                   </label>
@@ -953,7 +965,7 @@
   <script src="market.js?v=20261026-1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261030-1"></script>
-  <script src="sandbox.js?v=20261104-1"></script>
+  <script src="sandbox.js?v=20261105-broker-picker2"></script>
   <script src="partner.js?v=20261105-partner-delete1"></script>
 </body>
 </html>
