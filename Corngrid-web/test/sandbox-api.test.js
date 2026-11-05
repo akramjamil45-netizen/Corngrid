@@ -124,6 +124,33 @@ test('sandbox credential encryption round-trips and rejects tampering', () => {
   assert.equal(maskAccountNumber('12345678'), '******78');
 });
 
+test('node recovery returns only assigned running instances and excludes manual stops', async () => {
+  const { db, server, request, adminToken } = await createFixture();
+  try {
+    const created = await request('/api/admin/sandbox/nodes', {
+      token: adminToken, method: 'POST', body: { name: 'Recovery node' }
+    });
+    const headers = { 'X-Node-Id': created.body.node.nodeUid, 'X-Node-Token': created.body.token };
+    assert.equal((await request('/api/sandbox/node/instances')).status, 401);
+    const now = Date.now();
+    await run(db, `INSERT INTO sandbox_instances (instance_uid,user_id,node_id,status,created_at,updated_at)
+      VALUES ('sbx_0123456789abcdef01',1,?,'running',?,?)`, [created.body.node.id, now, now]);
+    const result = await request('/api/sandbox/node/instances', { headers });
+    assert.deepEqual(result.body.instances, [{ instanceUid: 'sbx_0123456789abcdef01' }]);
+    for (const status of ['stopped','suspended','failed','deploying']) {
+      await run(db, 'UPDATE sandbox_instances SET status = ?', [status]);
+      assert.deepEqual((await request('/api/sandbox/node/instances', { headers })).body.instances, []);
+    }
+    await run(db, "UPDATE sandbox_instances SET status='running',deleted_at=?", [now]);
+    assert.deepEqual((await request('/api/sandbox/node/instances', { headers })).body.instances, []);
+    await run(db, 'UPDATE sandbox_instances SET deleted_at=NULL,node_id=NULL');
+    assert.deepEqual((await request('/api/sandbox/node/instances', { headers })).body.instances, []);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await new Promise(resolve => db.close(resolve));
+  }
+});
+
 test('node registration, authentication, heartbeat and command queue', async () => {
   const { db, server, request, adminToken, sandbox } = await createFixture();
   try {
@@ -187,6 +214,51 @@ test('node registration, authentication, heartbeat and command queue', async () 
   }
 });
 
+test('admin node capacity validates limits, protects occupied slots and enables allocation', async () => {
+  const { db, server, request, userToken, otherUserToken, adminToken } = await createFixture();
+  try {
+    const created = await request('/api/admin/sandbox/nodes', {
+      token: adminToken, method: 'POST', body: { name: 'Capacity node', maxInstances: 1 }
+    });
+    const nodeId = created.body.node.id;
+    const route = `/api/admin/sandbox/nodes/${nodeId}/capacity`;
+    const update = (maxInstances, token = adminToken) => request(route, { token, method: 'PATCH', body: { maxInstances } });
+    assert.equal((await update(3, userToken)).status, 403);
+    assert.ok([401, 403].includes((await update(3, '')).status));
+    for (const value of [0, -1, 201, 1.5, '3', null, true]) assert.equal((await update(value)).status, 400);
+    assert.equal((await request('/api/admin/sandbox/nodes/999999/capacity', { token: adminToken, method: 'PATCH', body: { maxInstances: 2 } })).status, 404);
+    await request(`/api/admin/sandbox/nodes/${nodeId}/status`, { token: adminToken, method: 'POST', body: { status: 'active' } });
+    await request('/api/sandbox/node/heartbeat', {
+      method: 'POST', headers: { 'X-Node-Id': created.body.node.nodeUid, 'X-Node-Token': created.body.token }, body: { runningInstances: 0 }
+    });
+    await giveActiveSubscription(db, 1);
+    const now = Date.now();
+    await run(db, `INSERT INTO user_subscriptions
+      (user_id,plan_id,status,purchase_price,currency,starts_at,expires_at,created_at,updated_at)
+      VALUES (2,1,'active',100,'MYR',?,?,?,?)`, [now - 1000, now + 86400000, now, now]);
+    const activate = (token, accountNumber) => request('/api/sandbox/activate', {
+      token, method: 'POST', body: { brokerServer: 'Dummy-Demo', accountNumber, password: 'dummy-only' }
+    });
+    assert.equal((await activate(userToken, '11111')).status, 201);
+    assert.equal((await activate(otherUserToken, '22222')).status, 503, 'node starts full');
+    const increased = await update(3);
+    assert.equal(increased.status, 200);
+    assert.equal(increased.body.node.maxInstances, 3);
+    assert.equal(increased.body.node.usedSlots, 1);
+    const overview = await request('/api/admin/sandbox/overview', { token: adminToken });
+    assert.deepEqual(overview.body.capacity, { totalSlots: 3, usedSlots: 1, availableSlots: 2 });
+    assert.equal((await activate(otherUserToken, '22222')).status, 201, 'allocator uses the new limit');
+    const tooSmall = await update(1);
+    assert.equal(tooSmall.status, 409);
+    assert.equal(tooSmall.body.usedSlots, 2, 'deploying slots count even before agent reports running');
+    assert.equal((await request('/api/admin/sandbox/nodes', { token: adminToken })).body.nodes[0].maxInstances, 3);
+    await run(db, "UPDATE sandbox_instances SET status='stopped' WHERE user_id=1");
+    assert.equal((await update(1)).status, 200, 'stopped instances release capacity');
+    const audit = await new Promise((resolve, reject) => db.get("SELECT * FROM subscription_audit_logs WHERE action='sandbox_node_capacity_updated' ORDER BY id DESC LIMIT 1", (error, row) => error ? reject(error) : resolve(row)));
+    assert.ok(audit, 'capacity edits are audited');
+  } finally { server.close(); }
+});
+
 test('sandbox activation requires a subscription and is idempotent', async () => {
   const { db, server, request, userToken, adminToken } = await createFixture();
   try {
@@ -213,10 +285,10 @@ test('sandbox activation requires a subscription and is idempotent', async () =>
 
     await giveActiveSubscription(db, 1);
 
-    // With a subscription, activation succeeds and deploy is queued.
+    // With a subscription, the selected pair is sent to deployment.
     const activated = await request('/api/sandbox/activate', {
       token: userToken, method: 'POST',
-      body: { strategyCode: 'corngrid-ea', brokerServer: 'Broker-Live', accountNumber: '12345678', password: 'pw' }
+      body: { symbol: 'EURUSD', strategyCode: 'corngrid-ea', brokerServer: 'Broker-Live', accountNumber: '12345678', password: 'pw' }
     });
     assert.equal(activated.status, 201);
     assert.equal(activated.body.sandbox.status, 'deploying');
@@ -243,7 +315,7 @@ test('sandbox activation requires a subscription and is idempotent', async () =>
     assert.ok(activation);
     assert.equal(activation.license_status, 'active');
 
-    // Credentials are encrypted at rest ? the raw password never appears.
+    // Credentials are encrypted at rest — the raw password never appears.
     const credential = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM sandbox_credentials', (e, row) => (e ? reject(e) : resolve(row)));
     });
@@ -259,6 +331,7 @@ test('sandbox activation requires a subscription and is idempotent', async () =>
     assert.ok(deploy);
     assert.equal(deploy.payload.accountNumber, '12345678');
     assert.ok(deploy.payload.installationSecret);
+    assert.equal(deploy.payload.symbol, 'EURUSD');
 
     // Status endpoint reflects the deploying sandbox.
     const status = await request('/api/sandbox/status', { token: userToken });
@@ -373,6 +446,43 @@ test('admin overview, events and audit logging', async () => {
   }
 });
 
+test('sandbox activation without node capacity returns a useful JSON error', async () => {
+  const { db, server, request, userToken } = await createFixture();
+  try {
+    await giveActiveSubscription(db, 1);
+    const response = await request('/api/sandbox/activate', {
+      token: userToken, method: 'POST',
+      body: { strategyCode: 'corngrid-ea', brokerServer: 'Broker-Live', accountNumber: '12345678', password: 'pw' }
+    });
+    assert.equal(response.status, 503);
+    assert.equal(response.body.code, 'NO_CAPACITY');
+    assert.match(response.body.error, /No sandbox server capacity/);
+    const status = await request('/api/sandbox/status', { token: userToken });
+    assert.equal(status.body.sandbox, null);
+  } finally {
+    server.close();
+  }
+});
+test('activation rejects unsupported pairs and accepts supported pairs', async () => {
+  const { server, request, userToken } = await createFixture();
+  try {
+    for (const symbol of ['USDGPY', 'BTCUSD', '', null, 'XAUUSD\nExpert=other']) {
+      const response = await request('/api/sandbox/activate', {
+        token: userToken, method: 'POST',
+        body: { symbol, brokerServer: 'Broker-Live', accountNumber: '12345678', password: 'pw' }
+      });
+      assert.equal(response.status, 400);
+      assert.equal(response.body.code, 'INVALID_SYMBOL');
+    }
+    for (const symbol of ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY']) {
+      const response = await request('/api/sandbox/activate', {
+        token: userToken, method: 'POST',
+        body: { symbol, brokerServer: 'Broker-Live', accountNumber: '12345678', password: 'pw' }
+      });
+      assert.equal(response.status, 403, 'valid pairs reach the subscription gate');
+    }
+  } finally { server.close(); }
+});
 test('admin bulk deletion requires confirmation, protects access and preserves other resources', async () => {
   const { db, server, request, userToken, adminToken } = await createFixture();
   try {
@@ -396,5 +506,20 @@ test('admin bulk deletion requires confirmation, protects access and preserves o
     }
     const audit=await new Promise((resolve,reject)=>db.all("SELECT * FROM subscription_audit_logs WHERE action IN ('sandbox_logs_cleared','sandbox_events_cleared')",(error,rows)=>error?reject(error):resolve(rows)));
     assert.equal(audit.length,4);
+  } finally { server.close(); }
+});
+
+test('admin deletes logs and events without granting user access', async () => {
+  const { db, server, request, userToken, adminToken } = await createFixture();
+  try {
+    for (const resource of ['logs', 'events']) {
+      const sql = resource === 'logs' ? 'INSERT INTO sandbox_logs (message, created_at) VALUES (?, ?)' : 'INSERT INTO sandbox_events (event_type, created_at) VALUES (?, ?)';
+      const row = await run(db, sql, ['test', Date.now()]);
+      const url = '/api/admin/sandbox/' + resource + '/' + row.lastID;
+      assert.equal((await request(url, { token: userToken, method: 'DELETE' })).status, 403);
+      assert.equal((await request(url, { token: adminToken, method: 'DELETE' })).status, 200);
+      assert.equal((await request(url, { token: adminToken, method: 'DELETE' })).status, 404);
+      assert.equal((await request('/api/admin/sandbox/' + resource + '/1bad', { token: adminToken, method: 'DELETE' })).status, 400);
+    }
   } finally { server.close(); }
 });

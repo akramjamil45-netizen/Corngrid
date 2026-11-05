@@ -4,6 +4,7 @@
 // with a partner_profiles row; authentication reuses the existing user JWT.
 
 const crypto = require('crypto');
+const { decodePresets } = require('./presets');
 const fs = require('fs');
 const path = require('path');
 
@@ -197,7 +198,7 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
           'SELECT * FROM ea_submissions WHERE partner_id = ? AND deleted_at IS NULL ORDER BY id DESC',
           [req.user.id]
         );
-        res.json({ submissions: rows.map(publicSubmission) });
+        res.json({ submissions: await Promise.all(rows.map(async row => ({ ...publicSubmission(row), presets: await all('SELECT symbol,file_name AS name FROM ea_submission_presets WHERE submission_id=? ORDER BY symbol',[row.id]) }))) });
       } catch (error) {
         console.error('Failed to list submissions:', error.message);
         res.status(500).json({ error: 'Unable to list submissions.' });
@@ -219,7 +220,7 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
            FROM ea_test_reports WHERE submission_id = ? ORDER BY id DESC LIMIT 20`,
           [row.id]
         );
-        res.json({ submission: publicSubmission(row), versions, testReports: reports });
+        res.json({ submission: publicSubmission(row), versions, testReports: reports, presets: await all('SELECT symbol,file_name AS name FROM ea_submission_presets WHERE submission_id=?',[row.id]) });
       } catch (error) {
         console.error('Failed to load submission:', error.message);
         res.status(500).json({ error: 'Unable to load the submission.' });
@@ -282,6 +283,8 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
       }
 
       const timestamp = now();
+      let presets;
+      try { presets = decodePresets(body.presets); if (!presets.length) return res.status(400).json({ error: 'Upload at least one .set preset for this EA.' }); } catch (error) { return res.status(400).json({ error: error.message }); }
       const submissionUid = `sub_${crypto.randomBytes(9).toString('hex')}`;
       const submissionDir = path.join(SUBMISSIONS_DIR, submissionUid);
       fs.mkdirSync(submissionDir, { recursive: true });
@@ -299,6 +302,9 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
             timestamp, timestamp]
         );
         const submissionId = inserted.lastID;
+        for (const preset of presets) {
+          await run('INSERT INTO ea_submission_presets(submission_id,symbol,file_name,content_text) VALUES(?,?,?,?)', [submissionId,preset.symbol,preset.name,preset.text]);
+        }
 
         const sourceHash = crypto.createHash('sha256');
         for (const file of decoded) {

@@ -26,6 +26,10 @@ function loadConfig() {
   const config = {
     // CornGrid backend base URL, e.g. https://corngrid.com
     backendUrl: env.CORNGRID_BACKEND_URL || file.backendUrl || 'https://corngrid.com',
+    brokerServerDataDirs: file.brokerServerDataDirs || {},
+    brokerSymbolMaps: file.brokerSymbolMaps || {},
+    webRequestSettingsSource: file.webRequestSettingsSource || '',
+    startupSymbol: env.CORNGRID_STARTUP_SYMBOL || file.startupSymbol || '',
     nodeUid: env.CORNGRID_NODE_UID || file.nodeUid || '',
     nodeToken: env.CORNGRID_NODE_TOKEN || file.nodeToken || '',
 

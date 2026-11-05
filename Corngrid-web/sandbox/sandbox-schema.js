@@ -274,6 +274,8 @@ const SCHEMA = `
   );
 `;
 
+const PARTNER_EXTENSIONS_SCHEMA = "\nCREATE TABLE IF NOT EXISTS partner_applications (\n user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n display_name TEXT NOT NULL, company TEXT, website TEXT,\n status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),\n review_notes TEXT, reviewed_by TEXT, reviewed_at BIGINT,\n created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL\n);\nCREATE TABLE IF NOT EXISTS ea_submission_presets (\n submission_id INTEGER NOT NULL REFERENCES ea_submissions(id) ON DELETE CASCADE,\n symbol TEXT NOT NULL, file_name TEXT NOT NULL, content_text TEXT NOT NULL,\n PRIMARY KEY(submission_id,symbol)\n);\n";
+
 // Default strategy catalogue seed. The CornGrid EA ships with the platform, so
 // it is inserted at startup when missing; partner EAs appear here only after
 // the review workflow publishes them.
@@ -283,11 +285,9 @@ const DEFAULT_STRATEGY = {
   description: 'The official CornGrid grid trading expert advisor.'
 };
 
-const PARTNER_APPLICATIONS_SCHEMA = "\nCREATE TABLE IF NOT EXISTS partner_applications (\n user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n display_name TEXT NOT NULL, company TEXT, website TEXT,\n status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),\n review_notes TEXT, reviewed_by TEXT, reviewed_at BIGINT,\n created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL\n);\n";
-
 function ensureSchema(db) {
   return new Promise((resolve, reject) => {
-    db.exec(SCHEMA + PARTNER_APPLICATIONS_SCHEMA, error => (error ? reject(error) : resolve()));
+    db.exec(SCHEMA + PARTNER_EXTENSIONS_SCHEMA, error => (error ? reject(error) : resolve()));
   });
 }
 

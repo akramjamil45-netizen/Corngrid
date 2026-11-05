@@ -241,6 +241,15 @@ test('subscription purchase, approval, license activation, limits, suspension, a
     assert.equal(response.status, 404, 'a deleted subscription is no longer listed');
     response = await request('/api/admin/subscriptions/1', { method: 'DELETE' });
     assert.equal(response.status, 409, 'active subscriptions must be revoked instead of deleted');
+    response = await request('/api/admin/subscription-plans/1', { method: 'DELETE' });
+    assert.equal(response.status, 409, 'plan history is preserved');
+    const created = await request('/api/admin/subscription-plans', { method: 'POST', body: { name: 'Unused', price: 10, duration_days: 30 } });
+    response = await request('/api/admin/subscription-plans/' + created.data.id, { method: 'DELETE' });
+    assert.equal(response.status, 200, 'unused plan can be deleted');
+    response = await request('/api/admin/subscription-plans/' + created.data.id, { method: 'DELETE' });
+    assert.equal(response.status, 404);
+    response = await request('/api/admin/subscription-plans/1bad', { method: 'DELETE' });
+    assert.equal(response.status, 400);
   } finally {
     const eaFile = path.join(DOWNLOAD_DIR, 'test-build.ex5');
     if (fs.existsSync(eaFile)) fs.unlinkSync(eaFile);

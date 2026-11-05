@@ -18,3 +18,31 @@ Corngrid-web/source/
 # Community feed image uploads (runtime user content)
 /public/uploads/feed/
 
+
+# Local deployment credentials and private runtime data
+Corngrid-web/agent/agent-config.json
+Corngrid-web/storage/
+Corngrid-web/public/uploads/
+
+# Runtime logs and local backup copies
+*.log
+*.bak
+*.bak.*
+
+# Local broker diagnostics and downloaded Python dependencies
+marketing/broker-python/
+marketing/broker-*-result.json
+marketing/broker-*-inspect.json
+marketing/broker-python-run.txt
+marketing/mt5-desktop*
+
+# Local session attachments, browser captures, and Windows cache
+.codex-remote-attachments/
+.playwright-mcp/
+Microsoft/
+
+# Machine-specific diagnostic reports and scheduled task exports
+marketing/*-result.json
+marketing/*-deployment-result.json
+marketing/sandbox-diagnostic.json
+marketing/agent-task-before-*.xml

@@ -24,10 +24,21 @@ function createAdminAuth({ email, passwordHash, jwtSecret }) {
     ? crypto.createHash('sha256').update(`${normalizedEmail}\0${normalizedHash}`).digest('hex')
     : '';
   const matchesEmail = value => enabled && typeof value === 'string' && value.trim().toLowerCase() === normalizedEmail;
+  function verifySessionToken(token) {
+    if (!enabled || typeof token !== 'string' || !token) return null;
+    try {
+      const claims = jwt.verify(token, jwtSecret);
+      if (claims?.sub !== 'admin' || claims?.role !== 'admin' || claims?.adminVersion !== adminVersion) return null;
+      return claims;
+    } catch (_error) {
+      return null;
+    }
+  }
 
   return {
     isConfigured: enabled,
     matchesEmail,
+    verifySessionToken,
     async authenticate(value, password, expiresIn = '30d') {
       if (!matchesEmail(value) || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72) {
         return null;
@@ -51,19 +62,11 @@ function createAdminAuth({ email, passwordHash, jwtSecret }) {
         return res.status(403).json({ error: 'This request must come from the same site.' });
       }
 
-      jwt.verify(token, jwtSecret, (error, claims) => {
-        if (
-          error ||
-          !enabled ||
-          claims?.sub !== 'admin' ||
-          claims?.role !== 'admin' ||
-          claims?.adminVersion !== adminVersion
-        ) {
-          return res.status(403).json({ error: 'Administrator session is invalid or has expired.' });
-        }
-        req.admin = true;
-        return next();
-      });
+      if (!verifySessionToken(token)) {
+        return res.status(403).json({ error: 'Administrator session is invalid or has expired.' });
+      }
+      req.admin = true;
+      return next();
     }
   };
 }

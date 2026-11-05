@@ -1268,7 +1268,7 @@
         <div id="email-detail-preview"></div>`;
       const frame = document.createElement('iframe');
       frame.className = 'email-preview-frame';
-      frame.setAttribute('sandbox', '');
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
       frame.title = 'Email HTML preview';
       frame.srcdoc = email.html || '<!doctype html><html><body style="font-family:Arial,sans-serif;padding:24px;color:#333;">No HTML body was stored.</body></html>';
       $('#email-detail-preview').append(frame);
@@ -1451,6 +1451,7 @@
           <td data-label="Active">${subStatusBadge(plan.is_active ? 'active' : 'inactive')}</td>
           <td class="cell-actions" data-label="Actions">
             <button class="button button-small button-secondary" type="button" data-sub-action="edit-plan" data-id="${escapeHtml(String(plan.id))}">Edit</button>
+            <button class="button button-small button-danger" type="button" data-sub-action="delete-plan" data-id="${escapeHtml(String(plan.id))}">Delete</button>
             <button class="button button-small button-secondary" type="button" data-sub-action="toggle-plan" data-id="${escapeHtml(String(plan.id))}" data-active="${plan.is_active ? '1' : '0'}">${plan.is_active ? 'Deactivate' : 'Activate'}</button>
           </td>
         </tr>`).join('');
@@ -1612,6 +1613,10 @@
     } else if (subAction === 'delete-subscription') {
       if (!window.confirm('Delete this inactive subscription record? This cannot be undone.')) return;
       path = `/api/admin/subscriptions/${id}`;
+      method = 'DELETE';
+    } else if (subAction === 'delete-plan') {
+      if (!window.confirm('Delete this plan permanently? Plans with payment history must be deactivated instead.')) return;
+      path = '/api/admin/subscription-plans/' + id;
       method = 'DELETE';
     } else if (subAction === 'toggle-plan') {
       path = `/api/admin/subscription-plans/${id}`;

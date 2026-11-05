@@ -15,6 +15,7 @@
 // The agent then builds the isolated MT5 environment and reports status back.
 
 const crypto = require('crypto');
+const { loadStrategyPreset } = require('../partner/presets');
 const { exclusive } = require('../db-write');
 const { maskAccountNumber } = require('./sandbox-crypto');
 
@@ -111,6 +112,7 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
 
   async function activateSandbox(userId, {
     strategyCode = 'corngrid-ea',
+    symbol = 'XAUUSD',
     brokerServer,
     accountNumber,
     password,
@@ -118,6 +120,9 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     actorType = 'user',
     actorId = userId
   } = {}) {
+    if (!['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY'].includes(symbol)) {
+      return { http: 400, body: { error: 'Select a supported trading pair: XAUUSD, EURUSD, GBPUSD or USDJPY.', code: 'INVALID_SYMBOL' } };
+    }
     // --- Input validation ---------------------------------------------------
     if (typeof brokerServer !== 'string' || brokerServer.trim().length < 2 || brokerServer.trim().length > 100) {
       return { http: 400, body: { error: 'A valid broker server name is required.' } };
@@ -137,6 +142,8 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
       return { http: 400, body: { error: 'The selected trading strategy is not available.' } };
     }
 
+    const preset = await loadStrategyPreset(db, strategy, symbol);
+    if (!preset) return { http: 400, body: { error: 'This EA has no approved preset for the selected pair. Ask the developer to submit one for review.', code: 'PRESET_UNAVAILABLE' } };
     // --- Subscription gate --------------------------------------------------
     const subscription = await subscriptions.eligibleSubscription(userId);
     if (!subscription) {
@@ -259,7 +266,9 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
 
     // --- Dispatch the deploy command -----------------------------------------
     const deployPayload = {
+      preset,
       instanceUid,
+      symbol,
       brokerServer: brokerServer.trim(),
       accountNumber: String(accountNumber).trim(),
       password,

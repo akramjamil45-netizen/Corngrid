@@ -72,6 +72,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     if (!node) return null;
     const token = `cgn_${crypto.randomBytes(32).toString('hex')}`;
     await run('UPDATE sandbox_nodes SET auth_token_hash = ?, updated_at = ? WHERE id = ?', [hashToken(token), now(), nodeId]);
+    disconnectNode(nodeId, 'Node token rotated');
     return { token };
   }
 
@@ -252,6 +253,14 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     const connection = liveConnections.get(nodeId);
     if (connection) {
       try {
+        const current = await get('SELECT status, auth_token_hash FROM sandbox_nodes WHERE id = ?', [nodeId]);
+        // A newer authenticated session may have replaced this socket while
+        // the lookup was pending. Never disconnect that replacement.
+        if (liveConnections.get(nodeId) !== connection) return record;
+        if (!current || current.status === 'disabled' || current.auth_token_hash !== connection.nodeAuthTokenHash) {
+          disconnectNode(nodeId, 'Node credentials revoked');
+          return record;
+        }
         connection.send(JSON.stringify({
           type: 'command',
           commandUid,
@@ -327,8 +336,10 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     const errorText = error ? String(error).slice(0, 500) : null;
 
     if (command === 'deploy' && success) {
+      // A heartbeat can report running before the deploy acknowledgement is persisted.
+      // Keep the current terminal state rather than regressing it to starting.
       await run(
-        `UPDATE sandbox_instances SET status = 'starting', sandbox_path = COALESCE(?, sandbox_path), updated_at = ? WHERE id = ?`,
+        `UPDATE sandbox_instances SET status = CASE WHEN status IN ('requested','allocating','deploying') THEN 'starting' ELSE status END, sandbox_path = COALESCE(?, sandbox_path), updated_at = ? WHERE id = ?`,
         [result && typeof result.sandboxPath === 'string' ? result.sandboxPath.slice(0, 260) : null, timestamp, instance.id]
       );
       await events.emit('SANDBOX_DEPLOYING', { instanceId: instance.id, nodeId: deployment.node_id, payload: { stage: 'environment_ready' } });
@@ -381,8 +392,18 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     return available[0];
   }
 
-  function attachConnection(nodeId, connection) {
+  function attachConnection(nodeId, connection, tokenHash) {
+    disconnectNode(nodeId, 'Node connected from another session');
+    connection.nodeAuthTokenHash = tokenHash;
     liveConnections.set(nodeId, connection);
+  }
+
+  function disconnectNode(nodeId, reason = 'Node access revoked') {
+    const connection = liveConnections.get(nodeId);
+    liveConnections.delete(nodeId);
+    if (connection) {
+      try { connection.close(4003, reason); } catch (_error) { /* already closed */ }
+    }
   }
 
   function detachConnection(nodeId, connection) {
@@ -406,6 +427,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     completeCommand,
     allocateNode,
     attachConnection,
+    disconnectNode,
     detachConnection,
     isConnected,
     hashToken,

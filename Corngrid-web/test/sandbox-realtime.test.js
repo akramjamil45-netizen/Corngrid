@@ -29,7 +29,9 @@ function rateLimit() {
   return (_req, _res, next) => next();
 }
 
-test('end-to-end: node connects over WebSocket, receives deploy, reports running', async () => {
+test('end-to-end: node connects over WebSocket, receives deploy, reports running', async t => {
+  const sockets = [];
+  const openSocket = url => { const socket = new WebSocket(url); sockets.push(socket); return socket; };
   const db = await openDatabase();
   const app = express();
   const jwtSecret = 'realtime-test-secret';
@@ -43,6 +45,10 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   const verifyToken = createUserAuth({ db, jwtSecret });
   const mt5 = registerMt5Api(app, db, verifyToken);
   const adminAuth = {
+    verifySessionToken(token) {
+      try { const claims = jwt.verify(token, jwtSecret); return claims.sub === 'admin' && claims.role === 'admin' ? claims : null; }
+      catch (_error) { return null; }
+    },
     verifyToken: (req, res, next) => {
       const header = req.headers.authorization || '';
       const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -61,6 +67,7 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   const server = await new Promise(resolve => {
     const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
   });
+  t.after(() => { for (const socket of sockets) socket.terminate(); server.close(); });
   sandbox.realtime.attach(server);
   const port = server.address().port;
   const base = `http://127.0.0.1:${port}`;
@@ -91,7 +98,7 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   await request(`/api/admin/sandbox/nodes/${created.body.node.id}/status`, { token: adminToken, method: 'POST', body: { status: 'active' } });
 
   // Connect a mock agent over WebSocket.
-  const agent = new WebSocket(`${wsBase}/ws/sandbox/node`);
+  const agent = openSocket(`${wsBase}/ws/sandbox/node`);
   const agentMessages = [];
   const waitFor = (predicate, timeoutMs = 8000) => new Promise((resolve, reject) => {
     const started = Date.now();
@@ -146,7 +153,7 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   assert.equal(status.body.mt5Connection, 'connected');
 
   // Admin WS receives the event stream (cookie-less: use the token fallback).
-  const adminWs = new WebSocket(`${wsBase}/ws/admin/sandbox?token=${encodeURIComponent(adminToken)}`);
+  const adminWs = openSocket(`${wsBase}/ws/admin/sandbox?token=${encodeURIComponent(adminToken)}`);
   const adminMessages = [];
   adminWs.on('message', raw => { try { adminMessages.push(JSON.parse(raw.toString())); } catch { /* ignore */ } });
   await new Promise((resolve, reject) => { adminWs.on('open', resolve); adminWs.on('error', reject); });
@@ -154,11 +161,27 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   assert.ok(adminMessages.some(message => message.type === 'snapshot'), 'admin received a snapshot');
 
   // A bad node token is rejected.
-  const impostor = new WebSocket(`${wsBase}/ws/sandbox/node`);
+  const impostor = openSocket(`${wsBase}/ws/sandbox/node`);
   await new Promise((resolve, reject) => { impostor.on('open', resolve); impostor.on('error', reject); });
   impostor.send(JSON.stringify({ type: 'auth', nodeUid, token: 'cgn_wrong' }));
   await new Promise(resolve => impostor.on('close', resolve));
 
+  // Rotation must revoke the existing transport as well as fresh HTTP calls.
+  const revoked = new Promise(resolve => agent.once('close', resolve));
+  const rotated = await request(`/api/admin/sandbox/nodes/${created.body.node.id}/rotate-token`, {
+    token: adminToken, method: 'POST', body: {}
+  });
+  assert.equal(rotated.status, 200);
+  await revoked;
+  const oldCredential = await fetch(`${base}/api/sandbox/node/commands`, {
+    headers: { 'X-Node-Id': nodeUid, 'X-Node-Token': nodeToken }
+  });
+  assert.equal(oldCredential.status, 403);
+  const currentCredential = await fetch(`${base}/api/sandbox/node/commands`, {
+    headers: { 'X-Node-Id': nodeUid, 'X-Node-Token': rotated.body.token }
+  });
+  assert.equal(currentCredential.status, 200);
+  assert.equal(sandbox.nodes.isConnected(created.body.node.id), false);
   agent.close();
   adminWs.close();
   server.close();

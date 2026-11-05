@@ -18,12 +18,20 @@ function createSandboxApi({ db, manager, rateLimit } = {}) {
     app.get('/api/sandbox/strategies', verifyToken, async (_req, res) => {
       try {
         const strategies = await all(
-          `SELECT code, name, description, version
+          `SELECT id, code, name, description, version, submission_id
            FROM trading_strategies
            WHERE is_active = TRUE AND is_published = TRUE
            ORDER BY id ASC`
         );
-        res.json({ strategies });
+        const available = [];
+        for (const strategy of strategies) {
+          const supportedPairs = [];
+          for (const symbol of ['XAUUSD','EURUSD','GBPUSD','USDJPY']) {
+            if (await require('../partner/presets').loadStrategyPreset(db, strategy, symbol)) supportedPairs.push(symbol);
+          }
+          if (supportedPairs.length) available.push({ code:strategy.code, name:strategy.name, description:strategy.description, version:strategy.version, supportedPairs });
+        }
+        res.json({ strategies: available });
       } catch (error) {
         console.error('Failed to list strategies:', error.message);
         res.status(500).json({ error: 'Unable to load trading strategies.' });
@@ -45,6 +53,7 @@ function createSandboxApi({ db, manager, rateLimit } = {}) {
       const body = req.body || {};
       const result = await manager.activateSandbox(req.user.id, {
         strategyCode: body.strategyCode,
+        symbol: body.symbol,
         brokerServer: body.brokerServer,
         accountNumber: body.accountNumber,
         password: body.password,

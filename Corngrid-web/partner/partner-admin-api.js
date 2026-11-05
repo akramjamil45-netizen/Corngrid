@@ -7,6 +7,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { exclusive } = require('../db-write');
 
 function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionService, storageDir, now = () => Date.now() } = {}) {
   const SUBMISSIONS_DIR = storageDir || path.join(__dirname, '..', 'storage', 'ea-submissions');
@@ -29,6 +30,15 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
   function all(sql, params = []) {
     return new Promise((resolve, reject) => {
       db.all(sql, params, (error, rows) => (error ? reject(error) : resolve(rows || [])));
+    });
+  }
+
+  async function withTransaction(task) {
+    if (typeof db.transaction === 'function') return db.transaction(task);
+    return exclusive(db, async () => {
+      await run('BEGIN IMMEDIATE');
+      try { const result = await task(); await run('COMMIT'); return result; }
+      catch (error) { await run('ROLLBACK').catch(() => {}); throw error; }
     });
   }
 
@@ -154,7 +164,8 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
         try {
           files = fs.readdirSync(dir).map(name => ({ name, size: fs.statSync(path.join(dir, name)).size }));
         } catch { /* directory missing */ }
-        res.json({ submission: publicSubmissionAdmin(row), versions, testReports: reports, files });
+        res.json({ submission: publicSubmissionAdmin(row),
+          presets: await all('SELECT symbol,file_name AS name,content_text AS text FROM ea_submission_presets WHERE submission_id=?',[id]), versions, testReports: reports, files });
       } catch (error) {
         console.error('Failed to load submission detail:', error.message);
         res.status(500).json({ error: 'Unable to load the submission.' });
@@ -261,6 +272,8 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
           return res.status(409).json({ error: 'Only approved submissions can be published.' });
         }
         const timestamp = now();
+        const presetCount = await get('SELECT COUNT(*) AS count FROM ea_submission_presets WHERE submission_id=?', [id]);
+        if (!Number(presetCount.count)) return res.status(400).json({ error: 'At least one reviewed .set preset is required before publishing this EA.' });
         const code = `partner-${row.submission_uid.replace(/^sub_/, '')}`;
         const inserted = await run(
           `INSERT INTO trading_strategies (code, name, description, version, is_active, is_published, submission_id, created_at, updated_at)
@@ -350,11 +363,24 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
     // Source bundle download used by the TEST NODE agent (node token auth is
     // enforced by the caller mounting this with authenticateNodeRequest).
     function registerTestNodeRoutes(app, authenticateNodeRequest) {
-      app.get('/api/admin/ea-testing/:id/source', authenticateNodeRequest, async (req, res) => {
+      function requireTestNode(req, res, next) {
+        if (req.node?.status !== 'active' || ![true, 1, '1', 't', 'true'].includes(req.node?.is_test_node)) {
+          return res.status(403).json({ error: 'An active assigned test node is required.' });
+        }
+        next();
+      }
+      function assignedSource(id, nodeId) {
+        return get(`SELECT s.submission_uid FROM ea_submissions s
+          WHERE s.id = ? AND s.deleted_at IS NULL AND s.status = 'testing'
+          AND EXISTS (SELECT 1 FROM ea_test_reports r
+            WHERE r.submission_id = s.id AND r.node_id = ? AND r.status = 'running'
+            AND r.id = (SELECT MAX(latest.id) FROM ea_test_reports latest WHERE latest.submission_id = s.id))`, [id, nodeId]);
+      }
+      app.get('/api/admin/ea-testing/:id/source', authenticateNodeRequest, requireTestNode, async (req, res) => {
         const id = Number.parseInt(req.params.id, 10);
         if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
         try {
-          const row = await get('SELECT submission_uid FROM ea_submissions WHERE id = ? AND deleted_at IS NULL', [id]);
+          const row = await assignedSource(id, req.node.id);
           if (!row) return res.status(404).json({ error: 'Submission not found.' });
           const dir = path.resolve(SUBMISSIONS_DIR, row.submission_uid);
           if (!dir.startsWith(path.resolve(SUBMISSIONS_DIR) + path.sep) || !fs.existsSync(dir)) {
@@ -369,11 +395,11 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
         }
       });
 
-      app.get('/api/admin/ea-testing/:id/source/:filename', authenticateNodeRequest, async (req, res) => {
+      app.get('/api/admin/ea-testing/:id/source/:filename', authenticateNodeRequest, requireTestNode, async (req, res) => {
         const id = Number.parseInt(req.params.id, 10);
         if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
         try {
-          const row = await get('SELECT submission_uid FROM ea_submissions WHERE id = ? AND deleted_at IS NULL', [id]);
+          const row = await assignedSource(id, req.node.id);
           if (!row) return res.status(404).json({ error: 'Submission not found.' });
           const filename = path.basename(String(req.params.filename));
           const base = path.resolve(SUBMISSIONS_DIR, row.submission_uid);
@@ -390,33 +416,39 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
       });
 
       // Test report callback from the test node agent.
-      app.post('/api/admin/ea-testing/reports/:reportId/complete', authenticateNodeRequest, async (req, res) => {
+      app.post('/api/admin/ea-testing/reports/:reportId/complete', authenticateNodeRequest, requireTestNode, async (req, res) => {
         const reportId = Number.parseInt(req.params.reportId, 10);
         if (!Number.isSafeInteger(reportId) || reportId < 1) return res.status(400).json({ error: 'Invalid report.' });
         const body = req.body || {};
         try {
-          const report = await get('SELECT * FROM ea_test_reports WHERE id = ?', [reportId]);
+          const report = await get('SELECT * FROM ea_test_reports WHERE id = ? AND node_id = ?', [reportId, req.node.id]);
           if (!report) return res.status(404).json({ error: 'Report not found.' });
           if (report.status !== 'running') return res.status(409).json({ error: 'This report is already finished.' });
 
           const success = body.success === true;
           const timestamp = now();
-          await run(
-            `UPDATE ea_test_reports
-             SET status = ?, compile_log = ?, runtime_log = ?, cpu_avg = ?, memory_peak_mb = ?, error_count = ?, finished_at = ?
-             WHERE id = ?`,
-            [success ? 'passed' : 'failed',
-              typeof body.compileLog === 'string' ? body.compileLog.slice(0, 20000) : null,
-              typeof body.runtimeLog === 'string' ? body.runtimeLog.slice(0, 20000) : null,
-              typeof body.cpuAvg === 'number' ? body.cpuAvg : null,
-              typeof body.memoryPeakMb === 'number' ? body.memoryPeakMb : null,
-              Number.isInteger(body.errorCount) ? body.errorCount : 0,
-              timestamp, reportId]
-          );
-          await run(
-            'UPDATE ea_submissions SET status = ?, updated_at = ? WHERE id = ?',
-            [success ? 'testing_passed' : 'testing_failed', timestamp, report.submission_id]
-          );
+          const completed = await withTransaction(async () => {
+            const updated = await run(
+              `UPDATE ea_test_reports
+               SET status = ?, compile_log = ?, runtime_log = ?, cpu_avg = ?, memory_peak_mb = ?, error_count = ?, finished_at = ?
+               WHERE id = ? AND node_id = ? AND status = 'running'`,
+              [success ? 'passed' : 'failed',
+                typeof body.compileLog === 'string' ? body.compileLog.slice(0, 20000) : null,
+                typeof body.runtimeLog === 'string' ? body.runtimeLog.slice(0, 20000) : null,
+                typeof body.cpuAvg === 'number' ? body.cpuAvg : null,
+                typeof body.memoryPeakMb === 'number' ? body.memoryPeakMb : null,
+                Number.isInteger(body.errorCount) ? body.errorCount : 0,
+                timestamp, reportId, req.node.id]
+            );
+            if (!updated.changes) return false;
+            await run(
+              `UPDATE ea_submissions SET status = ?, updated_at = ? WHERE id = ? AND status = 'testing'
+               AND NOT EXISTS (SELECT 1 FROM ea_test_reports later WHERE later.submission_id = ? AND later.id > ?)`,
+              [success ? 'testing_passed' : 'testing_failed', timestamp, report.submission_id, report.submission_id, reportId]
+            );
+            return true;
+          });
+          if (!completed) return res.status(409).json({ error: 'This report is already finished.' });
           await events.emit('EA_TEST_FINISHED', {
             actorType: 'system', nodeId: req.node.id,
             payload: { reportId, submissionId: report.submission_id, success }

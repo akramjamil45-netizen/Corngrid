@@ -189,6 +189,13 @@
     }
   }
 
+  function syncSupportedPairs() {
+    const strategy = state.strategies.find(item => item.code === $('sandbox-strategy').value);
+    const pairs = strategy?.supportedPairs || [];
+    for (const option of $('sandbox-symbol').options) option.disabled = !pairs.includes(option.value);
+    if (!pairs.includes($('sandbox-symbol').value)) $('sandbox-symbol').value = pairs[0] || '';
+  }
+
   async function loadStrategies() {
     const select = $('sandbox-strategy');
     try {
@@ -202,6 +209,7 @@
       for (const strategy of state.strategies) {
         select.add(new Option(`${strategy.name}${strategy.version ? ` v${strategy.version}` : ''}`, strategy.code));
       }
+      syncSupportedPairs();
     } catch (_error) {
       select.replaceChildren();
       select.add(new Option('Unable to load strategies', ''));
@@ -219,6 +227,7 @@
       const result = await request('/sandbox/activate', {
         method: 'POST',
         body: JSON.stringify({
+          symbol: document.getElementById('sandbox-symbol').value,
           strategyCode: $('sandbox-strategy').value,
           brokerServer: ($('sandbox-manual-server-label').hidden ? $('sandbox-server-select').value : $('sandbox-broker-server').value).trim(),
           accountNumber: $('sandbox-account-number').value.trim(),
@@ -272,6 +281,7 @@
     $('sandbox-server-search').addEventListener('input', filterServers);
     $('sandbox-server-select').addEventListener('change', syncServerMode);
     loadBrokers();
+    $('sandbox-strategy').addEventListener('change', syncSupportedPairs);
     $('sandbox-activate-form').addEventListener('submit', activate);
     $('sandbox-start-btn').addEventListener('click', () => control('start'));
     $('sandbox-stop-btn').addEventListener('click', () => control('stop'));

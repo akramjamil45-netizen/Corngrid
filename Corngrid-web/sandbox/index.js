@@ -22,7 +22,7 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
   const api = createSandboxApi({ db, manager, rateLimit });
   const adminApi = createSandboxAdminApi({ db, nodes, events, manager, subscriptions: subscriptionApi, crypto });
   const nodeApi = createSandboxNodeApi({ db, nodes, events, manager, rateLimit });
-  const realtime = createSandboxRealtime({ db, nodes, events, jwtSecret });
+  const realtime = createSandboxRealtime({ db, nodes, events, adminAuth });
 
   // SQLite: self-apply the schema (idempotent). PostgreSQL: migrations are
   // applied by scripts/apply-postgres-migrations.js; verify presence instead.

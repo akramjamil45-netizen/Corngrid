@@ -165,16 +165,17 @@
         <section class="page is-visible" id="page-overview">
           <div class="page-heading">
             <div><p class="eyebrow">YOUR ACCOUNT, AT A GLANCE</p><h1>Trading overview</h1><p class="muted">Monitor verified account data and portfolio performance.</p></div>
-            <div class="heading-actions">
-              <label class="overview-control"><span>Trading account</span><select id="overview-account-select" class="select-control" aria-label="Choose an MT5 account for the overview">
+            <div class="heading-actions overview-toolbar" role="group" aria-label="Overview filters">
+              <label class="overview-control overview-account"><span class="sr-only">Trading account</span><select id="overview-account-select" class="select-control" aria-label="Choose an MT5 account for the overview" aria-describedby="overview-account-help">
                 <option value="">Loading your MT5 accounts…</option>
-              </select><small id="overview-account-help" aria-live="polite">Choose the account to view.</small></label>
-              <label class="overview-control overview-period"><span>Performance period</span><select id="period-select" class="select-control">
+              </select></label>
+              <label class="overview-control overview-period"><span class="sr-only">Performance period</span><select id="period-select" class="select-control">
                 <option value="today">Today</option><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All time</option><option value="custom">Custom range</option>
               </select></label>
               <input id="period-from" class="input-control period-date" type="date" aria-label="Period start date" hidden>
               <input id="period-to" class="input-control period-date" type="date" aria-label="Period end date" hidden>
-              <button class="button button-secondary" id="refresh-button">↻ <span>Refresh</span></button>
+              <button class="button button-secondary overview-refresh" id="refresh-button" type="button" aria-label="Refresh overview" title="Refresh overview"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5"/><path d="M19.1 16a8 8 0 1 1-.7-9.4L20 9"/></svg><span class="sr-only">Refresh</span></button>
+              <small id="overview-account-help" class="overview-help" aria-live="polite">Choose the account to view.</small>
               <button class="button button-small" id="retry-overview-accounts" type="button" hidden>Retry account list</button>
             </div>
           </div>
@@ -304,9 +305,14 @@
             <span class="subscription-heading-badge">DuitNow checkout</span>
           </div>
 
+          <ol class="cg-purchase-steps" aria-label="How to subscribe">
+            <li><span aria-hidden="true">01</span><div><strong>Choose your plan</strong><p>Pick the access duration that suits you.</p></div></li>
+            <li><span aria-hidden="true">02</span><div><strong>Pay with DuitNow</strong><p>Scan the QR and upload your receipt.</p></div></li>
+            <li><span aria-hidden="true">03</span><div><strong>Get approved</strong><p>Your access starts after administrator approval.</p></div></li>
+          </ol>
           <div id="subscription-overview" class="subscription-section">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">CURRENT STATUS</p><h2>Subscription Overview</h2></div></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">CURRENT STATUS</p><h2>Your subscription</h2></div></div>
               <div id="subscription-status-content" class="subscription-panel-body">
                 <p class="muted">Loading subscription status...</p>
               </div>
@@ -315,17 +321,17 @@
 
           <div id="subscription-plans-section" class="subscription-section">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">AVAILABLE PLANS</p><h2>Choose a Plan</h2></div></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">AVAILABLE PLANS</p><h2>Choose a plan</h2></div></div>
               <div id="subscription-plans-grid" class="subscription-plans-grid"></div>
             </section>
           </div>
 
           <div id="subscription-payment-section" class="subscription-section" style="display: none;">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PAYMENT</p><h2>DuitNow Payment</h2></div></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PAYMENT</p><h2>Complete your payment</h2></div></div>
               <div class="subscription-payment-layout">
                 <div class="subscription-qr-frame">
-                  <img id="duitnow-qr-img" class="subscription-qr-image" src="/api/subscription/duitnow-qr" alt="DuitNow QR" onerror="this.style.display='none'; document.getElementById('qr-missing').style.display='block';">
+                  <img id="duitnow-qr-img" class="subscription-qr-image" src="/api/subscription/duitnow-qr" alt="DuitNow payment QR code" onerror="this.style.display='none'; document.getElementById('qr-missing').style.display='block';">
                   <div id="qr-missing" class="subscription-qr-missing" style="display: none;">
                     <p class="muted">Payment QR not configured yet. Please contact administrator.</p>
                   </div>
@@ -349,7 +355,7 @@
 
           <div id="subscription-activations-section" class="subscription-section">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">EA LICENSE</p><h2>Active Activations</h2></div><span class="muted small" id="activation-count-text"></span></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">EA LICENSE</p><h2>EA activations</h2></div><span class="muted small" id="activation-count-text"></span></div>
               <div class="subscription-panel-body">
                 <div id="activations-list" class="subscription-list"></div>
                 <p class="muted small subscription-list-note">Link MT5 accounts in the MT5 Accounts section. EA activation is separate from account linking.</p>
@@ -359,7 +365,7 @@
 
           <div id="subscription-downloads-section" class="subscription-section">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PROTECTED DOWNLOAD</p><h2>CornGrid EA Download</h2></div></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PROTECTED DOWNLOAD</p><h2>Your EA download</h2></div></div>
               <div class="subscription-panel-body">
                 <p class="muted small" id="ea-download-help">An active subscription is required to download the compiled EA.</p>
                 <div id="ea-download-list" class="subscription-list"></div>
@@ -369,7 +375,7 @@
 
           <div id="subscription-notifications-section" class="subscription-section">
             <section class="panel subscription-panel">
-              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">NOTIFICATIONS</p><h2>Subscription Updates</h2></div><div class="subscription-notification-actions"><button class="button button-small" type="button" id="mark-notifications-read">Mark all read</button><button class="button button-small button-secondary" type="button" id="clear-notifications">Clear all</button></div></div>
+              <div class="panel-header subscription-panel-header"><div><p class="eyebrow">NOTIFICATIONS</p><h2>Latest updates</h2></div><div class="subscription-notification-actions"><button class="button button-small" type="button" id="mark-notifications-read">Mark all read</button><button class="button button-small button-secondary" type="button" id="clear-notifications">Clear all</button></div></div>
               <div id="subscription-notifications-list" class="subscription-panel-body subscription-notifications"></div>
             </section>
           </div>
@@ -800,12 +806,20 @@
           <div id="sandbox-activation-section" hidden>
             <section class="panel">
               <div class="panel-header"><div><p class="eyebrow">GET STARTED</p><h2>Activate your sandbox</h2></div></div>
-              <div class="subscription-panel-body">
+              <div class="subscription-panel-body cg-setup-layout">
                 <p class="muted small">Connect your MT5 trading account. CornGrid deploys an isolated MT5 terminal with the licensed EA on a sandbox server — no installation, no license key, no VPS setup on your side.</p>
                 <form id="sandbox-activate-form" class="settings-form sandbox-form">
                   <label>Trading strategy
                     <select id="sandbox-strategy" class="select-control" required>
                       <option value="">Loading strategies…</option>
+                    </select>
+                  </label>
+                  <label for="sandbox-symbol">Trading pair
+                    <select id="sandbox-symbol" class="select-control" required>
+                      <option value="XAUUSD" selected>XAUUSD</option>
+                      <option value="EURUSD">EURUSD</option>
+                      <option value="GBPUSD">GBPUSD</option>
+                      <option value="USDJPY">USDJPY</option>
                     </select>
                   </label>
                   <div class="sandbox-broker-picker">
@@ -829,11 +843,16 @@
                   <label>MT5 password
                     <input id="sandbox-password" class="input-control" type="password" maxlength="128" required autocomplete="new-password">
                   </label>
-                  <p class="muted small">Your credentials are encrypted (AES-256-GCM) and used only to sign the sandbox terminal into your broker. They are never shown back to you or exposed in logs.</p>
+                  <p class="muted small">Your MT5 credentials are encrypted and used only to connect your sandbox.</p>
                   <div class="sandbox-form-actions">
                     <button class="button button-primary" type="submit" id="sandbox-activate-btn">Activate Sandbox</button>
                   </div>
                 </form>
+                <aside class="cg-setup-guide" aria-label="Sandbox setup guide">
+                  <span class="cg-guide-tag">MANAGED TRADING</span><h3>Your workspace, always ready.</h3>
+                  <ol class="cg-steps"><li><strong>Choose your strategy</strong><span>Select an EA and a supported pair. The matching preset loads automatically.</span></li><li><strong>Connect your MT5 account</strong><span>Use the exact server name shown by your broker.</span></li><li><strong>Monitor from one place</strong><span>Follow the connection, resource usage and EA status here.</span></li></ol>
+                  <p class="cg-guide-note">An active CornGrid subscription is required to activate a sandbox.</p>
+                </aside>
               </div>
             </section>
           </div>
@@ -889,14 +908,15 @@
 
           <div id="partner-register-section" hidden>
             <section class="panel">
-              <div class="panel-header"><div><p class="eyebrow">BECOME A PARTNER</p><h2>Register as an EA developer</h2></div></div>
-              <div class="subscription-panel-body">
+              <div class="panel-header"><div><p class="eyebrow">BECOME A PARTNER</p><h2>Apply as an EA developer</h2></div></div>
+              <div class="subscription-panel-body cg-setup-layout">
+                <p class="muted small">Administrator approval is required before you can submit an EA or access partner features.</p>
                 <form id="partner-register-form" class="settings-form">
                   <label>Display name<input id="partner-display-name" class="input-control" type="text" maxlength="80" required></label>
                   <label>Company (optional)<input id="partner-company" class="input-control" type="text" maxlength="120"></label>
                   <label>Website (optional)<input id="partner-website" class="input-control" type="url" maxlength="200" placeholder="https://"></label>
-                  <button class="button button-primary" type="submit">Register as partner</button>
-                </form>
+                  <button class="button button-primary" type="submit">Apply to become a partner</button>
+                </form><aside class="cg-setup-guide" aria-label="Partner application guide"><span class="cg-guide-tag">BUILD WITH CORNGRID</span><h3>Bring your EA to the platform.</h3><ol class="cg-steps"><li><strong>Apply as a developer</strong><span>Tell us about yourself and your business.</span></li><li><strong>Get administrator approval</strong><span>Track your application status in this workspace.</span></li><li><strong>Submit your EA and presets</strong><span>Once approved, upload source files and a preset for each supported pair.</span></li></ol></aside>
               </div>
             </section>
           </div>
@@ -921,6 +941,10 @@
                   <label>Risk management description<textarea id="ea-risk-desc" class="input-control" rows="3" maxlength="2000"></textarea></label>
                   <label>Documentation (optional)<textarea id="ea-documentation" class="input-control" rows="2" maxlength="4000"></textarea></label>
                   <label>Source files (.mq5, .mqh, or .zip project)<input id="ea-files" class="input-control" type="file" accept=".mq5,.mqh,.zip" multiple required></label>
+                  <fieldset class="cg-preset-grid"><legend>EA presets by pair</legend><p class="muted small">Upload your own .set file for each pair your EA supports (maximum 128 KB each). At least one preset is required. CornGrid presets are reserved for CornGrid EA.</p><label for="ea-preset-XAUUSD">XAUUSD preset (.set)<input id="ea-preset-XAUUSD" class="input-control" type="file" accept=".set"></label>
+                  <label for="ea-preset-EURUSD">EURUSD preset (.set)<input id="ea-preset-EURUSD" class="input-control" type="file" accept=".set"></label>
+                  <label for="ea-preset-GBPUSD">GBPUSD preset (.set)<input id="ea-preset-GBPUSD" class="input-control" type="file" accept=".set"></label>
+                  <label for="ea-preset-USDJPY">USDJPY preset (.set)<input id="ea-preset-USDJPY" class="input-control" type="file" accept=".set"></label></fieldset>
                   <p class="muted small">Source code is reviewed and tested in an isolated environment before publication. It is never executed on production servers.</p>
                   <button class="button button-primary" type="submit" id="ea-submit-btn">Submit for review</button>
                 </form>
@@ -961,11 +985,12 @@
   </div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
-  <script src="dashboard.js?v=20261105-support2"></script>
+  <script src="dashboard.js?v=20261105-overview-compact1"></script>
   <script src="market.js?v=20261026-1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261030-1"></script>
   <script src="sandbox.js?v=20261105-broker-picker2"></script>
-  <script src="partner.js?v=20261105-partner-delete1"></script>
+  <script src="partner.js?v=20261105-3"></script>
 </body>
 </html>
+

@@ -81,7 +81,7 @@
       select.add(new Option(`${name} · ${identity} · ${currency} · ${account.status}`, String(account.id)));
     });
     select.disabled = false;
-    $('#overview-account-help').textContent = `${state.accounts.length} linked ${state.accounts.length === 1 ? 'account' : 'accounts'} · Summary shows one account at a time.`;
+    $('#overview-account-help').textContent = `${state.accounts.length} linked ${state.accounts.length === 1 ? 'account' : 'accounts'} · Viewing selected account`;
     $('#retry-overview-accounts').hidden = true;
     if (!state.accounts.some(account => String(account.id) === state.overviewAccountId)) {
       state.overviewAccountId = String(state.accounts[0].id);

@@ -57,3 +57,14 @@ EA subscription RM100, partner commission 40% → partner earns RM40, CornGrid k
 ## Partner payout details
 
 Bank/DuitNow details submitted in the partner profile are stored AES-256-GCM-encrypted (`payout_details_cipher`) and never returned by the API.
+
+
+## Partner applications and EA presets
+
+Users apply from Dashboard > Partner Program. Applications remain pending until an administrator approves them in Admin > EA Submissions > Partner Applications. Pending and rejected applicants cannot submit EAs or access partner functions. Rejections require a reason; applicants may update their details and reapply. Existing active partner profiles remain active.
+
+Approved partners upload a separate .set preset for each supported pair (XAUUSD, EURUSD, GBPUSD, USDJPY) with each new EA submission. Files are limited to 128 KB each and validated as UTF-8 or UTF-16LE MT5 input settings. Presets are immutable with the submitted EA version and reviewed alongside source files. Publishing requires a preset. To change a published preset, submit a new EA version for review.
+
+CornGrid EA uses only its official Dashboard Downloads presets: XAUUSD v2.60 and EURUSD/GBPUSD/USDJPY M1 v2.00. Partner strategies receive only their own reviewed pair preset. Unsupported pairs are unavailable; there is no fallback to CornGrid. CornGrid-only sync inputs and credential files are not injected into partner EAs. A partner EA must implement its own compatible telemetry if dashboard EA heartbeat data is needed.
+
+Deployment: apply migrations/postgres/0006_partner_applications_presets.sql before restarting the backend. SQLite creates the additional tables through ensureSchema (the equivalent SQL is migrations/sqlite/0005_partner_applications_presets.sql). Both migrations add tables without modifying existing account, partner or trading records. Refresh dashboard/admin pages after deploying the updated JavaScript.

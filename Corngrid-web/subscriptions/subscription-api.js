@@ -496,23 +496,47 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   });
 
-  app.post('/api/subscription/payment-proof', verifyToken, async (req, res) => {
+  const proofUploadWindows = new Map();
+  function proofUploadLimit(req, res, next) {
+    const current = now();
+    for (const [id, window] of proofUploadWindows) {
+      if (window.until <= current) proofUploadWindows.delete(id);
+    }
+    let window = proofUploadWindows.get(req.user.id);
+    if (!window) {
+      if (proofUploadWindows.size >= 2048) return res.status(429).json({ error: 'Please retry your upload later.' });
+      window = { count: 0, until: current + 15 * 60 * 1000 };
+      proofUploadWindows.set(req.user.id, window);
+    }
+    if (++window.count > 10) {
+      res.set('Retry-After', String(Math.ceil((window.until - current) / 1000)));
+      return res.status(429).json({ error: 'Too many payment evidence updates. Please try again later.' });
+    }
+    next();
+  }
+  async function removeGeneratedProof(filename, userId, paymentId) {
+    if (typeof filename !== 'string' || path.basename(filename) !== filename ||
+        !filename.startsWith(`proof_${userId}_${paymentId}_`) ||
+        !/^proof_\d+_\d+_[a-f0-9]{24}\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(filename)) return;
+    try { await fs.promises.unlink(path.join(PROOF_DIR, filename)); }
+    catch (error) { if (error.code !== 'ENOENT') console.error('Unable to remove obsolete payment proof:', error.code); }
+  }
+
+  app.post('/api/subscription/payment-proof', verifyToken, proofUploadLimit, async (req, res) => {
+    let newProof = null;
+    let newProofCreated = false;
+    let committed = false;
+    const userId = req.user.id;
+    const paymentId = Number.parseInt(req.body?.paymentId, 10);
     try {
-      const userId = req.user.id;
-      const paymentId = Number.parseInt(req.body?.paymentId, 10);
       const paymentReference = typeof req.body?.paymentReference === 'string'
         ? req.body.paymentReference.trim().slice(0, 120) : null;
 
       if (!Number.isSafeInteger(paymentId) || paymentId < 1) {
         return res.status(400).json({ error: 'A valid payment is required.' });
       }
-      const payment = await get('SELECT * FROM subscription_payments WHERE id = ? AND user_id = ?', [paymentId, userId]);
-      if (!payment) return res.status(404).json({ error: 'Payment not found.' });
-      if (!['pending_payment', 'pending_approval'].includes(payment.status)) {
-        return res.status(409).json({ error: 'This payment can no longer be updated.' });
-      }
-
-      let proofPath = payment.payment_proof_path;
+      let proofBuffer = null;
+      let proofExtension = null;
       if (req.body?.proofData && req.body?.proofName) {
         const extension = path.extname(String(req.body.proofName)).toLowerCase();
         if (!PROOF_EXTENSIONS.has(extension)) {
@@ -523,40 +547,62 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
         if (!buffer.length || buffer.length > MAX_PROOF_BYTES) {
           return res.status(400).json({ error: 'Payment proof must be smaller than 5 MB.' });
         }
-        const filename = `proof_${userId}_${paymentId}_${crypto.randomBytes(12).toString('hex')}${extension}`;
-        fs.writeFileSync(path.join(PROOF_DIR, filename), buffer);
-        proofPath = filename;
-      }
-
-      if (!proofPath && !paymentReference) {
-        return res.status(400).json({ error: 'Attach a payment proof or enter a transaction reference.' });
+        proofBuffer = buffer;
+        proofExtension = extension;
       }
 
       const timestamp = now();
-      await withTransaction(async () => {
-        await run(
+      const outcome = await withTransaction(async () => {
+        // Reread under the write transaction; PostgreSQL must serialize writers
+        // to the same payment as well as SQLite's BEGIN IMMEDIATE path.
+        const payment = await get('SELECT * FROM subscription_payments WHERE id = ? AND user_id = ?' +
+          (isPostgres ? ' FOR UPDATE' : ''), [paymentId, userId]);
+        if (!payment) return { http: 404, error: 'Payment not found.' };
+        if (!['pending_payment', 'pending_approval'].includes(payment.status)) {
+          return { http: 409, error: 'This payment can no longer be updated.' };
+        }
+        let proofPath = payment.payment_proof_path;
+        if (proofBuffer) {
+          newProof = `proof_${userId}_${paymentId}_${crypto.randomBytes(12).toString('hex')}${proofExtension}`;
+          const proofFd = fs.openSync(path.join(PROOF_DIR, newProof), 'wx', 0o600);
+          newProofCreated = true;
+          try { fs.writeFileSync(proofFd, proofBuffer); }
+          finally { fs.closeSync(proofFd); }
+          proofPath = newProof;
+        }
+        if (!proofPath && !paymentReference) return { http: 400, error: 'Attach a payment proof or enter a transaction reference.' };
+        const updated = await run(
           `UPDATE subscription_payments
            SET payment_reference = COALESCE(?, payment_reference), payment_proof_path = ?,
                status = 'pending_approval', updated_at = ?
            WHERE id = ? AND user_id = ? AND status IN ('pending_payment','pending_approval')`,
           [paymentReference, proofPath, timestamp, paymentId, userId]
         );
+        if (!updated.changes) throw Object.assign(new Error('Payment changed during proof replacement.'), { statusCode: 409 });
         await run(
           `UPDATE user_subscriptions SET status = 'pending_approval', updated_at = ?
            WHERE id = ? AND status = 'pending_payment'`,
           [timestamp, payment.subscription_id]
         );
+        return { http: 200, proofPath, previousProof: payment.payment_proof_path };
       });
+      if (outcome.http !== 200) return res.status(outcome.http).json({ error: outcome.error });
+      committed = true;
+      if (outcome.previousProof && outcome.previousProof !== outcome.proofPath) {
+        await removeGeneratedProof(outcome.previousProof, userId, paymentId);
+      }
 
       await logAudit(userId, 'user', 'payment_proof_submitted', 'payment', paymentId,
-        { hasProof: Boolean(proofPath) }, null, req.ip);
+        { hasProof: Boolean(outcome.proofPath) }, null, req.ip);
       await notify(userId, 'payment_submitted', 'Payment submitted',
         'Your DuitNow payment is awaiting administrator approval.');
 
       res.json({ message: 'Payment evidence submitted. Your subscription activates after approval.' });
     } catch (error) {
       console.error('Failed to submit payment proof:', error.message);
-      res.status(500).json({ error: 'Unable to submit payment evidence.' });
+      res.status(error.statusCode === 409 ? 409 : 500).json({ error: 'Unable to submit payment evidence.' });
+    } finally {
+      if (newProofCreated && !committed) await removeGeneratedProof(newProof, userId, paymentId);
     }
   });
 
@@ -1391,6 +1437,23 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       console.error('Failed to create plan:', error.message);
       res.status(500).json({ error: 'Unable to create plan.' });
     }
+  });
+
+  app.delete('/api/admin/subscription-plans/:id', adminAuth.verifyToken, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid plan.' });
+    try {
+      const result = await withTransaction(async () => {
+        const plan = await get('SELECT * FROM subscription_plans WHERE id = ?', [id]);
+        if (!plan) return { status: 404, error: 'Plan not found.' };
+        const usage = await get('SELECT (SELECT COUNT(*) FROM user_subscriptions WHERE plan_id = ?) + (SELECT COUNT(*) FROM subscription_payments WHERE plan_id = ?) AS count', [id, id]);
+        if (Number(usage.count)) return { status: 409, error: 'This plan has subscription or payment history. Deactivate it to stop new purchases while retaining existing records.' };
+        await run('DELETE FROM subscription_plans WHERE id = ?', [id]);
+        await logAudit(req.admin?.id || null, 'admin', 'plan_deleted', 'plan', id, { name: plan.name }, null, req.ip);
+        return { status: 200 };
+      });
+      res.status(result.status).json(result.error ? { error: result.error } : { message: 'Plan deleted.' });
+    } catch (error) { res.status(409).json({ error: 'Unable to delete this plan. Deactivate plans with existing references.' }); }
   });
 
   app.put('/api/admin/subscription-plans/:id', adminAuth.verifyToken, async (req, res) => {

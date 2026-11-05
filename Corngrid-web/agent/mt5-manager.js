@@ -19,6 +19,8 @@
 // and path injection are not possible.
 
 const fs = require('fs');
+const { copyBrokerServerCache } = require('./broker-server-cache');
+const { prepareStartup, ensureStartup } = require('./mt5-startup');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 
@@ -32,6 +34,7 @@ function isValidInstanceUid(value) {
 function createMt5Manager({ config, logger, downloadFile }) {
   // instanceUid -> { child, pid, startedAt, restarts: [timestamps], sandboxPath, meta }
   const running = new Map();
+  const pendingRestarts = new Map();
 
   function instanceDir(instanceUid) {
     if (!isValidInstanceUid(instanceUid)) {
@@ -139,9 +142,11 @@ function createMt5Manager({ config, logger, downloadFile }) {
     fs.mkdirSync(dir, { recursive: true });
 
     await robocopy(path.resolve(config.mt5BaseDir), dir);
+    copyBrokerServerCache(dir, payload.brokerServer, config);
     writeAutoLoginConfig(dir, payload);
     writeLicenseBundle(dir, payload);
     await deployEa(dir, payload.strategy);
+    prepareStartup(dir, payload, config);
 
     const child = launch(dir, instanceUid, payload);
     return { sandboxPath: dir, pid: child.pid };
@@ -150,9 +155,10 @@ function createMt5Manager({ config, logger, downloadFile }) {
   // -------------------------------------------------------------------------
   // Process lifecycle
   // -------------------------------------------------------------------------
-  function launch(dir, instanceUid, meta = {}) {
+  function launch(dir, instanceUid, meta = {}, restarts = []) {
     const terminal = path.join(dir, 'terminal64.exe');
-    const child = spawn(terminal, ['/portable'], {
+    const startupPath = ensureStartup(dir, config);
+    const child = spawn(terminal, ['/portable', '/config:' + startupPath], {
       cwd: dir,
       detached: false,
       stdio: 'ignore',
@@ -163,7 +169,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
       child,
       pid: child.pid,
       startedAt: Date.now(),
-      restarts: [],
+      restarts,
       sandboxPath: dir,
       meta,
       intentionallyStopped: false
@@ -172,6 +178,10 @@ function createMt5Manager({ config, logger, downloadFile }) {
 
     child.on('error', error => {
       logger.error(instanceUid, `Failed to launch terminal: ${error.message}`);
+      if (running.get(instanceUid) === record) {
+        running.delete(instanceUid);
+        scheduleRestart(instanceUid, record);
+      }
     });
 
     child.on('exit', (code, signal) => {
@@ -194,20 +204,28 @@ function createMt5Manager({ config, logger, downloadFile }) {
     const nowTs = Date.now();
     record.restarts = record.restarts.filter(ts => nowTs - ts < config.restartWindowMs);
     if (record.restarts.length >= config.restartMaxAttempts) {
-      logger.error(instanceUid, `Restart limit reached (${config.restartMaxAttempts} in ${config.restartWindowMs / 60000}m); giving up.`);
+      logger.error(instanceUid, `Restart limit reached; cooling down before retry.`);
+      const timer = setTimeout(() => {
+        pendingRestarts.delete(instanceUid);
+        if (!running.has(instanceUid)) scheduleRestart(instanceUid, record);
+      }, Math.max(1000, config.restartWindowMs - (nowTs - record.restarts[0]) + 100));
+      pendingRestarts.set(instanceUid, timer);
       return;
     }
     record.restarts.push(nowTs);
     const delayMs = Math.min(30000, 2000 * record.restarts.length);
     logger.info(instanceUid, `Restarting terminal in ${delayMs}ms (attempt ${record.restarts.length}).`);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      pendingRestarts.delete(instanceUid);
       if (running.has(instanceUid)) return;
       try {
-        launch(record.sandboxPath, instanceUid, record.meta);
+        launch(record.sandboxPath, instanceUid, record.meta, record.restarts);
       } catch (error) {
         logger.error(instanceUid, `Restart failed: ${error.message}`);
+        scheduleRestart(instanceUid, record);
       }
     }, delayMs);
+    pendingRestarts.set(instanceUid, timer);
   }
 
   function isPidAlive(pid) {
@@ -221,31 +239,42 @@ function createMt5Manager({ config, logger, downloadFile }) {
   }
 
   async function stopInstanceProcesses(instanceUid) {
+    clearTimeout(pendingRestarts.get(instanceUid));
+    pendingRestarts.delete(instanceUid);
     const record = running.get(instanceUid);
     if (record) {
       record.intentionallyStopped = true;
-      running.delete(instanceUid);
       await killPid(record.pid);
+      if (running.get(instanceUid) === record) running.delete(instanceUid);
     }
   }
 
-  function killPid(pid) {
-    return new Promise(resolve => {
-      if (!isPidAlive(pid)) return resolve();
-      // /T kills the process tree; graceful first, force after the grace period.
-      execFile('taskkill.exe', ['/PID', String(pid), '/T'], { timeout: config.stopGraceMs }, async error => {
-        if (error) {
-          execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { timeout: 10000 }, () => resolve());
-        } else {
-          resolve();
-        }
-      });
+  async function killPid(pid) {
+    if (!isPidAlive(pid)) return;
+    const terminate = force => new Promise(resolve => {
+      execFile('taskkill.exe', ['/PID', String(pid), '/T', ...(force ? ['/F'] : [])],
+        { timeout: force ? 10000 : config.stopGraceMs }, () => resolve());
     });
+    const waitForExit = async timeout => {
+      const deadline = Date.now() + timeout;
+      while (isPidAlive(pid) && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      return !isPidAlive(pid);
+    };
+    // taskkill can acknowledge WM_CLOSE before MT5 has released its data folder.
+    // Starting a replacement then launches a duplicate that immediately exits.
+    await terminate(false);
+    if (await waitForExit(config.stopGraceMs)) return;
+    await terminate(true);
+    if (!await waitForExit(10000)) throw new Error(`MT5 process ${pid} did not stop; replacement was not launched.`);
   }
 
   async function start(payload) {
     const { instanceUid } = payload || {};
+    checkAdopted();
     if (running.has(instanceUid)) return { alreadyRunning: true, pid: running.get(instanceUid).pid };
+    if (pendingRestarts.has(instanceUid)) return { recovering: true };
     const dir = instanceDir(instanceUid);
     const terminal = path.join(dir, 'terminal64.exe');
     if (!fs.existsSync(terminal)) throw new Error('Sandbox environment is not deployed.');
@@ -260,6 +289,9 @@ function createMt5Manager({ config, logger, downloadFile }) {
   }
 
   async function restart(payload) {
+    // Validate or repair startup before stopping a working legacy terminal.
+    if (!isValidInstanceUid(payload && payload.instanceUid)) throw new Error('Invalid instance identifier.');
+    ensureStartup(instanceDir(payload.instanceUid), config);
     await stop(payload);
     return start(payload);
   }
@@ -307,8 +339,10 @@ function createMt5Manager({ config, logger, downloadFile }) {
   // Status reporting
   // -------------------------------------------------------------------------
   function statusReports() {
+    checkAdopted();
     const reports = [];
     for (const [instanceUid, record] of running) {
+      if (!isPidAlive(record.pid)) continue;
       reports.push({
         instanceUid,
         status: 'running',

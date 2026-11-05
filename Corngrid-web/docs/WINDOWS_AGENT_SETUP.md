@@ -100,3 +100,11 @@ Then delete the directories. Deleting a node in the admin panel requires its san
 - **Node shows offline:** check outbound connectivity to the backend, and that the token in `agent-config.json` matches (rotate it in the admin panel if unsure).
 - **"MT5 terminal not found":** place the MT5 program files in `mt5BaseDir` and restart the agent.
 - **Deploy fails immediately:** check the admin Deployment Logs tab — the agent uploads its log buffer with every heartbeat.
+
+## Required EA chart and dashboard sync startup
+
+Users choose XAUUSD, EURUSD, GBPUSD or USDJPY when activating a sandbox; XAUUSD is the default. The validated pair is saved in the deployment payload and used for the EA chart. Older deployment payloads can use `startupSymbol` in `agent-config.json` (or `CORNGRID_STARTUP_SYMBOL`), otherwise they default to XAUUSD. Deployment generates `config/sandbox-startup.ini` and launches MT5 with `/portable /config:<path>`. Its `[StartUp]` section attaches the published EA and loads `MQL5/Presets/corngrid-sandbox.set`, which enables dashboard sync. The installation credential is provisioned in the EA's existing `CGDash_*.key` format; the accompanying settings fingerprint matches the EA's credential-reset checks. Credentials must never be logged.
+
+A running terminal process alone does not confirm broker login or EA telemetry. Confirm broker authorization and EA loading in the terminal journals, then verify the account heartbeat in the dashboard. The API origin must also be allowed in the terminal's WebRequest settings.
+
+Older instances need their startup configuration generated from their original deployment payload before restarting; restarting the agent alone does not retrofit a chart or preset. Keep the existing account, strategy binary and installation credential when repairing an instance.

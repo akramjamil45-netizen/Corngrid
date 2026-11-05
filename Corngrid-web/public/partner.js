@@ -104,6 +104,7 @@
         <div class="partner-item-body">
           <strong>${escapeHtml(sub.name)} <span class="muted">v${escapeHtml(sub.version)}</span></strong>
           <span class="muted small">${escapeHtml(sub.symbols || 'All symbols')} · submitted ${escapeHtml(fmtTime(sub.createdAt))}</span>
+          ${(sub.presets || []).length ? '<span class="muted small">Presets: ' + sub.presets.map(preset => escapeHtml(preset.symbol + ' - ' + preset.name)).join(', ') + '</span>' : ''}
           ${sub.rejectionReason ? `<span class="muted small">Reason: ${escapeHtml(sub.rejectionReason)}</span>` : ''}
           ${sub.reviewNotes ? `<span class="muted small">Review notes: ${escapeHtml(sub.reviewNotes)}</span>` : ''}
         </div>
@@ -207,6 +208,14 @@
       for (const file of files) {
         encoded.push({ name: file.name, contentBase64: await readFileBase64(file) });
       }
+      const presets = [];
+      for (const symbol of ['XAUUSD','EURUSD','GBPUSD','USDJPY']) {
+        const file = $('ea-preset-' + symbol).files[0];
+        if (!file) continue;
+        if (!/\.set$/i.test(file.name) || file.size > 128 * 1024) throw new Error('Each preset must be a .set file no larger than 128 KB.');
+        presets.push({ symbol, name: file.name, contentBase64: await readFileBase64(file) });
+      }
+      if (!presets.length) throw new Error('Upload at least one .set preset for your EA.');
       const result = await request('/partner/submissions', {
         method: 'POST',
         body: JSON.stringify({
@@ -217,6 +226,7 @@
           strategyDescription: $('ea-strategy-desc').value.trim(),
           riskDescription: $('ea-risk-desc').value.trim(),
           documentation: $('ea-documentation').value.trim(),
+          presets,
           files: encoded
         })
       });

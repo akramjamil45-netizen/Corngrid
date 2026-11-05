@@ -6,6 +6,8 @@
     ws: null,
     wsRetry: 0,
     nodes: [],
+    capacityNodeId: null,
+    capacitySaving: false,
     instances: { page: 1, pageSize: 20, total: 0, search: '', status: '' },
     logs: { page: 1, pageSize: 20, total: 0, level: '' },
     events: { page: 1, pageSize: 20, total: 0 },
@@ -100,6 +102,10 @@
 
   function renderNodes() {
     const body = $('sb-nodes-body');
+    const hostingNodes = state.nodes.filter(node => node.status === 'active' && !node.isTestNode);
+    const totalSlots = hostingNodes.reduce((total, node) => total + Number(node.maxInstances || 0), 0);
+    const usedSlots = hostingNodes.reduce((total, node) => total + Number(node.usedSlots ?? node.runningInstances ?? 0), 0);
+    $('sb-stat-capacity').textContent = `${Math.max(0, totalSlots - usedSlots)} / ${totalSlots}`;
     if (!state.nodes.length) {
       body.innerHTML = '<tr><td class="table-empty" colspan="6">No sandbox nodes registered. Add one to get started.</td></tr>';
       return;
@@ -109,9 +115,10 @@
         <td><strong>${escapeHtml(node.name)}</strong><br><small class="muted">${escapeHtml(node.nodeUid)}${node.isTestNode ? ' · test node' : ''}</small></td>
         <td>${statusPill(node.online ? 'online' : 'offline')} ${node.status === 'disabled' ? pill('disabled', 'pill-offline') : ''}</td>
         <td><small>${node.cpuPercent != null ? `${Number(node.cpuPercent).toFixed(0)}% CPU` : '—'} · ${node.memoryUsedMb != null && node.ramMb ? `${Math.round(node.memoryUsedMb / 1024)}/${Math.round(node.ramMb / 1024)} GB` : '—'}<br>${node.diskFreeMb != null ? `${Math.round(node.diskFreeMb / 1024)} GB free` : ''}</small></td>
-        <td>${node.runningInstances} / ${node.maxInstances}</td>
+        <td>${node.usedSlots ?? node.runningInstances} / ${node.maxInstances}</td>
         <td><small>${fmtTime(node.lastHeartbeatAt)}</small></td>
         <td class="admin-actions">
+          <button class="button button-small" type="button" data-node-capacity="${node.id}" aria-label="Edit capacity for ${escapeHtml(node.name)}">Edit capacity</button>
           ${node.status === 'active'
             ? `<button class="button button-small" data-node-disable="${node.id}">Disable</button>`
             : `<button class="button button-small" data-node-enable="${node.id}">Activate</button>`}
@@ -121,6 +128,35 @@
         </td>
       </tr>
     `).join('');
+  }
+
+  function updateCapacityPreview() {
+    const input = $('sb-capacity-max');
+    const value = Number(input.value);
+    const used = Number($('sb-capacity-used').textContent);
+    $('sb-capacity-free').textContent = input.value !== '' && Number.isInteger(value) && value >= Math.max(1, used) && value <= 200
+      ? String(value - used) : '—';
+    document.querySelectorAll('[data-capacity-add]').forEach(button => {
+      button.disabled = state.capacitySaving || value >= 200;
+    });
+  }
+
+  function openCapacityDialog(nodeId) {
+    const node = state.nodes.find(item => item.id === nodeId);
+    if (!node || state.capacitySaving) return;
+    state.capacityNodeId = nodeId;
+    $('sb-capacity-node').textContent = node.name;
+    $('sb-capacity-used').textContent = String(node.usedSlots ?? node.runningInstances ?? 0);
+    $('sb-capacity-current').textContent = String(node.maxInstances);
+    const input = $('sb-capacity-max');
+    input.min = String(Math.max(1, Number(node.usedSlots ?? node.runningInstances ?? 0)));
+    input.value = String(node.maxInstances);
+    input.removeAttribute('aria-invalid');
+    $('sb-capacity-error').hidden = true;
+    updateCapacityPreview();
+    $('sb-capacity-dialog').showModal();
+    input.focus();
+    input.select();
   }
 
   async function loadInstances() {
@@ -170,6 +206,22 @@
   }
 
   document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-delete-record]');
+    if (!button || button.disabled) return;
+    const resource = button.dataset.deleteRecord;
+    if (!['logs', 'events'].includes(resource)) return;
+    if (!window.confirm('Delete this record permanently?')) return;
+    button.disabled = true;
+    try {
+      await api(`/api/admin/sandbox/${resource}/${button.dataset.recordId}`, { method: 'DELETE' });
+      state[resource].page = 1;
+      await (resource === 'logs' ? loadLogs() : loadEvents());
+      toast('Record deleted.', 'success');
+    } catch (error) { toast(error.message, 'error'); }
+    finally { button.disabled = false; }
+  });
+
+  document.addEventListener('click', async event => {
     const button = event.target.closest('[data-delete-all-records]');
     if (!button || button.disabled) return;
     const resource = button.dataset.deleteAllRecords;
@@ -196,7 +248,7 @@
       state.logs.total = data.total;
       const body = $('sb-logs-body');
       if (!data.logs.length) {
-        body.innerHTML = '<tr><td class="table-empty" colspan="5">No logs recorded yet.</td></tr>';
+        body.innerHTML = '<tr><td class="table-empty" colspan="6">No logs recorded yet.</td></tr>';
       } else {
         body.innerHTML = data.logs.map(log => `
           <tr>
@@ -204,7 +256,7 @@
             <td>${pill(log.level, log.level === 'error' ? 'pill-offline' : log.level === 'warn' ? 'pill-delayed' : 'pill-muted')}</td>
             <td><small>${escapeHtml(log.source)}</small></td>
             <td><small>${escapeHtml(log.instance_uid || log.node_uid || '—')}</small></td>
-            <td><small>${escapeHtml(log.message)}</small></td>
+            <td><small>${escapeHtml(log.message)}</small></td><td><button type="button" class="button button-small button-danger" data-delete-record="logs" data-record-id="${escapeHtml(String(log.id))}">Delete</button></td>
           </tr>
         `).join('');
       }
@@ -224,14 +276,14 @@
       state.events.total = data.total;
       const body = $('sb-events-body');
       if (!data.events.length) {
-        body.innerHTML = '<tr><td class="table-empty" colspan="4">No events recorded yet.</td></tr>';
+        body.innerHTML = '<tr><td class="table-empty" colspan="5">No events recorded yet.</td></tr>';
       } else {
         body.innerHTML = data.events.map(event => `
           <tr>
             <td><small>${fmtTime(event.created_at)}</small></td>
             <td>${pill(event.event_type, 'pill-muted')}</td>
             <td><small>${escapeHtml(event.actor_type || 'system')}</small></td>
-            <td><small>${escapeHtml(event.payload_json || '')}</small></td>
+            <td><small>${escapeHtml(event.payload_json || '')}</small></td><td><button type="button" class="button button-small button-danger" data-delete-record="events" data-record-id="${escapeHtml(String(event.id))}">Delete</button></td>
           </tr>
         `).join('');
       }
@@ -245,17 +297,24 @@
   }
 
   // Realtime connection: live node/instance updates without polling.
+  // Tries via the current host (IIS) first. If IIS does not forward WebSocket
+  // upgrades (common on Windows client without ARR), the connection fails and
+  // we show a banner telling the admin to open http://localhost:3000/admin
+  // where Node.js serves WebSocket directly.
   function connectWs() {
     if (state.ws || !state.sandboxOpen) return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws/admin/sandbox`);
     state.ws = socket;
+    let everOpened = false;
 
     socket.addEventListener('open', () => {
+      everOpened = true;
       state.wsRetry = 0;
       const pillEl = $('sandbox-admin-live-pill');
       pillEl.textContent = 'Live';
       pillEl.className = 'pill pill-live';
+      hideDirectLinkBanner();
     });
     socket.addEventListener('message', event => {
       let message;
@@ -263,7 +322,6 @@
       if (message.type === 'snapshot') {
         applySnapshot(message);
       } else if (message.type === 'event') {
-        // Refresh the visible tab on relevant events.
         if (!$('sandbox-tab-events').hidden) loadEvents();
         if (!$('sandbox-tab-instances').hidden) loadInstances();
         loadSandboxOverview();
@@ -272,6 +330,12 @@
     socket.addEventListener('close', () => {
       state.ws = null;
       const pillEl = $('sandbox-admin-live-pill');
+      if (!everOpened) {
+        pillEl.textContent = 'WebSocket via server gagal.';
+        pillEl.className = 'pill pill-offline';
+        showDirectLinkBanner();
+        return;
+      }
       pillEl.textContent = 'Reconnecting…';
       pillEl.className = 'pill pill-delayed';
       if (state.sandboxOpen) {
@@ -279,7 +343,40 @@
         window.setTimeout(connectWs, delay);
       }
     });
-    socket.addEventListener('error', () => socket.close());
+    socket.addEventListener('error', () => {
+      socket.close();
+    });
+  }
+
+  function showDirectLinkBanner() {
+    if ($('ws-direct-link-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'ws-direct-link-banner';
+    banner.className = 'toast toast-error';
+    banner.style.position = 'fixed';
+    banner.style.top = '10px';
+    banner.style.left = '50%';
+    banner.style.transform = 'translateX(-50%)';
+    banner.style.zIndex = 10000;
+    banner.style.maxWidth = '700px';
+    banner.style.padding = '12px 16px';
+    banner.style.borderRadius = '6px';
+    banner.style.background = '#7f1d1d';
+    banner.style.color = '#fff';
+    banner.style.fontSize = '14px';
+    banner.style.lineHeight = '1.5';
+    banner.innerHTML = `
+      <strong>WebSocket via corngrid.com tidak tersedia.</strong><br>
+      IIS tidak meneruskan upgrade WebSocket ke backend. Untuk monitoring real-time
+      Sandbox Management, buka langsung: <a href="http://localhost:3000/admin" target="_blank" style="color:#ffd166;text-decoration:underline;">http://localhost:3000/admin</a>
+      <button onclick="this.parentElement.remove()" style="margin-left:12px;background:transparent;border:1px solid #fff;color:#fff;padding:4px 10px;border-radius:4px;cursor:pointer;">Tutup</button>
+    `;
+    document.body.appendChild(banner);
+  }
+
+  function hideDirectLinkBanner() {
+    const banner = $('ws-direct-link-banner');
+    if (banner) banner.remove();
   }
 
   function applySnapshot(snapshot) {
@@ -294,7 +391,7 @@
     if (Array.isArray(snapshot.nodes)) {
       state.nodes = snapshot.nodes.map(node => ({
         id: node.id, nodeUid: node.node_uid, name: node.name, status: node.status,
-        isTestNode: Boolean(node.is_test_node), maxInstances: node.max_instances,
+        isTestNode: Boolean(node.is_test_node), maxInstances: node.max_instances, usedSlots: Number(node.allocated_instances ?? node.running_instances ?? 0),
         cpuPercent: node.cpu_percent, memoryUsedMb: node.memory_used_mb, ramMb: node.ram_mb,
         diskFreeMb: node.disk_free_mb, runningInstances: node.running_instances,
         lastHeartbeatAt: node.last_heartbeat_at, online: node.online
@@ -380,6 +477,7 @@
         <h3>Risk management</h3><p class="muted small">${escapeHtml(sub.riskDescription || '—')}</p>
         ${sub.reviewNotes ? `<h3>Review notes</h3><p class="muted small">${escapeHtml(sub.reviewNotes)}</p>` : ''}
         <h3>Source files</h3><ul class="admin-file-list">${files || '<li class="muted">No files</li>'}</ul>
+        <h3>EA presets</h3>${(data.presets || []).map(preset => `<details><summary>${escapeHtml(preset.symbol)} - ${escapeHtml(preset.name)}</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(preset.text)}</pre></details>`).join('') || '<p class="muted small">No presets submitted. This EA cannot be deployed until a reviewed preset is available.</p>'}
         <h3>Test reports</h3>
         <div class="table-scroll"><table><thead><tr><th>Time</th><th>Kind</th><th>Status</th><th>Result</th></tr></thead><tbody>${reports || '<tr><td class="table-empty" colspan="4">No tests run yet.</td></tr>'}</tbody></table></div>
         <div class="sandbox-controls">
@@ -633,7 +731,63 @@
     });
   }
 
+
+  function setupWorkspaceTables() {
+    const roots = ['sandbox', 'ea-submissions', 'commissions'].map(id => $(id)).filter(Boolean);
+    let frame = 0;
+    function decorate() {
+      frame = 0;
+      for (const root of roots) for (const table of root.querySelectorAll('.table-scroll > table')) {
+        const headings = [...table.querySelectorAll('thead tr:first-child th')].map(th => th.textContent.trim());
+        for (const row of table.querySelectorAll('tbody tr')) {
+          [...row.cells].forEach((cell, index) => {
+            if (cell.colSpan > 1 || cell.classList.contains('cell-toggle') || !headings[index]) return;
+            cell.dataset.label = headings[index];
+            const actions = /actions?/i.test(headings[index]) || cell.classList.contains('admin-actions');
+            cell.classList.toggle('cell-primary', index === 0 && !actions);
+            if (actions) cell.classList.add('cell-actions');
+            const className = actions ? 'cg-row-actions' : 'cg-cell-content';
+            if (!cell.querySelector(':scope > .' + className)) {
+              const content = document.createElement('div');
+              content.className = className;
+              while (cell.firstChild) content.appendChild(cell.firstChild);
+              cell.appendChild(content);
+            }
+          });
+        }
+      }
+    }
+    const observer = new MutationObserver(() => { if (!frame) { frame = 1; queueMicrotask(decorate); } });
+    for (const root of roots) observer.observe(root, { childList: true, subtree: true });
+    decorate();
+  }
+
+
+  function setupWorkspaceTabs() {
+    for (const [attribute,prefix] of [['data-sandbox-tab','sandbox-tab-'],['data-commission-tab','commission-tab-']]) {
+      const tabs = [...document.querySelectorAll('[' + attribute + ']')];
+      tabs.forEach((tab,index) => {
+        const panel = $(prefix + tab.getAttribute(attribute));
+        tab.id = tab.id || 'cg-' + prefix + 'trigger-' + index;
+        tab.setAttribute('role','tab'); tab.setAttribute('aria-controls',panel.id);
+        const sync = () => tabs.forEach(item => { const selected = item === tab; item.setAttribute('aria-selected',String(selected)); item.tabIndex = selected ? 0 : -1; });
+        tab.setAttribute('aria-selected',String(tab.classList.contains('is-active'))); tab.tabIndex = tab.classList.contains('is-active') ? 0 : -1;
+        panel.setAttribute('role','tabpanel'); panel.setAttribute('aria-labelledby',tab.id);
+        tab.addEventListener('click',sync);
+        tab.addEventListener('keydown',event => {
+          let target;
+          if(event.key==='ArrowRight')target=tabs[(index+1)%tabs.length];
+          if(event.key==='ArrowLeft')target=tabs[(index+tabs.length-1)%tabs.length];
+          if(event.key==='Home')target=tabs[0];if(event.key==='End')target=tabs[tabs.length-1];
+          if(target){event.preventDefault();target.focus();target.click();}
+        });
+      });
+    }
+  }
+
   function bind() {
+    setupWorkspaceTables();
+    setupWorkspaceTabs();
     // Sandbox tabs
     $$('[data-sandbox-tab]').forEach(tab => tab.addEventListener('click', () => {
       switchTab('sandbox', tab.dataset.sandboxTab);
@@ -645,6 +799,48 @@
     $$('[data-commission-tab]').forEach(tab => tab.addEventListener('click', () => switchTab('commission', tab.dataset.commissionTab)));
 
     // Node actions
+    $('sb-capacity-max').addEventListener('input', () => {
+      $('sb-capacity-max').removeAttribute('aria-invalid');
+      $('sb-capacity-error').hidden = true;
+      updateCapacityPreview();
+    });
+    $$('[data-capacity-add]').forEach(button => button.addEventListener('click', () => {
+      $('sb-capacity-max').value = String(Math.min(200, Math.max(Number($('sb-capacity-max').min), Number($('sb-capacity-max').value) || 0) + Number(button.dataset.capacityAdd)));
+      $('sb-capacity-max').dispatchEvent(new Event('input'));
+    }));
+    $('sb-capacity-dialog').addEventListener('cancel', event => {
+      if (state.capacitySaving) event.preventDefault();
+    });
+    $('sb-capacity-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (state.capacitySaving || !$('sb-capacity-form').reportValidity()) return;
+      state.capacitySaving = true;
+      $('sb-capacity-save').disabled = true;
+      $('sb-capacity-cancel').disabled = true;
+      $('sb-capacity-save').textContent = 'Saving…';
+      $('sb-capacity-form').setAttribute('aria-busy', 'true');
+      updateCapacityPreview();
+      try {
+        await api(`/api/admin/sandbox/nodes/${state.capacityNodeId}/capacity`, {
+          method: 'PATCH', body: JSON.stringify({ maxInstances: Number($('sb-capacity-max').value) })
+        });
+        $('sb-capacity-dialog').close();
+        toast('Hosting capacity updated.', 'success');
+        await Promise.all([loadNodes(), loadSandboxOverview()]);
+      } catch (error) {
+        $('sb-capacity-error').textContent = error.message;
+        $('sb-capacity-error').hidden = false;
+        $('sb-capacity-max').setAttribute('aria-invalid', 'true');
+        $('sb-capacity-max').focus();
+      } finally {
+        state.capacitySaving = false;
+        $('sb-capacity-save').disabled = false;
+        $('sb-capacity-cancel').disabled = false;
+        $('sb-capacity-save').textContent = 'Save capacity';
+        $('sb-capacity-form').removeAttribute('aria-busy');
+        updateCapacityPreview();
+      }
+    });
     $('sb-add-node').addEventListener('click', () => $('sb-node-dialog').showModal());
     $('sb-node-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -672,6 +868,7 @@
     $('sb-nodes-body').addEventListener('click', async event => {
       const target = event.target.closest('button');
       if (!target) return;
+      if (target.dataset.nodeCapacity) { openCapacityDialog(Number(target.dataset.nodeCapacity)); return; }
       try {
         if (target.dataset.nodeDisable) {
           await api(`/api/admin/sandbox/nodes/${target.dataset.nodeDisable}/status`, { method: 'POST', body: JSON.stringify({ status: 'disabled' }) });

@@ -17,6 +17,9 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
   let reconnectDelay = config.reconnectMinMs;
   let reconnectTimer = null;
   let stopped = false;
+  let authenticated = false;
+  let watchdog = null;
+  let lastPong = 0;
 
   // -------------------------------------------------------------------------
   // HTTPS helpers (fallback channel + file download)
@@ -87,7 +90,7 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
   // WebSocket channel
   // -------------------------------------------------------------------------
   function wsSend(message) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (authenticated && socket && socket.readyState === WebSocket.OPEN) {
       try {
         socket.send(JSON.stringify(message));
         return true;
@@ -108,8 +111,15 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
     }
 
     socket.on('open', () => {
-      wsSend({ type: 'auth', nodeUid: config.nodeUid, token: config.nodeToken });
+      socket.send(JSON.stringify({ type: 'auth', nodeUid: config.nodeUid, token: config.nodeToken }));
+      lastPong = Date.now();
+      watchdog = setInterval(() => {
+        if (!socket) return;
+        if (Date.now() - lastPong > 60000) return socket.terminate();
+        socket.ping();
+      }, 15000);
     });
+    socket.on('pong', () => { lastPong = Date.now(); });
 
     socket.on('message', raw => {
       let message;
@@ -119,6 +129,7 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
         return;
       }
       if (message.type === 'authenticated') {
+        authenticated = true;
         reconnectDelay = config.reconnectMinMs;
         if (onOpen) onOpen();
       } else if (message.type === 'command') {
@@ -127,6 +138,8 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
     });
 
     socket.on('close', () => {
+      authenticated = false;
+      clearInterval(watchdog);
       socket = null;
       if (onClose) onClose();
       scheduleReconnect();
@@ -178,6 +191,8 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
 
   function stop() {
     stopped = true;
+    authenticated = false;
+    clearInterval(watchdog);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (socket) {
       try { socket.close(); } catch { /* ignore */ }

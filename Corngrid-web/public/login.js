@@ -81,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
         alertBox.hidden = true;
     });
 
+    if (new URLSearchParams(window.location.search).get('mode') === 'register') toggleAuthMode.click();
+
     function togglePasswordVisibility() {
         const type = userPassword.getAttribute('type') === 'password' ? 'text' : 'password';
         userPassword.setAttribute('type', type);

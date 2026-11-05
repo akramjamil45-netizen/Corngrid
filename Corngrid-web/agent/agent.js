@@ -29,6 +29,7 @@ function pushLog(level, instanceUid, message) {
   const line = `[${new Date().toISOString()}] [${level}]${instanceUid ? ` [${instanceUid}]` : ''} ${message}`;
   if (level === 'error') console.error(line);
   else console.log(line);
+  try { fs.appendFileSync(require('path').join(config.agentDataDir, 'agent-recovery.log'), line + '\n'); } catch { /* console remains available */ }
   logBuffer.push({ level, instanceUid: instanceUid || undefined, message: String(message).slice(0, 1500) });
   if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
 }
@@ -45,6 +46,22 @@ const logger = {
 let mt5;
 let transport;
 let tester;
+let recoveryInProgress = false;
+let lastRecovery = 0;
+async function recoverInstances() {
+  if (!mt5 || recoveryInProgress) return;
+  recoveryInProgress = true;
+  try {
+    const state = await transport.httpRequest('GET', '/api/sandbox/node/instances');
+    for (const instance of state.instances || []) {
+      try { await mt5.start(instance); }
+      catch (error) { logger.warn(instance.instanceUid, `Recovery failed: ${error.message}`); }
+    }
+    lastRecovery = Date.now();
+  } catch (error) {
+    logger.warn(null, `Recovery deferred: ${error.message}`);
+  } finally { recoveryInProgress = false; }
+}
 
 const COMMAND_HANDLERS = {
   deploy: payload => mt5.deploy(payload),
@@ -58,7 +75,7 @@ const COMMAND_HANDLERS = {
   test_ea: payload => tester.runTest(payload),
   restart_agent: async () => {
     logger.info(null, 'Restart command received from backend; exiting for the service manager to restart us.');
-    setTimeout(() => process.exit(0), 500);
+    setTimeout(() => process.exit(1), 500);
     return { restarting: true };
   }
 };
@@ -85,6 +102,7 @@ async function handleCommand(message, channel) {
 // Heartbeat loop
 // ---------------------------------------------------------------------------
 async function heartbeat() {
+  if (Date.now() - lastRecovery >= 60000) await recoverInstances();
   const cpuPercent = systemMonitor.sampleCpuPercent();
   const memory = systemMonitor.memoryMb();
   const reports = mt5.statusReports();
@@ -142,7 +160,10 @@ async function main() {
   transport = createTransport({
     config,
     onCommand: handleCommand,
-    onOpen: () => logger.info(null, 'Connected to the CornGrid backend (WebSocket).'),
+    onOpen: () => {
+      logger.info(null, 'Connected to the CornGrid backend (WebSocket).');
+      recoverInstances();
+    },
     onClose: () => logger.warn(null, 'WebSocket disconnected; HTTPS fallback active, reconnecting...')
   });
 

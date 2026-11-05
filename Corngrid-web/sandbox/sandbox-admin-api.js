@@ -5,6 +5,7 @@
 // audit log so administrative actions are traceable.
 
 const crypto = require('crypto');
+const { exclusive } = require('../db-write');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -45,6 +46,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       status: node.status,
       isTestNode: Boolean(node.is_test_node),
       maxInstances: node.max_instances,
+      usedSlots: Number(node.allocated_instances) || 0,
       agentVersion: node.agent_version,
       machineName: node.machine_name,
       osVersion: node.os_version,
@@ -121,7 +123,10 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
     // -----------------------------------------------------------------------
     app.get('/api/admin/sandbox/nodes', verifyAdminToken, async (_req, res) => {
       try {
-        const rows = await all('SELECT * FROM sandbox_nodes ORDER BY id ASC');
+        const rows = await all(`SELECT n.*,
+          (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
+            AND i.status IN ('deploying','starting','running','stopping')) AS allocated_instances
+          FROM sandbox_nodes n ORDER BY n.id ASC`);
         res.json({ nodes: rows.map(publicNode) });
       } catch (error) {
         console.error('Failed to list nodes:', error.message);
@@ -152,6 +157,40 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       }
     });
 
+    app.patch('/api/admin/sandbox/nodes/:id/capacity', verifyAdminToken, async (req, res) => {
+      const nodeId = Number(req.params.id);
+      const maxInstances = req.body?.maxInstances;
+      if (!Number.isSafeInteger(nodeId) || nodeId < 1) return res.status(400).json({ error: 'Invalid node.' });
+      if (!Number.isInteger(maxInstances) || maxInstances < 1 || maxInstances > 200) {
+        return res.status(400).json({ error: 'Capacity must be a whole number from 1 to 200.' });
+      }
+      try {
+        const outcome = await exclusive(db, async () => {
+          const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?' +
+            (typeof db.transaction === 'function' ? ' FOR UPDATE' : ''), [nodeId]);
+          if (!node) return { http: 404, body: { error: 'Node not found.' } };
+          const used = await get(`SELECT COUNT(*) AS count FROM sandbox_instances
+            WHERE node_id = ? AND deleted_at IS NULL AND status IN ('deploying','starting','running','stopping')`, [nodeId]);
+          const usedSlots = Number(used.count) || 0;
+          if (maxInstances < usedSlots) {
+            return { http: 409, body: { error: `This node is using ${usedSlots} slots. Capacity cannot be lower than this.`, usedSlots } };
+          }
+          const updated = await run(`UPDATE sandbox_nodes SET max_instances = ?, updated_at = ? WHERE id = ?
+            AND ? >= (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = sandbox_nodes.id
+              AND i.deleted_at IS NULL AND i.status IN ('deploying','starting','running','stopping'))`,
+          [maxInstances, now(), nodeId, maxInstances]);
+          if (!updated.changes) return { http: 409, body: { error: 'Node usage changed. Refresh and try again.' } };
+          await subscriptions.logAudit(null, 'admin', 'sandbox_node_capacity_updated', 'sandbox_node', nodeId,
+            { nodeUid: node.node_uid, previousMaxInstances: node.max_instances, maxInstances, usedSlots }, null, req.ip);
+          return { http: 200, body: { message: 'Node capacity updated.', node: publicNode({ ...node, max_instances: maxInstances, allocated_instances: usedSlots }) } };
+        });
+        return res.status(outcome.http).json(outcome.body);
+      } catch (error) {
+        console.error('Failed to update node capacity:', error.message);
+        res.status(500).json({ error: 'Unable to update node capacity.' });
+      }
+    });
+
     app.post('/api/admin/sandbox/nodes/:id/status', verifyAdminToken, async (req, res) => {
       const nodeId = Number.parseInt(req.params.id, 10);
       const status = req.body && req.body.status;
@@ -161,6 +200,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
         const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?', [nodeId]);
         if (!node) return res.status(404).json({ error: 'Node not found.' });
         await run('UPDATE sandbox_nodes SET status = ?, updated_at = ? WHERE id = ?', [status, now(), nodeId]);
+        if (status === 'disabled') nodes.disconnectNode(nodeId, 'Node disabled');
         await subscriptions.logAudit(null, 'admin', `sandbox_node_${status}`, 'sandbox_node', nodeId,
           { nodeUid: node.node_uid }, null, req.ip);
         res.json({ message: `Node ${status}.`, node: publicNode({ ...node, status }) });
@@ -451,6 +491,22 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
     }
     app.delete('/api/admin/sandbox/logs', verifyAdminToken, deleteAllRecords('logs'));
     app.delete('/api/admin/sandbox/events', verifyAdminToken, deleteAllRecords('events'));
+
+    function deleteRecord(resource) {
+      const table = resource === 'logs' ? 'sandbox_logs' : 'sandbox_events';
+      return async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid record.' });
+        try {
+          const removed = await run('DELETE FROM ' + table + ' WHERE id = ?', [id]);
+          if (!removed.changes) return res.status(404).json({ error: 'Record not found.' });
+          await subscriptions.logAudit(null, 'admin', 'sandbox_' + resource + '_deleted', 'sandbox_' + resource, id, null, null, req.ip);
+          res.json({ message: 'Record deleted.' });
+        } catch (error) { res.status(500).json({ error: 'Unable to delete this record.' }); }
+      };
+    }
+    app.delete('/api/admin/sandbox/logs/:id', verifyAdminToken, deleteRecord('logs'));
+    app.delete('/api/admin/sandbox/events/:id', verifyAdminToken, deleteRecord('events'));
 
     app.get('/api/admin/sandbox/monitoring', verifyAdminToken, async (req, res) => {
       try {

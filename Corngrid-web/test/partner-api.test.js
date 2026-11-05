@@ -1,6 +1,9 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
@@ -70,15 +73,21 @@ async function createFixture() {
 
   const sandbox = createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret });
   await sandbox.ready;
+  const storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corngrid-partner-test-'));
   const partner = createPartnerSystem(app, db, {
     verifyToken, adminAuth,
     events: sandbox.events, nodes: sandbox.nodes, crypto: sandbox.crypto,
     subscriptionApi, rateLimit,
+    storageDir,
     authenticateNodeRequest: sandbox.nodeApi.authenticateNodeRequest
   });
 
   const server = await new Promise(resolve => {
     const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+  });
+  server.on('close', () => {
+    if (!path.resolve(storageDir).startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error('Unexpected test storage path');
+    fs.rmSync(storageDir, { recursive: true, force: true });
   });
   const base = `http://127.0.0.1:${server.address().port}`;
   const partnerToken = jwt.sign({ id: 1, authVersion: 0 }, jwtSecret);
@@ -102,6 +111,8 @@ async function createFixture() {
   return { db, server, request, partnerToken, traderToken, adminToken, sandbox, partner, subscriptionApi };
 }
 
+const VALID_PRESETS = [{ symbol: 'XAUUSD', name: 'GridMaster.set', contentBase64: Buffer.from('TakeProfit=100\r\n').toString('base64') }];
+
 const VALID_MQ5 = `//+------------------------------------------------------------------+
 //| Sample EA                                                        |
 //+------------------------------------------------------------------+
@@ -115,12 +126,50 @@ const MALICIOUS_MQ5 = `// evil
 void OnTick() { WinExec("calc.exe", 1); }
 `;
 
+test('EA testing sources and report completion are restricted to the assigned test node', async () => {
+  const { db, server, request, sandbox, partner } = await createFixture();
+  try {
+    const production = await sandbox.nodes.createNode({ name: 'Production', isTestNode: false });
+    const assigned = await sandbox.nodes.createNode({ name: 'Assigned test', isTestNode: true });
+    const other = await sandbox.nodes.createNode({ name: 'Other test', isTestNode: true });
+    await run(db, "UPDATE sandbox_nodes SET status = 'active'");
+    const now = Date.now();
+    const submission = await run(db, `INSERT INTO ea_submissions
+      (submission_uid, partner_id, name, version, status, created_at, updated_at)
+      VALUES ('sub_security_fixture', 1, 'Private fixture', '1.0', 'testing', ?, ?)`, [now, now]);
+    const id = submission.lastID;
+    const version = await run(db, `INSERT INTO ea_versions (submission_id, version, file_path, file_count, status, created_at)
+      VALUES (?, '1.0', 'sub_security_fixture', 1, 'stored', ?)`, [id, now]);
+    const report = await run(db, `INSERT INTO ea_test_reports
+      (submission_id, version_id, node_id, kind, status, started_at, created_at)
+      VALUES (?, ?, ?, 'runtime', 'running', ?, ?)`, [id, version.lastID, assigned.id, now, now]);
+    const dir = path.join(partner.partnerApi.SUBMISSIONS_DIR, 'sub_security_fixture');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'private.mq5'), '// dummy fixture only');
+    const headers = node => ({ 'X-Node-Id': node.nodeUid, 'X-Node-Token': node.token });
+    for (const node of [production, other]) {
+      assert.ok([403, 404].includes((await request(`/api/admin/ea-testing/${id}/source`, { headers: headers(node) })).status));
+      assert.ok([403, 404].includes((await request(`/api/admin/ea-testing/${id}/source/private.mq5`, { headers: headers(node) })).status));
+      assert.ok([403, 404].includes((await request(`/api/admin/ea-testing/reports/${report.lastID}/complete`, {
+        headers: headers(node), method: 'POST', body: { success: true }
+      })).status));
+    }
+    assert.equal((await request(`/api/admin/ea-testing/${id}/source`, { headers: headers(assigned) })).status, 200);
+    const complete = () => request(`/api/admin/ea-testing/reports/${report.lastID}/complete`, {
+      headers: headers(assigned), method: 'POST', body: { success: true }
+    });
+    assert.equal((await complete()).status, 200);
+    assert.equal((await complete()).status, 409);
+    assert.equal((await request(`/api/admin/ea-testing/${id}/source`, { headers: headers(assigned) })).status, 404);
+  } finally { server.close(); }
+});
+
 test('partner registration, EA submission, scanning, and review workflow', async () => {
   const { server, request, partnerToken, traderToken, adminToken } = await createFixture();
   try {
     // Non-partner cannot submit.
     const noPartner = await request('/api/partner/submissions', {
-      token: traderToken, method: 'POST', body: { name: 'X', version: '1.0', description: '0123456789', files: [{ name: 'a.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
+      token: traderToken, method: 'POST', body: { name: 'X', version: '1.0', description: '0123456789', presets: VALID_PRESETS, files: [{ name: 'a.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
     });
     assert.equal(noPartner.status, 403);
     assert.equal(noPartner.body.code, 'NOT_A_PARTNER');
@@ -131,14 +180,18 @@ test('partner registration, EA submission, scanning, and review workflow', async
     });
     assert.equal(registered.status, 201);
     assert.equal(registered.body.application.status, 'pending');
+    assert.equal((await request('/api/partner/profile', { token: partnerToken })).body.partner, null);
+    assert.equal((await request('/api/partner/submissions', { token: partnerToken })).status, 403);
+    assert.equal((await request('/api/admin/partner-applications/1/review', { token: partnerToken, method: 'POST', body: { status: 'approved' } })).status, 403);
     assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 200);
+    assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 409);
 
     // Submit a clean EA.
     const submitted = await request('/api/partner/submissions', {
       token: partnerToken, method: 'POST',
       body: {
         name: 'Grid Master', version: '1.0', description: 'A grid trading EA for XAUUSD.',
-        symbols: 'XAUUSD', files: [{ name: 'GridMaster.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }]
+        symbols: 'XAUUSD', presets: VALID_PRESETS, files: [{ name: 'GridMaster.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }]
       }
     });
     assert.equal(submitted.status, 201);
@@ -150,7 +203,7 @@ test('partner registration, EA submission, scanning, and review workflow', async
       token: partnerToken, method: 'POST',
       body: {
         name: 'Evil EA', version: '1.0', description: 'Does bad things.',
-        files: [{ name: 'evil.mq5', contentBase64: Buffer.from(MALICIOUS_MQ5).toString('base64') }]
+        presets: VALID_PRESETS, files: [{ name: 'evil.mq5', contentBase64: Buffer.from(MALICIOUS_MQ5).toString('base64') }]
       }
     });
     assert.equal(malicious.status, 201);
@@ -159,7 +212,7 @@ test('partner registration, EA submission, scanning, and review workflow', async
     // Reject bad file types.
     const badType = await request('/api/partner/submissions', {
       token: partnerToken, method: 'POST',
-      body: { name: 'Bad', version: '1.0', description: 'bad file type test', files: [{ name: 'virus.exe', contentBase64: Buffer.from('MZ').toString('base64') }] }
+      body: { name: 'Bad', version: '1.0', description: 'bad file type test', presets: VALID_PRESETS, files: [{ name: 'virus.exe', contentBase64: Buffer.from('MZ').toString('base64') }] }
     });
     assert.equal(badType.status, 400);
 
@@ -170,6 +223,9 @@ test('partner registration, EA submission, scanning, and review workflow', async
     const target = list.body.submissions.find(s => s.submissionUid === submissionUid);
     assert.equal(target.status, 'pending_review');
     assert.equal(target.partnerName, 'EA Wizard');
+    const detail = await request(`/api/admin/ea-submissions/${target.id}`, { token: adminToken });
+    assert.equal(detail.body.presets[0].symbol, 'XAUUSD');
+    assert.equal(detail.body.presets[0].text, 'TakeProfit=100\r\n');
 
     // Review workflow: review -> approve -> publish.
     await request(`/api/admin/ea-submissions/${target.id}/review`, { token: adminToken, method: 'POST' });
@@ -199,7 +255,7 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
     assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 200);
     const submitted = await request('/api/partner/submissions', {
       token: partnerToken, method: 'POST',
-      body: { name: 'Grid Master', version: '1.0', description: 'A grid trading EA.', files: [{ name: 'g.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
+      body: { name: 'Grid Master', version: '1.0', description: 'A grid trading EA.', presets: VALID_PRESETS, files: [{ name: 'g.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
     });
     const list = await request('/api/admin/ea-submissions', { token: adminToken });
     const sub = list.body.submissions.find(s => s.submissionUid === submitted.body.submissionUid);
@@ -288,6 +344,7 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
   }
 });
 
+
 test('partner rejection, resubmission and admin-only approval preserve access boundaries', async () => {
  const { server,request,partnerToken,traderToken,adminToken }=await createFixture();
  try{
@@ -341,4 +398,38 @@ test('only admins can delete rejected applications and resubmitted or approved r
   assert.equal(JSON.parse(audit.metadata).status,'rejected');
   assert.equal((await apply(partnerToken)).body.application.status,'pending');
  } finally { server.close(); }
+});
+
+test('partner presets remain tied to their own reviewed EA and never fall back to CornGrid', async () => {
+ const { db,server,request,partnerToken,traderToken,adminToken }=await createFixture();
+ const get=(sql,p=[])=>new Promise((resolve,reject)=>db.get(sql,p,(e,r)=>e?reject(e):resolve(r)));
+ const {loadStrategyPreset}=require('../partner/presets');
+ try{
+  for(const [token,id] of [[partnerToken,1],[traderToken,2]]){
+   await request('/api/partner/register',{token,method:'POST',body:{displayName:'Developer '+id}});
+   await request('/api/admin/partner-applications/'+id+'/review',{token:adminToken,method:'POST',body:{status:'approved'}});
+  }
+  const strategies=[];
+  for(const [token,value] of [[partnerToken,111],[traderToken,222]]){
+   const submitted=await request('/api/partner/submissions',{token,method:'POST',body:{name:'EA '+value,version:'1.0',description:'Independent partner EA preset.',files:[{name:'ea.mq5',contentBase64:Buffer.from(VALID_MQ5).toString('base64')}],presets:[{symbol:'EURUSD',name:'ea.set',contentBase64:Buffer.from('TakeProfit='+value+'\r\n').toString('base64')}]}});
+   assert.equal(submitted.status,201);
+   const row=await get('SELECT * FROM ea_submissions WHERE submission_uid=?',[submitted.body.submissionUid]);
+   if(value===111)assert.equal((await request('/api/partner/submissions/'+row.submission_uid,{token:traderToken})).status,404);
+   await request('/api/admin/ea-submissions/'+row.id+'/review',{token:adminToken,method:'POST'});
+   await request('/api/admin/ea-submissions/'+row.id+'/approve',{token:adminToken,method:'POST'});
+   await request('/api/admin/ea-submissions/'+row.id+'/publish',{token:adminToken,method:'POST'});
+   const strategy=await get('SELECT * FROM trading_strategies WHERE submission_id=?',[row.id]);
+   strategies.push(strategy);
+   const preset=await loadStrategyPreset(db,strategy,'EURUSD');
+   assert.equal(preset.text,'TakeProfit='+value+'\r\n');
+   assert.equal(preset.kind,'partner');
+   assert.equal(await loadStrategyPreset(db,strategy,'XAUUSD'),null);
+  }
+  const official=await get("SELECT * FROM trading_strategies WHERE code='corngrid-ea'");
+  for(const pair of ['XAUUSD','EURUSD','GBPUSD','USDJPY']){
+   const preset=await loadStrategyPreset(db,official,pair);assert.equal(preset.kind,'corngrid');assert.match(preset.name,/\.set$/);
+  }
+  await run(db,"UPDATE partner_profiles SET status='suspended' WHERE user_id=1");
+  assert.equal(await loadStrategyPreset(db,strategies[0],'EURUSD'),null);
+ }finally{server.close();}
 });

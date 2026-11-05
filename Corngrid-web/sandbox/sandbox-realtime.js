@@ -14,15 +14,14 @@
 //                        Receives every sandbox event plus periodic snapshots.
 
 const { WebSocketServer } = require('ws');
-const jwt = require('jsonwebtoken');
-const { readAuthCredential } = require('../session-cookie');
+const { readAuthCredential, isSameOriginRequest } = require('../session-cookie');
 
 const NODE_AUTH_TIMEOUT_MS = 5000;
 const ADMIN_SNAPSHOT_INTERVAL_MS = 15000;
 
-function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
+function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
   let wss = null;
-  const adminSockets = new Set();
+  const adminSockets = new Map();
 
   function get(sql, params = []) {
     return new Promise((resolve, reject) => {
@@ -47,8 +46,13 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
   }
 
   function broadcastAdmins(message) {
-    for (const socket of adminSockets) {
-      send(socket, message);
+    for (const [socket, token] of adminSockets) {
+      if (!adminAuth?.verifySessionToken?.(token)) {
+        adminSockets.delete(socket);
+        socket.close(4003, 'Administrator session expired');
+      } else {
+        send(socket, message);
+      }
     }
   }
 
@@ -76,9 +80,11 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
       FROM sandbox_instances WHERE deleted_at IS NULL
     `);
     const nodeList = await all(`
-      SELECT id, node_uid, name, status, is_test_node, cpu_percent, memory_used_mb, ram_mb,
-             disk_free_mb, running_instances, max_instances, last_heartbeat_at, agent_version
-      FROM sandbox_nodes ORDER BY id ASC
+      SELECT n.id, n.node_uid, n.name, n.status, n.is_test_node, n.cpu_percent, n.memory_used_mb, n.ram_mb,
+             n.disk_free_mb, n.running_instances, n.max_instances, n.last_heartbeat_at, n.agent_version,
+             (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
+               AND i.status IN ('deploying','starting','running','stopping')) AS allocated_instances
+      FROM sandbox_nodes n ORDER BY n.id ASC
     `);
     return {
       type: 'snapshot',
@@ -108,6 +114,7 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
   function handleNodeConnection(socket, req) {
     let node = null;
     let authenticated = false;
+    let nodeToken = '';
 
     const authTimer = setTimeout(() => {
       if (!authenticated) socket.close(4001, 'Authentication timeout');
@@ -127,7 +134,8 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
           return;
         }
         try {
-          node = await nodes.authenticateNode(String(message.nodeUid), String(message.token));
+          nodeToken = String(message.token);
+          node = await nodes.authenticateNode(String(message.nodeUid), nodeToken);
         } catch (error) {
           console.error('Node WS authentication failed:', error.message);
           socket.close(1011, 'Server error');
@@ -137,15 +145,36 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
           socket.close(4003, 'Invalid node credentials');
           return;
         }
+        if (socket.readyState !== socket.OPEN) return;
         authenticated = true;
         clearTimeout(authTimer);
-        nodes.attachConnection(node.id, socket);
+        nodes.attachConnection(node.id, socket, node.auth_token_hash);
         send(socket, { type: 'authenticated', nodeUid: node.node_uid, serverTime: Date.now() });
         // Deliver anything queued while the agent was offline.
         const queued = await nodes.pendingCommands(node.id).catch(() => []);
         for (const command of queued) {
+          if (!await nodes.authenticateNode(node.node_uid, nodeToken)) {
+            nodes.detachConnection(node.id, socket);
+            socket.close(4003, 'Node credentials revoked');
+            return;
+          }
           send(socket, { type: 'command', ...command });
         }
+        return;
+      }
+
+      // Apply the same current-token policy as every authenticated HTTP request.
+      try {
+        const currentNode = await nodes.authenticateNode(node.node_uid, nodeToken);
+        if (!currentNode) {
+          nodes.detachConnection(node.id, socket);
+          socket.close(4003, 'Node credentials revoked');
+          return;
+        }
+        node = currentNode;
+      } catch (error) {
+        nodes.detachConnection(node.id, socket);
+        socket.close(1011, 'Unable to verify node credentials');
         return;
       }
 
@@ -198,16 +227,17 @@ function createSandboxRealtime({ db, nodes, events, jwtSecret } = {}) {
     const url = new URL(req.url, 'http://localhost');
     const credential = readAuthCredential(req);
     const token = (credential && credential.token) || url.searchParams.get('token') || '';
-    jwt.verify(token, jwtSecret, (error, claims) => {
-      if (error || !claims || claims.sub !== 'admin' || claims.role !== 'admin') {
-        socket.close(4003, 'Admin authentication required');
-        return;
-      }
-      adminSockets.add(socket);
-      adminSnapshot()
-        .then(snapshot => send(socket, snapshot))
-        .catch(error => console.error('Admin snapshot failed:', error.message));
-    });
+    if ((credential?.source === 'cookie' && !isSameOriginRequest(req)) || !adminAuth?.verifySessionToken?.(token)) {
+      socket.close(4003, 'Admin authentication required');
+      return;
+    }
+    adminSockets.set(socket, token);
+    adminSnapshot()
+      .then(snapshot => {
+        if (adminAuth.verifySessionToken(token)) send(socket, snapshot);
+        else { adminSockets.delete(socket); socket.close(4003, 'Administrator session expired'); }
+      })
+      .catch(error => console.error('Admin snapshot failed:', error.message));
 
     socket.on('close', () => adminSockets.delete(socket));
     socket.on('error', () => adminSockets.delete(socket));

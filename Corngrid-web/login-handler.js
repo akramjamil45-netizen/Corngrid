@@ -57,7 +57,11 @@ function createLoginHandler({
 
     let user;
     try {
-      user = await dbGet(db, 'SELECT * FROM users WHERE email = ? COLLATE NOCASE', [email]);
+      // Bind the session version to the password snapshot being verified. A
+      // concurrent reset must never stamp an old-password login with its new version.
+      user = await dbGet(db, `SELECT users.*,
+        COALESCE((SELECT version FROM user_auth_versions WHERE user_id = users.id), 0) AS login_auth_version
+        FROM users WHERE email = ? COLLATE NOCASE`, [email]);
     } catch (error) {
       logger.error('Failed to search for account:', error.message);
       return res.status(500).json({ error: 'Server error during login.' });
@@ -91,12 +95,7 @@ function createLoginHandler({
     }
 
     try {
-      const versionRecord = await dbGet(
-        db,
-        'SELECT version FROM user_auth_versions WHERE user_id = ?',
-        [user.id]
-      );
-      const authVersion = versionRecord ? versionRecord.version : 0;
+      const authVersion = user.login_auth_version;
       const token = jwt.sign(
         { id: user.id, email: user.email, username: user.username, authVersion },
         jwtSecret,

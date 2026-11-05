@@ -67,6 +67,17 @@ function createSandboxNodeApi({ db, nodes, events, manager, rateLimit } = {}) {
   function registerRoutes(app) {
     const nodeRateLimit = rateLimit({ limit: 240, windowMs: 60 * 1000 });
 
+    // Recover only assigned terminals that should be running, never stopped,
+    // suspended or deleted instances. Local startup files retain credentials.
+    app.get('/api/sandbox/node/instances', nodeRateLimit, authenticateNodeRequest, async (req, res) => {
+      db.all(`SELECT instance_uid FROM sandbox_instances
+        WHERE node_id = ? AND deleted_at IS NULL AND status IN ('running','starting')`,
+      [req.node.id], (error, rows) => {
+        if (error) return res.status(500).json({ error: 'Unable to load recovery state.' });
+        res.json({ instances: rows.map(row => ({ instanceUid: row.instance_uid })) });
+      });
+    });
+
     // Heartbeat: resource report + instance states in, pending commands out.
     app.post('/api/sandbox/node/heartbeat', nodeRateLimit, authenticateNodeRequest, async (req, res) => {
       const body = req.body || {};
