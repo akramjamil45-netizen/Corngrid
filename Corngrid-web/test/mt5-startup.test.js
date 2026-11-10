@@ -5,6 +5,18 @@ const os = require('node:os');
 const path = require('node:path');
 const { prepareStartup } = require('../agent/mt5-startup');
 
+test('verified broker identity seeds matching credentials and takes priority over a stale symbol map', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-canonical-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const payload = { symbol: 'XAUUSD', resolvedSymbol: 'XAUUSD.c', accountNumber: '123', brokerServer: 'JustMarkets-Demo6', password: 'example', installationSecret: 'a'.repeat(64), strategy: { code: 'corngrid-ea', eaFileName: 'CornGrid.ex5' } };
+  const file = prepareStartup(dir, payload, { backendUrl: 'https://example.test', brokerSymbolMaps: { 'JustMarkets-DEMO6': { XAUUSD: 'wrong' } } });
+  assert.match(fs.readFileSync(file, 'utf16le'), /Server=JustMarkets-Demo6/);
+  assert.match(fs.readFileSync(file, 'utf16le'), /Symbol=XAUUSD.c/);
+  const settings = JSON.stringify({ accountNumber: '123', brokerServer: 'JustMarkets-Demo6', apiBaseUrl: 'https://example.test', pairingCode: '' });
+  const hash = require('node:crypto').createHash('sha256').update(settings).digest('hex').toUpperCase();
+  assert.ok(fs.readFileSync(path.join(dir, 'MQL5/Files/CGDash_123_JustMarketsD.settings'), 'ascii').startsWith(hash));
+});
+
 test('startup attaches EA, enables sync and seeds its authenticated credential', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'corngrid-startup-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

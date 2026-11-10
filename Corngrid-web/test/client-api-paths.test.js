@@ -9,6 +9,7 @@ const API_BASE = '/api';
 
 // Folders served by express.static that the client may legitimately fetch.
 const STATIC_PREFIXES = ['/uploads/', '/download/', '/files/', '/video/', '/images/'];
+const STATIC_FILES = new Set(['/mt5-brokers.json']);
 
 // The server registers every API route directly on the express app (there are
 // no mounted routers), so the literal first argument of
@@ -240,7 +241,7 @@ test('client request paths resolve to registered server routes', () => {
 
       if (effective === API_BASE || effective.startsWith(API_BASE + '/')) {
         problems.push(`${name}: "${effective}" has no matching server route`);
-      } else if (!STATIC_PREFIXES.some(prefix => effective.startsWith(prefix))) {
+      } else if (!STATIC_FILES.has(effective.split('?')[0]) && !STATIC_PREFIXES.some(prefix => effective.startsWith(prefix))) {
         // Paths outside the /api namespace only make sense for the static
         // asset folders; anything else is a missing /api prefix.
         problems.push(`${name}: "${effective}" does not target the /api namespace`);

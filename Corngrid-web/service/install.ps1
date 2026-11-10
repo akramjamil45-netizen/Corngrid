@@ -27,6 +27,8 @@ if ($existingService -and $existingService.PathName.Trim('"') -ne $wrapper) {
     throw 'CornGridWeb already belongs to another installation. No changes made.'
 }
 if ($existingService -and $existingService.State -eq 'Running') {
+    $watchdogInstaller = Join-Path $serviceDir 'install-watchdog.ps1'
+    if (Test-Path -LiteralPath $watchdogInstaller) { & $watchdogInstaller -ProjectDir $ProjectDir }
     Write-Host 'CornGridWeb is already running. Use Restart-Service CornGridWeb after code updates.'
     exit 0
 }
@@ -100,6 +102,8 @@ try {
     if (-not $healthy) { throw 'Service health check failed. Check service\logs.' }
     Get-CimInstance Win32_Service -Filter "Name = 'CornGridWeb'" | Select-Object Name,State,StartMode,ProcessId
     Write-Host "CornGridWeb installed and healthy on port $Port."
+    $watchdogInstaller = Join-Path $serviceDir 'install-watchdog.ps1'
+    if (Test-Path -LiteralPath $watchdogInstaller) { & $watchdogInstaller -ProjectDir $ProjectDir }
 } catch {
     Stop-Service CornGridWeb -ErrorAction SilentlyContinue
     if ($stoppedPrevious) {

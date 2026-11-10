@@ -38,6 +38,7 @@ marketing/mt5-desktop*
 
 # Local session attachments, browser captures, and Windows cache
 .codex-remote-attachments/
+.codex-attachments/
 .playwright-mcp/
 Microsoft/
 
@@ -46,3 +47,7 @@ marketing/*-result.json
 marketing/*-deployment-result.json
 marketing/sandbox-diagnostic.json
 marketing/agent-task-before-*.xml
+
+# Local MT5 broker verification dependencies
+Corngrid-web/agent/broker-python/
+**/__pycache__/

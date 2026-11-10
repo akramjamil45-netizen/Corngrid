@@ -16,6 +16,7 @@ test('reconnect waits for the old terminal to exit after taskkill acknowledges c
     process: { kill() { if (!alive) throw Object.assign(new Error('exited'), { code: 'ESRCH' }); } },
     require: name => name === 'fs' ? { existsSync: () => true }
       : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini' }
+        : name === './broker-resolution' ? require('../agent/broker-resolution')
         : name === './broker-server-cache' ? {} : name === 'child_process' ? {
           spawn: () => {
             if (launches++) assert.equal(alive, false, 'old terminal releases its data directory first');
@@ -81,6 +82,7 @@ test('terminal failures preserve retry history and explicit stop cancels recover
     clearTimeout: id => timers.delete(id),
     require: name => name === 'fs' ? { existsSync: () => true }
       : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini' }
+        : name === './broker-resolution' ? require('../agent/broker-resolution')
         : name === './broker-server-cache' ? {} : name === 'child_process' ? {
           spawn: () => { const child = new EventEmitter(); child.pid = 100 + children.length; children.push(child); return child; }
         } : require(name)

@@ -9,6 +9,36 @@ The CornGrid Sandbox Agent runs on each Windows server that hosts MT5 sandboxes.
 - The MetaTrader 5 program files placed manually at `C:\CornGrid\Sandbox\MT5\`
   (copy the installed `terminal64.exe` folder contents; include `metaeditor64.exe` on test nodes for EA compilation)
 - Outbound HTTPS (443) access to the CornGrid backend
+- 64-bit Python 3 and its MetaTrader5 package for broker login/symbol verification:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\agent\setup-broker-tools.ps1 -PythonPath C:\Python313\python.exe
+  ```
+
+  Set `mt5PythonPath` in `agent-config.json` to that interpreter. Use an English MT5 base terminal. The agent drives MT5's own broker directory in the same Windows account/session as the terminal; it does not create a trading account.
+
+## Broker discovery and symbol mapping
+
+Before starting an EA on a new deployment, the agent launches an isolated terminal with algorithmic trading disabled, searches MT5's broker directory, verifies the requested account/server with the saved trading password, and reads that account's symbols. A failed login, an investor-only password, a different account/server, or an ambiguous symbol stops deployment with an error. There is no automatic switch to another account or numbered server.
+
+The actual server spelling returned by MT5 seeds both startup and CornGrid dashboard credentials. `XAUUSD` can resolve to a unique broker variant such as `XAUUSD.c`, `XAUUSDm`, or `GOLD`; the same suffix matching applies to EURUSD, GBPUSD and USDJPY. Exact symbols take priority. Disabled, close-only, one-direction and custom instruments are excluded. Multiple eligible variants require an explicit mapping:
+
+```json
+{
+  "mt5PythonPath": "C:\\Python313\\python.exe",
+  "brokerCacheDir": "C:\\CornGrid\\Sandbox\\BrokerCaches",
+  "brokerSymbolMaps": {
+    "Broker-Demo": { "XAUUSD": "XAUUSDm", "EURUSD": "EURUSDm" }
+  },
+  "brokerAccountSymbolMaps": {
+    "Broker-Demo": { "12345678": { "XAUUSD": "XAUUSD.c" } }
+  }
+}
+```
+
+Account mappings override server mappings and must exist in the account's live symbol list. The shared cache contains only `config/servers.dat`, never account databases, passwords or dashboard keys. Missing caches trigger discovery again. `config/broker-resolution.json` records the verified server/symbol for each sandbox without credentials. Existing running terminals are adopted during an agent upgrade; idle legacy terminals are verified on their next start. Keep Python tools and the MT5 base updated when broker builds change.
+
+Official API references: [initialize](https://www.mql5.com/en/docs/python_metatrader5/mt5initialize_py), [symbols_get](https://www.mql5.com/en/docs/python_metatrader5/mt5symbolsget_py).
 
 ## Directory layout
 

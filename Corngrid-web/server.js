@@ -673,9 +673,7 @@ app.post('/api/forgot-password', recoveryRateLimit, (req, res) => {
           mailTransport.sendMail({
             from: SMTP_FROM,
             to: user.email,
-            subject: 'Reset Your CornGrid Password',
-            text: `We have received a request to reset the password for your CornGrid account. Please click the link below to reset your password within 15 minutes: ${resetUrl}\n\nIf you did not request this change, please ignore this email.`,
-            html: `<p>We have received a request to reset the password for your CornGrid account.</p><p><a href="${resetUrl}">Reset Your Password</a></p><p>This link will expire in 15 minutes. If you did not request this change, please ignore this email.</p>`
+            ...require('./password-recovery-email').buildPasswordRecoveryEmail({ resetUrl })
           }, (mailErr) => {
             if (mailErr) {
               console.error('Failed to send the recovery email:', mailErr.message);

@@ -7,6 +7,7 @@ import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -43,6 +44,10 @@ import com.getcapacitor.BridgeWebViewClient;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import org.json.JSONObject;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -107,6 +112,24 @@ public class MainActivity extends BridgeActivity {
     private TextView offlineMessage;
     private boolean offlineVisible = false;
     private boolean loadHadError = false;
+    private boolean resumed = false;
+    private boolean recoveryInFlight = false;
+    private boolean recoveryNavigationPending = false;
+    private int recoveryAttempts = 0;
+    private String lastMainFrameUrl = "https://corngrid.com/login";
+    private final ExecutorService recoveryExecutor = Executors.newSingleThreadExecutor();
+    private final Runnable recoveryRetry = () -> recoverConnection(false);
+    private final Runnable recoveryPageTimeout = () -> {
+        recoveryNavigationPending = false;
+        if (offlineVisible) scheduleRecovery(2000);
+    };
+    private final Runnable networkLossCheck = () -> {
+        if (!hasValidatedNetwork()) {
+            showOfflineOverlay(getString(R.string.cg_offline_no_network));
+        } else if (offlineVisible) {
+            scheduleRecovery(500);
+        }
+    };
     private ConnectivityManager.NetworkCallback networkCallback;
 
     private final Runnable progressTicker = new Runnable() {
@@ -139,6 +162,23 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        resumed = true;
+        if (offlineVisible) scheduleRecovery(500);
+        if (recoveryNavigationPending) mainHandler.postDelayed(recoveryPageTimeout, 30000);
+    }
+
+    @Override
+    public void onPause() {
+        resumed = false;
+        mainHandler.removeCallbacks(recoveryRetry);
+        mainHandler.removeCallbacks(networkLossCheck);
+        mainHandler.removeCallbacks(recoveryPageTimeout);
+        super.onPause();
+    }
+
+    @Override
     public void onDestroy() {
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -153,6 +193,7 @@ public class MainActivity extends BridgeActivity {
         }
         mainHandler.removeCallbacksAndMessages(null);
         ioExecutor.shutdown();
+        recoveryExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -195,16 +236,7 @@ public class MainActivity extends BridgeActivity {
         offlineMessage = offlineOverlay.findViewById(R.id.cg_offline_message);
 
         Button retry = offlineOverlay.findViewById(R.id.cg_offline_retry);
-        retry.setOnClickListener(v -> {
-            WebView webView = bridge != null ? bridge.getWebView() : null;
-            if (webView == null) {
-                return;
-            }
-            loadHadError = false;
-            hideOfflineOverlay();
-            showProgress();
-            webView.reload();
-        });
+        retry.setOnClickListener(v -> recoverConnection(true));
     }
 
     private void showProgress() {
@@ -237,6 +269,7 @@ public class MainActivity extends BridgeActivity {
             offlineOverlay.setVisibility(View.VISIBLE);
             offlineVisible = true;
         }
+        scheduleRecovery(2000);
     }
 
     private void hideOfflineOverlay() {
@@ -245,6 +278,82 @@ public class MainActivity extends BridgeActivity {
         }
         offlineOverlay.setVisibility(View.GONE);
         offlineVisible = false;
+        recoveryAttempts = 0;
+        recoveryNavigationPending = false;
+        mainHandler.removeCallbacks(recoveryPageTimeout);
+        mainHandler.removeCallbacks(recoveryRetry);
+    }
+
+    private boolean hasValidatedNetwork() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
+        return capabilities != null
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    private void scheduleRecovery(long delayMs) {
+        mainHandler.removeCallbacks(recoveryRetry);
+        if (offlineVisible && resumed && !isFinishing() && !isDestroyed()) {
+            mainHandler.postDelayed(recoveryRetry, delayMs);
+        }
+    }
+
+    private void recoverConnection(boolean manual) {
+        if (!resumed || recoveryInFlight || recoveryNavigationPending || !offlineVisible || recoveryExecutor.isShutdown()) return;
+        mainHandler.removeCallbacks(recoveryRetry);
+        if (manual) recoveryAttempts = 0;
+        if (!hasValidatedNetwork()) {
+            offlineMessage.setText(R.string.cg_offline_no_network);
+            scheduleRecovery(5000);
+            return;
+        }
+        recoveryInFlight = true;
+        recoveryExecutor.execute(() -> {
+            boolean healthy = false;
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL("https://corngrid.com/api/health").openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setUseCaches(false);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                if (connection.getResponseCode() == 200) {
+                    try (InputStream input = connection.getInputStream()) {
+                        byte[] bytes = new byte[4096];
+                        int count = 0;
+                        int read;
+                        while (count < bytes.length && (read = input.read(bytes, count, bytes.length - count)) > 0) count += read;
+                        JSONObject response = new JSONObject(new String(bytes, 0, count, java.nio.charset.StandardCharsets.UTF_8));
+                        healthy = "ok".equals(response.optString("status")) && "auth".equals(response.optString("service"));
+                    }
+                }
+            } catch (Exception ignored) {
+                // A failed check leaves the overlay in place; never bypass TLS errors.
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+            final boolean reachable = healthy;
+            mainHandler.post(() -> {
+                recoveryInFlight = false;
+                if (!resumed || isFinishing() || isDestroyed() || !offlineVisible) return;
+                WebView view = bridge != null ? bridge.getWebView() : null;
+                if (reachable && view != null) {
+                    loadHadError = false;
+                    showProgress();
+                    recoveryNavigationPending = true;
+                    mainHandler.removeCallbacks(recoveryPageTimeout);
+                    mainHandler.postDelayed(recoveryPageTimeout, 30000);
+                    // Reload the requested CornGrid page, not chrome-error://chromewebdata/.
+                    view.loadUrl(lastMainFrameUrl);
+                } else {
+                    recoveryAttempts = Math.min(recoveryAttempts + 1, 10);
+                    scheduleRecovery(Math.min(30000L, 2000L << Math.min(recoveryAttempts, 4)));
+                }
+            });
+        });
     }
 
     private int dp(int value) {
@@ -284,22 +393,23 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onAvailable(Network network) {
                 runOnUiThread(() -> {
-                    if (!offlineVisible) {
-                        return;
-                    }
-                    WebView webView = bridge != null ? bridge.getWebView() : null;
-                    loadHadError = false;
-                    hideOfflineOverlay();
-                    if (webView != null) {
-                        showProgress();
-                        webView.reload();
-                    }
+                    if (offlineVisible) scheduleRecovery(500);
+                });
+            }
+
+            @Override
+            public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
+                runOnUiThread(() -> {
+                    if (offlineVisible && hasValidatedNetwork()) scheduleRecovery(500);
                 });
             }
 
             @Override
             public void onLost(Network network) {
-                runOnUiThread(() -> showOfflineOverlay(getString(R.string.cg_offline_no_network)));
+                runOnUiThread(() -> {
+                    mainHandler.removeCallbacks(networkLossCheck);
+                    mainHandler.postDelayed(networkLossCheck, 1500);
+                });
             }
         };
         try {
@@ -365,6 +475,10 @@ public class MainActivity extends BridgeActivity {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            Uri page = Uri.parse(url == null ? "" : url);
+            String host = page.getHost();
+            if ("https".equals(page.getScheme()) && host != null
+                    && ("corngrid.com".equals(host) || host.endsWith(".corngrid.com"))) lastMainFrameUrl = url;
             loadHadError = false;
             showProgress();
             view.evaluateJavascript(BLOB_HOOK_JS, null);
@@ -375,6 +489,8 @@ public class MainActivity extends BridgeActivity {
             super.onPageFinished(view, url);
             view.evaluateJavascript(BLOB_HOOK_JS, null);
             hideProgress();
+            recoveryNavigationPending = false;
+            mainHandler.removeCallbacks(recoveryPageTimeout);
             if (!loadHadError) {
                 hideOfflineOverlay();
             }
@@ -390,6 +506,8 @@ public class MainActivity extends BridgeActivity {
                 // a download); genuine connectivity failures carry specific codes and
                 // are additionally covered by the network callback.
                 if (code != WebViewClient.ERROR_UNKNOWN && !desc.contains("ERR_ABORTED")) {
+                    recoveryNavigationPending = false;
+                    mainHandler.removeCallbacks(recoveryPageTimeout);
                     loadHadError = true;
                     showOfflineOverlay(getString(R.string.cg_offline_server));
                 }
@@ -401,6 +519,8 @@ public class MainActivity extends BridgeActivity {
         public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
             boolean mainFrame = request != null && request.isForMainFrame();
             if (mainFrame && errorResponse.getStatusCode() >= 500) {
+                recoveryNavigationPending = false;
+                mainHandler.removeCallbacks(recoveryPageTimeout);
                 loadHadError = true;
                 showOfflineOverlay(getString(R.string.cg_offline_http_error, errorResponse.getStatusCode()));
             }

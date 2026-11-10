@@ -9,6 +9,20 @@
   let language=document.documentElement.lang==='en'?'en':'ms';
   let requestVersion=0;
   const cache=new Map();
+  // Progressive disclosure keeps the mobile homepage short; desktop retains its full layout.
+  const mobileDetails=document.querySelectorAll('.infra-page .infra-mobile-details');
+  if(mobileDetails.length){
+    const compact=matchMedia('(max-width:639px)');
+    const revealAnchor=()=>{
+      const target=document.getElementById(location.hash.slice(1));
+      const details=target?.matches('.infra-fold-section')?target.querySelector('details'):target?.closest('.infra-mobile-details');
+      if(details)details.open=true;
+    };
+    const syncDetails=()=>{mobileDetails.forEach(details=>{details.open=!compact.matches;});revealAnchor();};
+    syncDetails();
+    compact.addEventListener('change',syncDetails);
+    addEventListener('hashchange',revealAnchor);
+  }
   const readPreference=()=>{try{return localStorage.getItem('selectedLang');}catch{return null;}};
   const closeMenu=()=>{if(!menu||!toggle)return;menu.classList.remove('active');menu.inert=matchMedia('(max-width:1280px)').matches;document.body.classList.remove('public-nav-open');toggle.classList.remove('active');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label',language==='ms'?'Buka navigasi':'Open navigation');};
   if(toggle&&menu){
@@ -31,7 +45,7 @@
     if(!['ms','en'].includes(next))return;
     const version=++requestVersion;
     try{
-      if(!cache.has(next)){const response=await fetch('/locales/'+next+'.json?v=20261105-infra2');if(!response.ok)throw new Error('Language unavailable');cache.set(next,await response.json());}
+      if(!cache.has(next)){const response=await fetch('/locales/'+next+'.json?v=20261111-simple-home1');if(!response.ok)throw new Error('Language unavailable');cache.set(next,await response.json());}
       if(version!==requestVersion)return;
       const dictionary=cache.get(next);language=next;
       if(document.body.dataset.publicPage==='ea'&&typeof window.switchLanguage==='function')window.switchLanguage(next==='ms'?'bm':'en');

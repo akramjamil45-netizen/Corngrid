@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261105-broker-picker1">
+  <link rel="stylesheet" href="dashboard.css?v=20261106-chart-back1">
 </head>
 <body>
   <div class="app-shell">
@@ -531,6 +531,7 @@
             </div>
             <div class="market-ohlc" id="market-ohlc" aria-live="polite"><span>O —</span><span>H —</span><span>L —</span><span>C —</span></div>
             <div class="market-chart-wrap" id="market-chart-wrap">
+              <button type="button" class="button button-secondary market-exit-fullscreen" id="market-exit-fullscreen" aria-label="Exit fullscreen chart">&#8592; Back</button>
               <div id="market-chart"></div>
               <div class="market-chart-state" id="market-chart-state" role="status"><span class="market-spinner" aria-hidden="true"></span><strong>Loading market data…</strong></div>
             </div>
@@ -986,7 +987,7 @@
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
   <script src="dashboard.js?v=20261105-overview-compact1"></script>
-  <script src="market.js?v=20261026-1"></script>
+  <script src="market.js?v=20261106-chart-back1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261030-1"></script>
   <script src="sandbox.js?v=20261105-broker-picker2"></script>

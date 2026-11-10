@@ -67,3 +67,8 @@ secara berasingan kerana terminal MT5 memerlukan pengendalian sesi desktop sendi
 Pemasangan ini tidak mengubah IIS, akaun broker atau konfigurasi sandbox.
 
 Rujukan konfigurasi: https://github.com/winsw/winsw/blob/v2.12.0/doc/xmlConfigFile.md
+# Availability watchdog
+
+Run `install-watchdog.ps1` as Administrator after deploying `watchdog.ps1` into this service directory. It checks local readiness and public health every minute. Three consecutive local readiness failures allow a website service recovery, limited to once per ten minutes. Tunnel recovery is independent: local readiness must be healthy and the public response must indicate a gateway/tunnel error (502/503/504/530), or Cloudflared must be stopped. DNS/internet failures alone never trigger tunnel restart.
+
+Create `service/watchdog.pause` before intentional maintenance and remove it afterwards. `watchdog-state.json` records recent checks; recovery actions go into a bounded `watchdog.log`. `watchdog.ps1 -DryRun -StatePath <temporary-file>` tests decisions without restarting services. The watchdog cannot guarantee availability during power, ISP, database-provider or Cloudflare outages.

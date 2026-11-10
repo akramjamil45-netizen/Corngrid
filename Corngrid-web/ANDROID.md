@@ -13,7 +13,7 @@ splash, back button, offline UI, downloads, system-bar handling).
 | App name | CornGrid |
 | Capacitor | 8.5.3 (`core`, `cli`, `android` + `app`, `splash-screen`, `status-bar`, `network`, `browser`) |
 | Min / Target / Compile SDK | 24 / 36 / 36 |
-| Version | `versionCode 1`, `versionName 1.0.0` |
+| Version | `versionCode 2`, `versionName 1.0.1` |
 | Server | `https://corngrid.com` (remote WebView, HTTPS only) |
 | webDir | `web-app-shell/` (minimal placeholder — keeps `public/uploads` and site assets out of the APK) |
 
@@ -128,6 +128,8 @@ button) is shown when
 - the device's default network drops (`ConnectivityManager.registerDefaultNetworkCallback`),
 - the main frame fails to load with a real network error, or
 - `corngrid.com` answers with HTTP ≥ 500.
+
+Version 1.0.1 also probes the uncached HTTPS health endpoint while the overlay is visible and the activity is in the foreground. Successful checks reopen the last requested CornGrid URL, including when the server recovers without a phone network change. Failed checks back off to 30 seconds; only one health check/navigation can be active at once. Wi-Fi/mobile handoffs check the current validated default network after a short debounce. The overlay remains until page loading succeeds, and TLS errors are never bypassed. Background checks stop on pause and resume with the app.
 
 Sub-resource failures (fonts, images) are filtered via `isForMainFrame()` and
 never trigger the overlay. When connectivity returns the page **reloads**

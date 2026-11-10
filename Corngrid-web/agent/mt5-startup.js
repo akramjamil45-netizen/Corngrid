@@ -11,7 +11,7 @@ function iniValue(value, label) {
 
 function prepareStartup(dir, payload, config) {
   const selectedPair = payload.symbol || config.startupSymbol || 'XAUUSD';
-  const symbol = iniValue(config.brokerSymbolMaps?.[payload.brokerServer]?.[selectedPair] || selectedPair, 'sandbox chart symbol');
+  const symbol = iniValue(payload.resolvedSymbol || require('./broker-resolution').lookup(config.brokerSymbolMaps, payload.brokerServer)?.[selectedPair] || selectedPair, 'sandbox chart symbol');
   const server = iniValue(payload.brokerServer, 'broker server');
   const account = iniValue(payload.accountNumber, 'account number');
   const password = iniValue(payload.password, 'MT5 password');
@@ -60,9 +60,7 @@ function prepareStartup(dir, payload, config) {
   if (webRequest.length) fs.writeFileSync(path.join(configDir, 'common.ini'), '\ufeff' + startup, 'utf16le');
   return startupPath;
 }
-function ensureStartup(dir, config) {
-  const startupPath = path.join(dir, 'config', 'sandbox-startup.ini');
-  if (fs.existsSync(startupPath)) return startupPath;
+function loadStartupPayload(dir) {
   function readIni(file, section) {
     const bytes = fs.readFileSync(file);
     const text = bytes.toString(bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8');
@@ -76,17 +74,31 @@ function ensureStartup(dir, config) {
     }
     return values;
   }
-  const common = readIni(path.join(dir, 'config', 'common.ini'), 'Common');
+  const startup = path.join(dir, 'config', 'sandbox-startup.ini');
+  const source = fs.existsSync(startup) ? startup : path.join(dir, 'config', 'common.ini');
+  const common = readIni(source, 'Common');
   const license = readIni(path.join(dir, 'MQL5', 'Files', 'corngrid_sandbox.ini'), 'License');
-  if (String(common.Login) !== String(license.Account) || common.Server !== license.Server) {
+  if (String(common.Login) !== String(license.Account) || String(common.Server).toLowerCase() !== String(license.Server).toLowerCase()) {
     throw new Error('Legacy sandbox login does not match its installation credential.');
   }
   const binaries = fs.readdirSync(path.join(dir, 'MQL5', 'Experts', 'CornGrid')).filter(name => name.endsWith('.ex5'));
   if (binaries.length !== 1) throw new Error('Cannot determine the legacy sandbox EA binary.');
-  return prepareStartup(dir, {
+  const presetFile = path.join(dir, 'MQL5', 'Presets', 'corngrid-sandbox.set');
+  let preset;
+  if (fs.existsSync(presetFile)) {
+    const bytes = fs.readFileSync(presetFile);
+    preset = { text: bytes.toString(bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8') };
+  }
+  return {
     accountNumber: common.Login, brokerServer: common.Server, password: common.Password,
     installationSecret: license.Secret, apiBaseUrl: license.ApiBaseUrl,
+    symbol: readIni(source, 'StartUp').Symbol || 'XAUUSD', preset,
     strategy: { eaFileName: binaries[0] }
-  }, config);
+  };
 }
-module.exports = { prepareStartup, ensureStartup };
+function ensureStartup(dir, config) {
+  const startupPath = path.join(dir, 'config', 'sandbox-startup.ini');
+  if (fs.existsSync(startupPath)) return startupPath;
+  return prepareStartup(dir, loadStartupPayload(dir), config);
+}
+module.exports = { prepareStartup, ensureStartup, loadStartupPayload };

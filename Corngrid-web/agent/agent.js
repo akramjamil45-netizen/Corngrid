@@ -15,7 +15,7 @@ const { createEaTester } = require('./ea-tester');
 const { createTransport } = require('./transport');
 const systemMonitor = require('./system-monitor');
 
-const AGENT_VERSION = '1.0.0';
+const AGENT_VERSION = '1.1.0';
 const LOG_BUFFER_MAX = 200;
 
 const config = loadConfig();

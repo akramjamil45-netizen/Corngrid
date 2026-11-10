@@ -953,9 +953,23 @@
   function toggleFullscreen() {
     const wrap = $('market-chart-wrap');
     if (!wrap) return;
-    if (document.fullscreenElement) document.exitFullscreen();
+    if (document.fullscreenElement) exitChartFullscreen();
     else if (wrap.requestFullscreen) wrap.requestFullscreen().catch(() => toast('Fullscreen is not available in this browser.', 'error'));
     else toast('Fullscreen is not supported on this device.', 'error');
+  }
+
+  function exitChartFullscreen() {
+    if (document.fullscreenElement === $('market-chart-wrap')) {
+      document.exitFullscreen().catch(() => toast('Unable to exit fullscreen. Use your device Back button.', 'error'));
+    }
+  }
+
+  let chartWasFullscreen = false;
+  function syncChartFullscreen() {
+    const active = document.fullscreenElement === $('market-chart-wrap');
+    $('market-fullscreen').setAttribute('aria-expanded', String(active));
+    if (chartWasFullscreen && !active && state.pageOpen) $('market-fullscreen').focus({ preventScroll: true });
+    chartWasFullscreen = active;
   }
 
   function selectSymbol(symbol) {
@@ -1000,11 +1014,14 @@
     $('market-zoom-out').addEventListener('click', () => zoomChart(1.4));
     $('market-reset-view').addEventListener('click', resetView);
     $('market-fullscreen').addEventListener('click', toggleFullscreen);
+    $('market-exit-fullscreen').addEventListener('click', exitChartFullscreen);
+    document.addEventListener('fullscreenchange', syncChartFullscreen);
   }
 
   let eventsBound = false;
 
   function destroy() {
+    exitChartFullscreen();
     // Release chart resources and observers when the dashboard page unloads.
     stopLive();
     if (state.watchdogTimer) { clearInterval(state.watchdogTimer); state.watchdogTimer = null; }
@@ -1049,6 +1066,7 @@
       loadDrawings();
     },
     onClose() {
+      exitChartFullscreen();
       // Leaving the Market page: abort in-flight requests, stop streaming/timers,
       // but keep the chart instance so repeated page switches do not thrash the
       // chart library (create/remove on every switch caused UI freezes).

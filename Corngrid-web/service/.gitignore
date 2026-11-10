@@ -1,3 +1,6 @@
 logs/
 CornGridWeb.xml
 install-result.json
+watchdog-state.json
+watchdog-state.json.tmp
+watchdog.pause

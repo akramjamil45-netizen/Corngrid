@@ -13,8 +13,12 @@ test('public routes expose localized infrastructure and preserve the EA page bef
   const base='http://127.0.0.1:'+server.address().port;
   for(const [url,language] of [['/','ms'],['/en/','en'],['/index.html','ms']]){
     const response=await fetch(base+url);assert.equal(response.status,200);
+    assert.match(response.headers.get('cache-control'),/no-transform/,'Prevent automatic edge analytics injection');
     const html=await response.text();assert.match(html,new RegExp('<html lang="'+language+'"'));
     assert.match(html,/data-public-page="infrastructure"/);assert.equal((html.match(/<h1>/g)||[]).length,1);
+    assert.match(html,/cookie-consent\.js/);
+    assert.match(html,/type="text\/plain" data-cg-consent="analytics"/);
+    assert.doesNotMatch(html,/<script[^>]*\ssrc="https:\/\/static\.cloudflareinsights\.com/,'Beacon must remain inert before consent');
     assert.match(html,/hreflang="en"/);assert.match(html,/id="cgContactButton"/);
     assert.doesNotMatch(html,/aggregateRating|ratingCount|guaranteed returns/);
   }
@@ -32,9 +36,10 @@ test('public routes expose localized infrastructure and preserve the EA page bef
   const appsResponse=await fetch(base+'/promote/terminal-app/');
   assert.equal(appsResponse.status,200);
   const apps=await appsResponse.text();
-  assert.match(apps,/\/download\/CornGrid.apk/);
+  const apkLink=apps.match(/href="(\/download\/CornGrid(?:-\d+\.\d+\.\d+)?\.apk)"/);
+  assert.ok(apkLink,'Apps page links to a versioned or legacy CornGrid APK');
   assert.match(apps,/PromoI18n/);
-  assert.ok(fs.statSync(path.join(root,'download/CornGrid.apk')).size>1000000);
+  assert.ok(fs.statSync(path.join(root,apkLink[1].slice(1))).size>1000000);
   assert.match(ea,/id="setfiles"/);assert.match(ea,/id="setup"/);assert.match(ea,/id="cgContactButton"/);
   assert.match(ea,/canonical" href="https:\/\/corngrid.com\/corngrid-ea"/);
   assert.match(fs.readFileSync(path.join(root,'Corngrid-web/public/index.html'),'utf8'),/id="loginForm"/);

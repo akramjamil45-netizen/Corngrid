@@ -20,7 +20,8 @@
 
 const fs = require('fs');
 const { copyBrokerServerCache } = require('./broker-server-cache');
-const { prepareStartup, ensureStartup } = require('./mt5-startup');
+const { prepareStartup, ensureStartup, loadStartupPayload } = require('./mt5-startup');
+const { resolveBroker } = require('./broker-resolution');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 
@@ -143,6 +144,9 @@ function createMt5Manager({ config, logger, downloadFile }) {
 
     await robocopy(path.resolve(config.mt5BaseDir), dir);
     copyBrokerServerCache(dir, payload.brokerServer, config);
+    logger.info(instanceUid, 'Verifying broker login and resolving the account trading symbol before starting EA.');
+    payload = await resolveBroker(dir, payload, config);
+    logger.info(instanceUid, `Broker verified: ${payload.brokerServer}; chart symbol: ${payload.resolvedSymbol}.`);
     writeAutoLoginConfig(dir, payload);
     writeLicenseBundle(dir, payload);
     await deployEa(dir, payload.strategy);
@@ -278,6 +282,12 @@ function createMt5Manager({ config, logger, downloadFile }) {
     const dir = instanceDir(instanceUid);
     const terminal = path.join(dir, 'terminal64.exe');
     if (!fs.existsSync(terminal)) throw new Error('Sandbox environment is not deployed.');
+    if (!fs.existsSync(path.join(dir, 'config', 'broker-resolution.json'))) {
+      logger.info(instanceUid, 'Verifying the existing sandbox broker and symbol before restart.');
+      const verified = await resolveBroker(dir, loadStartupPayload(dir), config);
+      writeLicenseBundle(dir, verified);
+      prepareStartup(dir, verified, config);
+    }
     const child = launch(dir, instanceUid, payload);
     return { pid: child.pid };
   }
