@@ -99,9 +99,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261105-support2">
-<link rel="stylesheet" href="admin.css?v=20261106-announcement-pin1">
+<link rel="stylesheet" href="admin.css?v=20261111-download-spacing1">
 <script src="table-cards.js?v=20261029-2" defer></script>
-<script src="admin.js?v=20261105-support2" defer></script>
+<script src="admin.js?v=20261111-download-directory1" defer></script>
 </head>
 <body class="cg-admin-workspace">
   <div class="app-shell">
@@ -121,6 +121,7 @@
         <a class="nav-item admin-nav-link" href="#ea-submissions" data-admin-page="ea-submissions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></span>EA Submissions</a>
         <a class="nav-item admin-nav-link" href="#commissions" data-admin-page="commissions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>Commissions</a>
         <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
+        <a class="nav-item admin-nav-link" href="#downloads" data-admin-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Downloads</a>
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-status"><span class="status-dot"></span><span>Administrator access</span></div>
@@ -137,6 +138,12 @@
       </header>
 
       <div class="page-wrap">
+        <section class="page" id="downloads" hidden>
+          <div class="page-heading"><div><p class="eyebrow">USER RESOURCES</p><h1>Downloads directory</h1><p class="muted">Update the strategy presets and setup guide available on the user Downloads page.</p></div></div>
+          <div class="notice"><span>MT5 presets: .set, up to 128 KB. Setup guide: PDF, up to 10 MB. Updates replace the selected download immediately.</span></div>
+          <p id="admin-download-status" class="muted" role="status" aria-live="polite"></p>
+          <div id="admin-download-list" class="admin-download-grid"></div>
+        </section>
         <section class="page is-visible" id="overview">
           <div class="page-heading"><div><p class="eyebrow">CORNGRID ADMINISTRATION</p><h1>Platform overview</h1><p class="muted">User profile counts, portfolio visibility, and linked account status.</p></div></div>
           <div class="stat-grid admin-stat-grid">

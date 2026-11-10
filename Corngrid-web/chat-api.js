@@ -1,4 +1,5 @@
 const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
+const { quotaSchema, respondDailyLimit } = require('./daily-limits');
 
 function run(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -70,7 +71,7 @@ const schema = `
 `;
 
 function registerChatApi(app, db, verifyToken) {
-  db.exec(schema, (error) => {
+  db.exec(schema + quotaSchema('chat', [{ table: 'direct_messages', user: 'sender_id' }, { table: 'support_messages', user: 'user_id', condition: "sender_role = 'user'", newCondition: "NEW.sender_role = 'user'" }]), (error) => {
     if (error) console.error('Failed to initialize chat schema:', error.message);
   });
 
@@ -280,6 +281,7 @@ function registerChatApi(app, db, verifyToken) {
         createdAt: now
       });
     } catch (err) {
+      if (respondDailyLimit(err, res)) return;
       console.error('Failed to send message:', err.message);
       return res.status(500).json({ error: 'Failed to send message.' });
     }
@@ -347,6 +349,7 @@ function registerChatApi(app, db, verifyToken) {
         createdAt: now
       });
     } catch (error) {
+      if (respondDailyLimit(error, res)) return;
       console.error('Failed to send user support message:', error.message);
       return res.status(500).json({ error: 'Unable to send support message.' });
     }

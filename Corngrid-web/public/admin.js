@@ -1820,8 +1820,41 @@
     if (event.target === $('#email-detail-dialog')) $('#email-detail-dialog').close();
   });
 
+  async function loadDownloadsDirectory() {
+    const status = $('#admin-download-status'), host = $('#admin-download-list');
+    status.textContent = 'Loading downloads…';
+    const labels = { 'setup-guide':'Setup guide', 'xauusd-v260':'XAUUSD · Latest preset', 'xauusd-v25':'XAUUSD · Legacy preset', 'eurusd-m1-v200':'EURUSD', 'gbpusd-m1-v200':'GBPUSD', 'usdjpy-m1-v200':'USDJPY' };
+    try {
+      const data = await api('/api/admin/downloads');
+      host.innerHTML = data.resources.map(item => `<section class="panel admin-download-card"><p class="eyebrow">${item.type === 'guide' ? 'PDF GUIDE' : 'MT5 PRESET'}</p><h2>${escapeHtml(labels[item.id] || item.id)}</h2><p class="admin-download-filename">${escapeHtml(item.filename)}</p><p class="muted small">${escapeHtml(item.version)} · ${item.available ? Math.ceil(item.size / 1024) + ' KB' : 'File unavailable'}${item.updatedAt ? ' · Updated ' + escapeHtml(formatDateTime(item.updatedAt)) : ''}</p><form data-resource-id="${escapeHtml(item.id)}"><label>Version<input class="input-control" name="version" maxlength="40" placeholder="e.g. v2.70" value="${item.custom ? escapeHtml(item.version) : ''}" required></label><label>Replacement file<input class="input-control" name="file" type="file" accept="${item.type === 'guide' ? '.pdf' : '.set'}" required></label><div class="admin-download-actions"><button class="button button-primary" type="submit">Upload update</button>${item.custom ? '<button class="button button-secondary" type="button" data-resource-restore>Restore original</button>' : ''}</div></form></section>`).join('');
+      status.textContent = '';
+    } catch (error) { status.textContent = error.message; }
+  }
+  $('#admin-download-list').addEventListener('submit', async event => {
+    const form = event.target.closest('[data-resource-id]');
+    if (!form) return;
+    event.preventDefault();
+    const file = form.elements.file.files[0];
+    if (!file) return;
+    if (file.size > (form.dataset.resourceId === 'setup-guide' ? 10 * 1024 * 1024 : 128 * 1024)) { toast('Selected file exceeds the upload size limit.', 'error'); return; }
+    const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    $('#admin-download-status').textContent = 'Uploading…';
+    try {
+      await api('/api/admin/downloads/' + encodeURIComponent(form.dataset.resourceId), {method:'PUT',headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),'X-Resource-Version':form.elements.version.value.trim()},body:file});
+      toast('Download updated. Users can download the new file now.', 'success'); await loadDownloadsDirectory();
+    } catch (error) { $('#admin-download-status').textContent = error.message; }
+    finally { button.disabled = false; }
+  });
+  $('#admin-download-list').addEventListener('click', async event => {
+    const button = event.target.closest('[data-resource-restore]'); if (!button) return;
+    if (!window.confirm('Restore the original file for this download?')) return;
+    button.disabled = true;
+    try { await api('/api/admin/downloads/' + encodeURIComponent(button.closest('form').dataset.resourceId), {method:'DELETE'}); await loadDownloadsDirectory(); }
+    catch (error) { toast(error.message,'error'); button.disabled = false; }
+  });
+
   function showAdminPage(name) {
-    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions'];
+    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -1835,7 +1868,8 @@
       else link.removeAttribute('aria-current');
     });
     const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
-    $('#admin-breadcrumb-page').textContent = labels[active];
+    $('#admin-breadcrumb-page').textContent = active === 'downloads' ? 'Downloads' : labels[active];
+    if (active === 'downloads') loadDownloadsDirectory();
     if (active === 'subscriptions') loadAdminSubscriptionsPage();
     if (active === 'support') loadSupportConversations();
     if (active === 'email') loadEmailPage();
@@ -1851,6 +1885,7 @@
   }
 
   $('#admin-refresh').addEventListener('click', () => {
+    if (!$('#downloads').hidden) { loadDownloadsDirectory(); return; }
     if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
     else if (!$('#support').hidden) refreshSupportInbox();
     else if (!$('#email').hidden) {
@@ -2045,7 +2080,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'downloads'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -2064,7 +2099,8 @@
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
-  if (location.hash === '#subscriptions') showAdminPage('subscriptions');
+  if (location.hash === '#downloads') showAdminPage('downloads');
+  else if (location.hash === '#subscriptions') showAdminPage('subscriptions');
   else if (location.hash === '#support') showAdminPage('support');
   else if (location.hash === '#email') showAdminPage('email');
   else if (location.hash === '#reports') showAdminPage('reports');

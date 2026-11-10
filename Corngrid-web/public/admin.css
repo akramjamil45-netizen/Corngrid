@@ -417,3 +417,17 @@ body.cg-admin-workspace { height: 100dvh; min-height: 0; overflow: hidden; }
   #support .admin-support-chat { height: max(360px,calc(100dvh - 160px)); }
   #support .admin-support-chat-header { align-items: center; }
 }
+
+#downloads > .notice { padding: 16px 18px; margin: 0 0 24px; line-height: 1.65; }
+#admin-download-status { margin: 0 0 20px; }
+#admin-download-status:empty { display: none; }
+.admin-download-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.admin-download-card { padding: 22px; min-width: 0; }
+.admin-download-card h2 { margin: 8px 0; font-size: 20px; }
+.admin-download-filename { overflow-wrap: anywhere; }
+.admin-download-card form, .admin-download-card label { display: grid; gap: 8px; }
+.admin-download-card form { gap: 16px; margin-top: 20px; }
+.admin-download-card input { width: 100%; min-width: 0; box-sizing: border-box; }
+.admin-download-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-download-actions button { min-height: 44px; }
+@media(max-width:700px) { .admin-download-grid { grid-template-columns: minmax(0,1fr); } .admin-download-card { padding: 18px; } }

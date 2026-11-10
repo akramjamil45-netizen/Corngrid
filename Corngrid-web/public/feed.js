@@ -147,7 +147,7 @@
           ${badge}
         </div>
         ${post.title ? `<h3 class="feed-card-title">${escapeHtml(post.title)}</h3>` : ''}
-        <div class="feed-card-content">${escapeHtml(post.content).replace(/\n/g, '<br>')}</div>
+        <div class="feed-card-content">${CornGridMessageTools.render(post.content)}</div>
         ${image}
         <div class="feed-card-actions">
           <button type="button" class="feed-action${post.likedByMe ? ' is-active' : ''}" data-feed-like="${escapeHtml(post.id)}" aria-pressed="${post.likedByMe ? 'true' : 'false'}" aria-label="Like this post"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> <span data-like-count="${escapeHtml(post.id)}">${escapeHtml(post.likeCount)}</span></button>
@@ -320,7 +320,7 @@
               <strong>${escapeHtml(comment.author.displayName)}</strong>
               <span class="muted small"><time title="${escapeHtml(exactTime(comment.createdAt))}">${escapeHtml(timeAgo(comment.createdAt))}</time>${edited}</span>
             </div>
-            <div class="feed-comment-content">${escapeHtml(comment.content).replace(/\n/g, '<br>')}</div>
+            <div class="feed-comment-content">${CornGridMessageTools.render(comment.content)}</div>
           </div>
           <div class="feed-comment-actions">
             <button type="button" class="feed-action feed-action-sm" data-comment-reply="${escapeHtml(comment.id)}" data-comment-post="${escapeHtml(postId)}">Reply</button>

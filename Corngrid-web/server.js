@@ -403,6 +403,8 @@ const downloadableResources = Object.freeze({
   }
 });
 
+require('./downloads-api')(app, db, verifyToken, adminAuth.verifyToken, downloadableResources, path.join(ROOT_DIR, 'files'), downloadRateLimit);
+
 app.get('/api/downloads/:resourceId', verifyToken, downloadRateLimit, (req, res) => {
   if (!Object.hasOwn(downloadableResources, req.params.resourceId)) {
     return res.status(404).json({ error: 'The requested download was not found.' });

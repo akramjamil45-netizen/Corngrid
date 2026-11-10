@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
+const { quotaSchema, respondDailyLimit } = require('./daily-limits');
 const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
 
 function run(db, sql, params = []) {
@@ -194,7 +195,7 @@ function shapePost(row) {
 
 function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
   const uploadDir = options.uploadDir || path.join(__dirname, 'public', 'uploads', 'feed');
-  db.exec(schema, error => {
+  db.exec(schema + quotaSchema('post', [{ table: 'feed_posts', user: 'author_user_id', condition: "kind = 'community'", newCondition: "NEW.kind = 'community'" }]) + quotaSchema('comment', [{ table: 'feed_comments', user: 'author_user_id' }]), error => {
     if (error) console.error('Failed to initialize feed schema:', error.message);
   });
 
@@ -292,6 +293,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
       const row = await get(db, `${POST_SELECT} WHERE p.id = ?`, [req.user.id, result.lastID]);
       return res.status(201).json({ post: shapePost(row) });
     } catch (error) {
+      if (respondDailyLimit(error, res)) return;
       console.error('Failed to create feed post:', error.message);
       return res.status(500).json({ error: 'Unable to publish the post.' });
     }
@@ -440,6 +442,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
       const counts = await get(db, 'SELECT COUNT(*) AS count FROM feed_comments WHERE post_id = ? AND deleted_at IS NULL', [postId]);
       return res.status(201).json({ comment: shapeComment(row, req.user.id), commentCount: counts.count });
     } catch (error) {
+      if (respondDailyLimit(error, res)) return;
       console.error('Failed to create comment:', error.message);
       return res.status(500).json({ error: 'Unable to post the comment.' });
     }

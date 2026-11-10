@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261106-chart-back1">
+  <link rel="stylesheet" href="dashboard.css?v=20261111-composer-layout1">
 </head>
 <body>
   <div class="app-shell">
@@ -564,15 +564,15 @@
 
         <section class="page" id="page-economic">
           <div class="page-heading econ-heading">
-            <div>
+            <div class="econ-title-row">
               <p class="eyebrow">ECONOMIC NEWS</p>
+              <div class="econ-head-actions">
+                <span class="econ-head-clock" id="econ-clock">—</span>
+                <span class="pill pill-muted" id="econ-feed-status">Loading…</span>
+              </div>
+            </div>
               <h1>Economic Calendar</h1>
               <p class="muted">Macro events in your local time with live countdowns, forecasts, and released results when the source publishes them.</p>
-            </div>
-            <div class="econ-head-actions">
-              <span class="econ-head-clock" id="econ-clock">—</span>
-              <span class="pill pill-muted" id="econ-feed-status">Loading…</span>
-            </div>
           </div>
 
           <div class="notice notice-warning" id="econ-stale-notice" role="status" hidden>
@@ -720,7 +720,7 @@
                 </div>
                 <div class="feed-composer-actions">
                   <div class="feed-composer-tools">
-                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Add image</label>
+                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file" aria-label="Add image" title="Add image"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></label>
                     <input type="file" id="feed-composer-file" accept="image/jpeg,image/png,image/webp" hidden>
                     <span class="feed-char-count muted small" id="feed-char-count">0 / 4000</span>
                   </div>
@@ -986,10 +986,11 @@
   </div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
-  <script src="dashboard.js?v=20261105-overview-compact1"></script>
+  <script src="message-tools.js?v=20261111-2"></script>
+  <script src="dashboard.js?v=20261111-download-directory1"></script>
   <script src="market.js?v=20261106-chart-back1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
-  <script src="feed.js?v=20261030-1"></script>
+  <script src="feed.js?v=20261111-message-icons1"></script>
   <script src="sandbox.js?v=20261105-broker-picker2"></script>
   <script src="partner.js?v=20261105-3"></script>
 </body>

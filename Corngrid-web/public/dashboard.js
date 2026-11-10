@@ -164,12 +164,13 @@
       const objectUrl = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = button.dataset.downloadName;
+      const filename = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || button.dataset.downloadName;
+      link.download = filename;
       document.body.append(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      toast(`${button.dataset.downloadName} downloaded.`, 'success');
+      toast(`${filename} downloaded.`, 'success');
     } catch (error) {
       toast(error.message || 'The download could not be completed.', 'error');
     } finally {
@@ -349,6 +350,16 @@
     if (name === 'positions') loadPositions();
     if (name === 'history') loadTrades();
     if (name === 'monitoring') loadMonitoring();
+    if (name === 'downloads') {
+      request('/downloads').then(data => data.resources.forEach(item => {
+        const button = document.querySelector(`[data-download-id="${CSS.escape(item.id)}"]`);
+        if (!button) return;
+        button.dataset.downloadName = item.filename;
+        const card = button.closest('.preset-item, .resource-card');
+        if (card && item.type === 'guide') card.querySelector('h3').textContent = item.custom ? 'CornGrid Setup Guide · ' + item.version : 'CornGrid Setup Guide v1.1';
+        button.title = item.filename + ' · ' + item.version;
+      })).catch(error => toast(error.message, 'error'));
+    }
     if (name === 'subscription') loadSubscription();
     if (name === 'chat') {
       setChatMobileView();
@@ -471,7 +482,7 @@
           <div class="chat-row ${message.isMine ? 'is-mine' : 'is-peer'}" data-message-id="${escapeHtml(message.id)}">
             ${CornGridAvatar.html(message.isMine ? state.profile : data.peer, '', 'chat-avatar chat-avatar-sm')}
             <div class="chat-bubble-wrap ${message.isMine ? 'is-mine' : 'is-peer'}">
-              <div class="chat-bubble">${escapeHtml(message.message)}</div>
+              <div class="chat-bubble">${CornGridMessageTools.render(message.message)}</div>
               <div class="chat-meta"><span>${escapeHtml(chatTime(message.createdAt))}</span>${message.isMine && message.readAt ? '<span aria-label="Read">· Read</span>' : ''}</div>
             </div>
           </div>
