@@ -14,7 +14,10 @@
     submissions: [],
     partners: [],
     strategies: [],
-    commissions: { rules: [], transactions: [], payouts: [] }
+    commissions: { rules: [], transactions: [], payouts: [] },
+    payoutReviewId: null,
+    payoutReviewBusy: false,
+    manualPayoutBusy: false
   };
 
   const $ = id => document.getElementById(id);
@@ -41,7 +44,11 @@
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
+    if (!response.ok) {
+      const error = new Error(data.error || 'The request could not be completed.');
+      error.field = data.field;
+      throw error;
+    }
     return data;
   }
 
@@ -417,7 +424,7 @@
     const data = await api('/api/admin/partner-applications');
     $('partner-applications-body').innerHTML = data.applications.map(application => `<tr>
       <td>${escapeHtml(application.displayName)}</td><td>${escapeHtml(application.email)}</td>
-      <td>${statusPill(application.status)}</td><td>${escapeHtml(application.reviewNotes || '')}</td>
+      <td>${statusPill(application.status)}</td><td>${escapeHtml(application.reviewNotes || '')}<div class="muted small">${application.agreementId?'<a href="/api/admin/partner-applications/'+encodeURIComponent(application.userId)+'/agreement">Download user agreement</a>':'No digital agreement recorded (legacy)'}</div></td>
       <td>${application.status === 'pending' ? '<button type="button" class="button button-small" data-partner-review="approved" data-partner-id="' + application.userId + '">Approve</button> <button type="button" class="button button-small" data-partner-review="rejected" data-partner-id="' + application.userId + '">Reject</button>' : application.status === 'rejected' ? '<button type="button" class="button button-small button-danger" data-partner-delete="' + application.userId + '" data-partner-name="' + escapeHtml(application.displayName) + '">Delete record</button>' : 'Reviewed'}</td></tr>`).join('') || '<tr><td colspan="5" class="table-empty">No partner applications.</td></tr>';
   }
 
@@ -597,13 +604,11 @@
         <td><small>${escapeHtml(payout.payoutUid)}</small></td>
         <td>${escapeHtml(payout.partnerName)}<br><small class="muted">${escapeHtml(payout.partnerEmail)}</small></td>
         <td><strong>${fmtMoney(payout.amount, payout.currency)}</strong></td>
-        <td>${escapeHtml(payout.method || '—')}</td>
+        <td>${escapeHtml(payout.method || '—')}${payout.recipient ? `<br><small>${escapeHtml(payout.recipient.bankName)} · ending ${escapeHtml(payout.recipient.accountLast4)}</small>` : ''}${payout.reference ? `<br><small>Ref: ${escapeHtml(payout.reference)}</small>` : ''}${payout.reviewReason ? `<br><small>${escapeHtml(payout.reviewReason)}</small>` : ''}</td>
         <td>${statusPill(payout.status)}</td>
-        <td><small>${fmtTime(payout.requestedAt)}</small></td>
+        <td><small>${fmtTime(payout.requestedAt)}${payout.paidAt ? `<br>Paid ${fmtTime(payout.paidAt)}` : ''}</small></td>
         <td class="admin-actions">
-          ${payout.status === 'pending' ? `<button class="button button-small" data-payout-approve="${payout.id}">Approve</button>` : ''}
-          ${['pending', 'approved'].includes(payout.status) ? `<button class="button button-small" data-payout-paid="${payout.id}">Mark paid</button>` : ''}
-          ${payout.status !== 'rejected' && payout.status !== 'paid' ? `<button class="button button-small button-danger" data-payout-reject="${payout.id}">Reject</button>` : ''}
+          ${['pending', 'approved'].includes(payout.status) ? `<button class="button button-small" data-payout-review="${payout.id}">Review &amp; pay</button>` : ''}
         </td>
       </tr>
     `).join('');
@@ -691,17 +696,19 @@
     const partnerId = Number($('cm-payout-partner').value);
     if (!partnerId) return;
     try {
-      // Available balance = approved, unsettled commissions for the partner.
-      const data = await api('/api/admin/commissions/transactions?status=approved');
-      const balance = data.transactions
-        .filter(tx => tx.partnerId === partnerId)
-        .reduce((sum, tx) => sum + Number(tx.commissionAmount), 0);
-      $('cm-payout-balance').textContent = `Available approved balance: ${fmtMoney(balance)}`;
+      const data = await api(`/api/admin/partners/${partnerId}/payout-summary`);
+      if (Number($('cm-payout-partner').value) !== partnerId) return;
+      $('cm-payout-balance').textContent = `Available approved balance: ${fmtMoney(data.availableBalance)}${data.hasOpenRequest ? ' · Review the existing payout request first.' : ''}`;
+      $('cm-payout-amount').max = data.availableBalance;
     } catch { /* non-fatal */ }
   }
 
   async function savePayout(event) {
     event.preventDefault();
+    if (state.manualPayoutBusy) return;
+    state.manualPayoutBusy = true;
+    const button = $('cm-payout-form').querySelector('[type="submit"]');
+    button.disabled = true;
     try {
       const result = await api('/api/admin/payouts', {
         method: 'POST',
@@ -717,6 +724,65 @@
       await loadCommissions();
     } catch (error) {
       toast(error.message, 'error');
+    } finally {
+      state.manualPayoutBusy = false;
+      button.disabled = false;
+    }
+  }
+
+  const payoutReviewFields = { reference: 'cm-payout-review-reference', confirmTransferred: 'cm-payout-review-confirm', reason: 'cm-payout-review-reason' };
+  function showPayoutReviewError(error) {
+    const summary = $('cm-payout-review-error');
+    summary.textContent = error.message;
+    summary.hidden = false;
+    const id = payoutReviewFields[error.field];
+    if (id) {
+      $(id).setAttribute('aria-invalid', 'true');
+      $(id + '-error').textContent = error.message;
+      $(id + '-error').hidden = false;
+    }
+    summary.focus();
+  }
+
+  async function openPayoutReview(id) {
+    const payout = state.commissions.payouts.find(row => Number(row.id) === Number(id));
+    if (!payout) return;
+    const data = await api(`/api/admin/payouts/${id}/recipient`);
+    state.payoutReviewId = Number(id);
+    $('cm-payout-review-form').reset();
+    $('cm-payout-review-error').hidden = true;
+    Object.values(payoutReviewFields).forEach(id => { $(id).removeAttribute('aria-invalid'); $(id + '-error').hidden = true; });
+    $('cm-payout-review-summary').textContent = `${payout.partnerName} · ${fmtMoney(payout.amount, payout.currency)} · ${payout.payoutUid}`;
+    $('cm-payout-review-bank').textContent = data.recipient?.bankName || 'No bank details captured for this legacy payout.';
+    $('cm-payout-review-holder').textContent = data.recipient?.accountHolder || '—';
+    $('cm-payout-review-account').textContent = data.recipient?.accountNumber || '—';
+    $('cm-payout-review-dialog').showModal();
+  }
+
+  async function reviewPayout(status) {
+    if (state.payoutReviewBusy || !state.payoutReviewId) return;
+    $('cm-payout-review-error').hidden = true;
+    if (status === 'rejected' && !$('cm-payout-review-reason').value.trim()) {
+      showPayoutReviewError({ message: 'Enter a reason before rejecting this request.', field: 'reason' });
+      return;
+    }
+    state.payoutReviewBusy = true;
+    $('cm-payout-review-submit').disabled = true;
+    $('cm-payout-review-reject').disabled = true;
+    try {
+      const data = await api(`/api/admin/payouts/${state.payoutReviewId}/status`, { method: 'POST', body: JSON.stringify({
+        status, reference: $('cm-payout-review-reference').value.trim(),
+        confirmTransferred: $('cm-payout-review-confirm').checked,
+        reason: $('cm-payout-review-reason').value.trim()
+      }) });
+      $('cm-payout-review-dialog').close();
+      toast(data.message, 'success');
+      await Promise.all([loadPayouts(), loadLedger()]);
+    } catch (error) { showPayoutReviewError(error); }
+    finally {
+      state.payoutReviewBusy = false;
+      $('cm-payout-review-submit').disabled = false;
+      $('cm-payout-review-reject').disabled = false;
     }
   }
 
@@ -991,7 +1057,28 @@
     $('cm-rule-model').addEventListener('change', syncRuleModel);
     $('cm-rule-form').addEventListener('submit', saveRule);
     $('cm-record-payout').addEventListener('click', openPayoutDialog);
+    $('cm-refresh-payouts').addEventListener('click', async () => {
+      $('cm-refresh-payouts').disabled = true;
+      try { await loadPayouts(); } catch (error) { toast(error.message, 'error'); }
+      finally { $('cm-refresh-payouts').disabled = false; }
+    });
     $('cm-payout-form').addEventListener('submit', savePayout);
+    $('cm-payout-review-form').addEventListener('submit', event => { event.preventDefault(); reviewPayout('paid'); });
+    $('cm-payout-review-reject').addEventListener('click', () => reviewPayout('rejected'));
+    $('cm-payout-review-dialog').addEventListener('close', () => {
+      state.payoutReviewId = null;
+      $('cm-payout-review-account').textContent = '—';
+      $('cm-payout-review-holder').textContent = '—';
+      $('cm-payout-review-form').reset();
+    });
+    Object.values(payoutReviewFields).forEach(id => {
+      $(id).addEventListener('invalid', () => {
+        $(id).setAttribute('aria-invalid', 'true');
+        $(id + '-error').textContent = $(id).validationMessage;
+        $(id + '-error').hidden = false;
+      });
+      $(id).addEventListener('input', () => { $(id).removeAttribute('aria-invalid'); $(id + '-error').hidden = true; });
+    });
     $('cm-payout-partner').addEventListener('change', updatePayoutBalance);
     $('cm-ledger-status').addEventListener('change', loadLedger);
     $('cm-rules-body').addEventListener('click', async event => {
@@ -1032,15 +1119,7 @@
       const target = event.target.closest('button');
       if (!target) return;
       try {
-        if (target.dataset.payoutApprove) {
-          await api(`/api/admin/payouts/${target.dataset.payoutApprove}/status`, { method: 'POST', body: JSON.stringify({ status: 'approved' }) });
-        } else if (target.dataset.payoutPaid) {
-          await api(`/api/admin/payouts/${target.dataset.payoutPaid}/status`, { method: 'POST', body: JSON.stringify({ status: 'paid' }) });
-        } else if (target.dataset.payoutReject) {
-          await api(`/api/admin/payouts/${target.dataset.payoutReject}/status`, { method: 'POST', body: JSON.stringify({ status: 'rejected' }) });
-        }
-        toast('Payout updated.', 'success');
-        await loadPayouts();
+        if (target.dataset.payoutReview) await openPayoutReview(target.dataset.payoutReview);
       } catch (error) {
         toast(error.message, 'error');
       }

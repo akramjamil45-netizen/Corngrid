@@ -114,6 +114,7 @@
       page: String(page),
       limit: '50',
       visibility: $('#admin-visibility').value,
+      accountState: $('#admin-account-state').value,
       search: $('#admin-search').value.trim()
     });
 
@@ -125,7 +126,7 @@
       $('#stat-private').textContent = data.summary.privatePortfolios;
       $('#stat-online').textContent = data.summary.onlineAccounts;
       $('#stat-total-accounts').textContent = data.summary.totalAccounts;
-      $('#admin-result-count').textContent = `${data.pagination.total} profile${data.pagination.total === 1 ? '' : 's'}`;
+      $('#admin-result-count').textContent = `${data.pagination.total} profile${data.pagination.total === 1 ? '' : 's'} · ${data.summary.archivedUsers || 0} archived accounts`;
       totalPages = data.pagination.totalPages;
       $('#admin-pagination-label').textContent = totalPages
         ? `Page ${page} of ${totalPages}`
@@ -144,10 +145,10 @@
           : profile.accountStatus === 'Offline'
             ? 'pill-offline'
             : 'pill-muted';
-        const accessStatus = profile.isSuspended
+        const accessStatus = profile.isArchived ? `<span class="pill pill-muted">Archived · ${escapeHtml(formatDate(profile.archivedAt))}</span>` : profile.isSuspended
           ? `<span class="pill pill-suspended">Suspended until ${escapeHtml(formatDateTime(profile.suspendedUntil))}</span>`
           : '<span class="pill pill-online">Active</span>';
-        const accessButton = profile.isSuspended
+        const accessButton = profile.isArchived ? `<button class="button button-small" type="button" data-user-action="unarchive" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Restore account</button>` : profile.isSuspended
           ? `<button class="button button-small" type="button" data-user-action="restore" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Restore</button>`
           : `<button class="button button-small" type="button" data-user-action="suspend" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Suspend</button>`;
         return `<tr>
@@ -161,7 +162,7 @@
           <td class="admin-actions cell-actions" data-label="Actions">
             <button class="button button-small" type="button" data-user-action="trading" data-user-id="${profile.id}">Trading overview</button>
             ${accessButton}
-            <button class="button button-small button-danger" type="button" data-user-action="delete" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Delete</button>
+            ${profile.isArchived?'':`<button class="button button-small button-danger" type="button" data-user-action="archive" data-user-id="${profile.id}" data-username="${escapeHtml(profile.username)}">Archive</button>`}
           </td>
         </tr>`;
       }).join('');
@@ -1828,7 +1829,7 @@
     const labels = { 'setup-guide':'Setup guide', 'xauusd-v260':'XAUUSD · Latest preset', 'xauusd-v25':'XAUUSD · Legacy preset', 'eurusd-m1-v200':'EURUSD', 'gbpusd-m1-v200':'GBPUSD', 'usdjpy-m1-v200':'USDJPY' };
     try {
       const data = await api('/api/admin/downloads');
-      host.innerHTML = data.resources.map(item => `<section class="panel admin-download-card"><p class="eyebrow">${item.type === 'guide' ? 'PDF GUIDE' : 'MT5 PRESET'}</p><h2>${escapeHtml(labels[item.id] || item.id)}</h2><p class="admin-download-filename">${escapeHtml(item.filename)}</p><p class="muted small">${escapeHtml(item.version)} · ${item.available ? Math.ceil(item.size / 1024) + ' KB' : 'File unavailable'}${item.updatedAt ? ' · Updated ' + escapeHtml(formatDateTime(item.updatedAt)) : ''}</p><form data-resource-id="${escapeHtml(item.id)}"><label>Version<input class="input-control" name="version" maxlength="40" placeholder="e.g. v2.70" value="${item.custom ? escapeHtml(item.version) : ''}" required></label><label>Replacement file<input class="input-control" name="file" type="file" accept="${item.type === 'guide' ? '.pdf' : '.set'}" required></label><div class="admin-download-actions"><button class="button button-primary" type="submit">Upload update</button>${item.custom ? '<button class="button button-secondary" type="button" data-resource-restore>Restore original</button>' : ''}</div></form></section>`).join('');
+      host.innerHTML = data.resources.map(item => `<details class="admin-download-card" name="download-editor"><summary><span class="admin-download-type" aria-hidden="true">${item.type === 'guide' ? 'PDF' : 'SET'}</span><span class="admin-download-copy"><strong>${escapeHtml(labels[item.id] || item.id)}</strong><span class="admin-download-filename" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</span><span class="muted small">${escapeHtml(item.version)} · ${item.available ? Math.ceil(item.size / 1024) + ' KB' : 'Unavailable'}</span></span><span class="admin-download-toggle">Update <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary><form data-resource-id="${escapeHtml(item.id)}">${item.updatedAt ? '<p class="muted small">Updated '+escapeHtml(formatDateTime(item.updatedAt))+'</p>' : ''}<label>Version<input class="input-control" name="version" maxlength="40" placeholder="e.g. v2.70" value="${item.custom ? escapeHtml(item.version) : ''}" required></label><label>Replacement file<input class="input-control" name="file" type="file" accept="${item.type === 'guide' ? '.pdf' : '.set'}" required></label><div class="admin-download-actions"><button class="button button-primary button-small" type="submit">Upload update</button>${item.custom ? '<button class="button button-secondary button-small" type="button" data-resource-restore>Restore original</button>' : ''}</div></form></details>`).join('');
       status.textContent = '';
     } catch (error) { status.textContent = error.message; }
   }
@@ -1855,8 +1856,12 @@
     catch (error) { toast(error.message,'error'); button.disabled = false; }
   });
 
+  async function loadUserAgreements(){
+    const body=$('#admin-agreements-body');body.innerHTML='<tr><td colspan="6" class="table-empty">Loading agreement records…</td></tr>';
+    try{const data=await api('/api/admin/partner-agreements');body.innerHTML=data.agreements.map(row=>`<tr><td>${escapeHtml(row.username||row.user_id)}<div class="muted small">${escapeHtml(row.email||'')}</div></td><td>${escapeHtml(row.signer_name)}</td><td>${escapeHtml(row.terms_version)}</td><td>${escapeHtml(row.language.toUpperCase())}</td><td>${escapeHtml(formatDateTime(row.accepted_at))}</td><td><a class="button button-secondary button-small" href="/api/admin/partner-agreements/${encodeURIComponent(row.id)}/file">Download JSON</a></td></tr>`).join('')||'<tr><td colspan="6" class="table-empty">No digital agreements recorded. Existing accounts have not been marked as accepted.</td></tr>';}catch(error){body.innerHTML='<tr><td colspan="6" class="table-empty">'+escapeHtml(error.message)+'</td></tr>';}
+  }
   function showAdminPage(name) {
-    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads'];
+    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -1870,7 +1875,8 @@
       else link.removeAttribute('aria-current');
     });
     const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
-    $('#admin-breadcrumb-page').textContent = active === 'downloads' ? 'Downloads' : labels[active];
+    $('#admin-breadcrumb-page').textContent = active === 'user-agreements' ? 'User Agreements' : active === 'downloads' ? 'Downloads' : labels[active];
+    if(active==='user-agreements')loadUserAgreements();
     if (active === 'downloads') loadDownloadsDirectory();
     if (active === 'subscriptions') loadAdminSubscriptionsPage();
     if (active === 'support') loadSupportConversations();
@@ -1887,6 +1893,7 @@
   }
 
   $('#admin-refresh').addEventListener('click', () => {
+    if(!$('#user-agreements').hidden){loadUserAgreements();return;}
     if (!$('#downloads').hidden) { loadDownloadsDirectory(); return; }
     if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
     else if (!$('#support').hidden) refreshSupportInbox();
@@ -1926,6 +1933,7 @@
     page = 1;
     loadOverview();
   });
+  $('#admin-account-state').addEventListener('change',()=>{page=1;loadOverview();});
   $('#admin-search').addEventListener('input', () => {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => {
@@ -1955,17 +1963,19 @@
       } catch (error) { window.alert(error.message); }
       return;
     }
-    if (button.dataset.userAction === 'delete') {
-      const confirmation = window.prompt(`This permanently deletes ${username} and linked trading data. Type the exact username to continue:`);
+    if (['archive','unarchive'].includes(button.dataset.userAction)) {
+      const restore=button.dataset.userAction==='unarchive';
+      const confirmation = window.prompt(restore?`Restore account access for ${username}? They must sign in again. Type the exact username:`:`Archive ${username}? Login will be blocked. EA releases, presets, financial records and existing trading are preserved. Type the exact username:`);
       if (confirmation !== username) {
-        if (confirmation !== null) window.alert('The username did not match. Nothing was deleted.');
+        if (confirmation !== null) window.alert('The username did not match. No account status was changed.');
         return;
       }
       try {
-        await api(`/api/admin/users/${userId}`, {
-          method: 'DELETE',
+        const result=await api(`/api/admin/users/${userId}/archive`, {
+          method: restore?'DELETE':'POST',
           body: JSON.stringify({ confirmUsername: confirmation })
         });
+        toast(result.message,'success');
         await loadOverview();
       } catch (error) { window.alert(error.message); }
     }
@@ -2082,7 +2092,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'downloads'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'downloads', 'user-agreements'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -2101,7 +2111,8 @@
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
-  if (location.hash === '#downloads') showAdminPage('downloads');
+  if (location.hash === '#user-agreements') showAdminPage('user-agreements');
+  else if (location.hash === '#downloads') showAdminPage('downloads');
   else if (location.hash === '#subscriptions') showAdminPage('subscriptions');
   else if (location.hash === '#support') showAdminPage('support');
   else if (location.hash === '#email') showAdminPage('email');

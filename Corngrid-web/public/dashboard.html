@@ -118,7 +118,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261111-stripe1">
+  <link rel="stylesheet" href="dashboard.css?v=20261111-payout1">
+  <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout-layout3">
 </head>
 <body>
   <div class="app-shell">
@@ -967,6 +968,39 @@
               <div class="subscription-panel-body"><div id="partner-transactions-list" class="subscription-list"></div></div>
             </section>
 
+            <div class="partner-payout-layout">
+            <section class="panel" id="partner-bank-panel">
+              <div class="panel-header"><div><p class="eyebrow">PAYOUT ACCOUNT</p><h2>Bank details</h2></div></div>
+              <div class="subscription-panel-body">
+                <p id="partner-bank-saved" class="muted small">No bank account saved.</p>
+                <form id="partner-bank-form" class="settings-form">
+                  <p id="partner-bank-error" class="payout-form-error" role="alert" tabindex="-1" hidden></p>
+                  <label for="partner-bank-name">Bank name<input id="partner-bank-name" class="input-control" type="text" minlength="2" maxlength="120" autocomplete="off" required aria-describedby="partner-bank-name-error"><small id="partner-bank-name-error" class="payout-field-error" hidden></small></label>
+                  <label for="partner-account-holder">Account holder name<input id="partner-account-holder" class="input-control" type="text" minlength="2" maxlength="120" autocomplete="name" required aria-describedby="partner-account-holder-error"><small id="partner-account-holder-error" class="payout-field-error" hidden></small></label>
+                  <label for="partner-account-number">Bank account number<input id="partner-account-number" class="input-control" type="text" inputmode="numeric" pattern="[0-9 -]{6,50}" maxlength="50" autocomplete="off" required aria-describedby="partner-account-number-hint partner-account-number-error"><small id="partner-account-number-hint" class="muted">Your saved account is masked. Leave this blank to keep it, or enter a new account number.</small><small id="partner-account-number-error" class="payout-field-error" hidden></small></label>
+                  <label class="payout-check" for="partner-bank-confirm"><input id="partner-bank-confirm" type="checkbox" required aria-describedby="partner-bank-confirm-error"><span>I confirm that these bank details are correct and the account belongs to me.</span></label>
+                  <small id="partner-bank-confirm-error" class="payout-field-error" hidden></small>
+                  <button class="button button-primary" id="partner-bank-save" type="submit">Save bank details</button>
+                  <p class="muted small payout-footnote">Each payout uses the bank account saved when you submit the request.</p>
+                </form>
+              </div>
+            </section>
+
+            <section class="panel" id="partner-request-panel">
+              <div class="panel-header"><div><p class="eyebrow">WITHDRAW EARNINGS</p><h2>Request payout</h2></div><button class="button button-secondary button-small" id="partner-payout-refresh" type="button">Refresh</button></div>
+              <div class="subscription-panel-body">
+                <dl class="partner-payout-balances"><div><dt>Available balance</dt><dd id="partner-payout-available">—</dd></div><div><dt>Awaiting payment</dt><dd id="partner-payout-reserved">—</dd></div><div><dt>Minimum payout</dt><dd id="partner-payout-minimum">—</dd></div></dl>
+                <p id="partner-payout-hint" class="muted small" aria-live="polite">Loading payout details…</p>
+                <form id="partner-payout-form" class="settings-form">
+                  <p id="partner-payout-error" class="payout-form-error" role="alert" tabindex="-1" hidden></p>
+                  <label for="partner-payout-amount">Amount (MYR)<input id="partner-payout-amount" class="input-control" type="number" min="0.01" step="0.01" inputmode="decimal" required aria-describedby="partner-payout-amount-error"><small id="partner-payout-amount-error" class="payout-field-error" hidden></small></label>
+                  <button class="button button-primary" id="partner-payout-request" type="submit" disabled>Request payout</button>
+                </form>
+                <p class="muted small payout-footnote">Your requested amount is reserved until admin transfers to your saved bank account and confirms payment.</p>
+              </div>
+            </section>
+            </div>
+
             <section class="panel">
               <div class="panel-header"><div><p class="eyebrow">PAYOUTS</p><h2>Payment history</h2></div></div>
               <div class="subscription-panel-body"><div id="partner-payouts-list" class="subscription-list"></div></div>
@@ -998,7 +1032,7 @@
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261111-message-icons1"></script>
   <script src="sandbox.js?v=20261105-broker-picker2"></script>
-  <script src="partner.js?v=20261105-3"></script>
+  <script src="partner.js?v=20261111-payout-layout3"></script>
 </body>
 </html>
 

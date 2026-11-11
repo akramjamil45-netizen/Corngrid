@@ -50,13 +50,14 @@ EA subscription RM100, partner commission 40% → partner earns RM40, CornGrid k
 
 ## Payouts
 
-- Admin records a payout (`POST /api/admin/payouts`) up to the partner's available approved balance.
-- The payout settles the oldest approved transactions (linked through `partner_payout_transactions`), marking them `paid` — a commission can never be paid twice.
-- Partners see earnings, ledger, and payout history on the Partner Program page.
+- Partners save bank details and request payment from their available approved MYR commissions. Pending requests reserve the requested amount.
+- Admin transfers externally, then confirms the completed transfer with a bank reference. The payout and commission records are saved atomically. Rejection releases the reservation.
+- Integer-cent allocations support partial payments without losing the remaining commission balance. Partners see the reference, status and payment time in their history.
+- See [Partner payout requests](PARTNER_PAYOUTS.md) for the workflow, access controls, migrations and balance rules.
 
 ## Partner payout details
 
-Bank/DuitNow details submitted in the partner profile are stored AES-256-GCM-encrypted (`payout_details_cipher`) and never returned by the API.
+Bank details submitted in the partner form are stored AES-256-GCM-encrypted (`payout_details_cipher`). Normal responses mask the account number. An authenticated, audited admin endpoint reveals the immutable recipient snapshot for a specific payout.
 
 
 ## Partner applications and EA presets

@@ -3,6 +3,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { dbGet } = require('./db-async');
+const {accountArchived}=require('./account-archive');
 
 function defaultIsEmailVerified(user) {
   if (!user) return false;
@@ -84,6 +85,7 @@ function createLoginHandler({
       return res.status(400).json({ error: 'Email or password is incorrect.' });
     }
 
+    try{if(await accountArchived(db,user.id))return res.status(403).json({error:'This account is archived. Contact CornGrid support.',code:'ACCOUNT_ARCHIVED'});}catch{return res.status(503).json({error:'Account access checks are unavailable.'});}
     if (!isEmailVerified(user)) {
       // Only returned after the correct password is supplied, so it does not
       // disclose whether an address is registered to an anonymous caller.

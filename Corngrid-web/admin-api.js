@@ -1,4 +1,5 @@
 const { avatarUrl } = require('./avatar-api');
+const {ensureArchiveSchema,changeArchive}=require('./account-archive');
 
 function get(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -22,6 +23,7 @@ function run(db, sql, params = []) {
 }
 
 function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
+  const archiveReady=ensureArchiveSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_account_access (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -48,6 +50,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
     const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
     const visibility = ['public', 'private'].includes(req.query.visibility) ? req.query.visibility : 'all';
+    const accountState=['active','archived'].includes(req.query.accountState)?req.query.accountState:'all';
     const now = Date.now();
     const onlineSince = now - heartbeatTimeoutSeconds * 1000;
     const onlineUntil = now + 60 * 1000;
@@ -70,12 +73,15 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         : `AND NOT ${publicCondition}`;
     const params = [];
     if (search) params.push(`%${search}%`);
-    const filteredCondition = `${searchCondition} ${visibilityCondition}`;
+    const archiveCondition=accountState==='all'?'':`AND ${accountState==='active'?'NOT ':''}EXISTS (SELECT 1 FROM account_archives ar WHERE ar.user_id=u.id)`;
+    const filteredCondition = `${searchCondition} ${visibilityCondition} ${archiveCondition}`;
 
     try {
+      await archiveReady;
       const summary = await get(db, `
         SELECT
           (SELECT COUNT(*) FROM users) AS "totalUsers",
+          (SELECT COUNT(*) FROM account_archives) AS "archivedUsers",
           (SELECT COUNT(*) FROM mt5_accounts) AS "totalAccounts",
           (
             SELECT COUNT(*) FROM users u
@@ -98,6 +104,8 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
           u.id,
           u.username,
           u.created_at AS "createdAt",
+          (SELECT archived_at FROM account_archives ar WHERE ar.user_id=u.id) AS "archivedAt",
+          (SELECT reason FROM account_archives ar WHERE ar.user_id=u.id) AS "archiveReason",
           access.suspended_until AS "suspendedUntil",
           access.reason AS "suspensionReason",
           (
@@ -127,6 +135,7 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
       return res.json({
         summary: {
           totalUsers: summary.totalUsers,
+          archivedUsers: summary.archivedUsers,
           publicPortfolios: summary.publicPortfolios,
           privatePortfolios: summary.totalUsers - summary.publicPortfolios,
           totalAccounts: summary.totalAccounts,
@@ -134,9 +143,10 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
         },
         profiles: profiles.map(profile => ({
           ...profile,
+          isArchived:profile.archivedAt!=null,
           isSuspended: profile.suspendedUntil != null,
           portfolioVisibility: profile.isPublic ? 'Public' : 'Private',
-          accountStatus: profile.onlineAccounts > 0
+          accountStatus: profile.archivedAt!=null ? 'Archived' : profile.onlineAccounts > 0
             ? 'Online'
             : profile.linkedAccounts > 0
               ? 'Offline'
@@ -281,25 +291,24 @@ function registerAdminApi(app, db, verifyAdminToken, heartbeatTimeoutSeconds) {
     }
   });
 
-  app.delete('/api/admin/users/:userId', verifyAdminToken, async (req, res) => {
+  async function archiveAccount(req,res,restore=false) {
     const userId = Number.parseInt(req.params.userId, 10);
     const confirmUsername = typeof req.body?.confirmUsername === 'string' ? req.body.confirmUsername : '';
     if (!Number.isSafeInteger(userId) || userId < 1) return res.status(400).json({ error: 'Invalid user ID.' });
     if (!confirmUsername) return res.status(400).json({ error: 'Username confirmation is required.' });
     try {
-      const result = await run(db, 'DELETE FROM users WHERE id = ? AND username = ?', [userId, confirmUsername]);
-      if (!result.changes) {
-        const user = await get(db, 'SELECT id FROM users WHERE id = ?', [userId]);
-        return res.status(user ? 400 : 404).json({
-          error: user ? 'The username confirmation does not match.' : 'User not found.'
-        });
-      }
-      return res.json({ message: 'User account and linked data have been deleted.' });
+      const reason=typeof req.body?.reason==='string'?req.body.reason.trim().slice(0,500):(restore?'Restored by administrator':'Archived by administrator');
+      const result=await changeArchive(db,{userId,confirmUsername,reason,restore,actor:String(req.admin?.id||'admin')});
+      const {http,...body}=result;return res.status(http).json(body);
     } catch (error) {
-      console.error('Failed to delete user account:', error.message);
-      return res.status(500).json({ error: 'Unable to delete this user account.' });
+      console.error('Failed to change account archive state:', error.code||'archive-error');
+      return res.status(500).json({ error: 'Unable to update account archive status.' });
     }
-  });
+  }
+  app.post('/api/admin/users/:userId/archive',verifyAdminToken,(q,r)=>archiveAccount(q,r));
+  app.delete('/api/admin/users/:userId/archive',verifyAdminToken,(q,r)=>archiveAccount(q,r,true));
+  // Compatibility: old clients' Delete action now archives; no cascading delete.
+  app.delete('/api/admin/users/:userId',verifyAdminToken,(q,r)=>archiveAccount(q,r));
 
   app.get('/api/admin/support/conversations', verifyAdminToken, async (_req, res) => {
     try {

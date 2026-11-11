@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { isSameOriginRequest, readAuthCredential } = require('./session-cookie');
+const {ensureArchiveSchema}=require('./account-archive');
 
 function isVerifiedValue(value) {
   // Missing column (legacy database) is handled by the caller as verified.
@@ -7,6 +8,7 @@ function isVerifiedValue(value) {
 }
 
 function createUserAuth({ db, jwtSecret }) {
+  const archiveReady=ensureArchiveSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_account_access (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -33,16 +35,18 @@ function createUserAuth({ db, jwtSecret }) {
       return res.status(403).json({ error: 'This request must come from the same site.' });
     }
 
-    jwt.verify(token, jwtSecret, (error, user) => {
+    jwt.verify(token, jwtSecret, async (error, user) => {
       if (error || !user || !Number.isSafeInteger(user.id) || user.id < 1) {
         return res.status(403).json({ error: 'Token is invalid or has expired.' });
       }
+      try{await archiveReady;}catch{return res.status(503).json({error:'Account access checks are unavailable.'});}
 
       const now = Date.now();
       const baseSql = `
         SELECT
           (SELECT version FROM user_auth_versions WHERE user_id = ?) AS auth_version,
           (SELECT id FROM users WHERE id = ?) AS account_id,
+          (SELECT archived_at FROM account_archives WHERE user_id = ?) AS archived_at,
           (SELECT suspended_until FROM user_account_access WHERE user_id = ? AND suspended_until > ?) AS suspended_until
       `;
       // Session version, account existence, suspension, and email verification
@@ -55,13 +59,14 @@ function createUserAuth({ db, jwtSecret }) {
           (SELECT email_verified FROM users WHERE id = ?) AS email_verified
       `;
       const legacySql = baseSql;
-      const params = [user.id, user.id, user.id, now];
+      const params = [user.id, user.id, user.id, user.id, now];
 
       const handleRow = (lookupError, row, checkedVerification) => {
         if (lookupError) {
           console.error('Failed to verify the authenticated session:', lookupError.message);
           return res.status(500).json({ error: 'Unable to verify this session.' });
         }
+        if(row?.archived_at!=null)return res.status(403).json({error:'This account is archived. Contact CornGrid support.',code:'ACCOUNT_ARCHIVED'});
         const currentVersion = (row && row.auth_version) || 0;
         if ((user.authVersion || 0) !== currentVersion) {
           return res.status(403).json({ error: 'This session is no longer valid. Please sign in again.' });

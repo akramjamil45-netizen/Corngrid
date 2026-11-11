@@ -251,6 +251,7 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.deepEqual(data.summary, {
+      archivedUsers: 0,
       totalUsers: 3,
       publicPortfolios: 1,
       privatePortfolios: 2,
@@ -306,7 +307,11 @@ test('admin login uses bcrypt credentials and protects the admin overview', asyn
       'SELECT COUNT(*) AS total FROM mt5_accounts WHERE user_id = 1',
       (error, row) => error ? reject(error) : resolve(row.total)
     ));
-    assert.equal(remainingAccounts, 0);
+    assert.ok(remainingAccounts > 0, 'Archive preserves linked trading accounts');
+    const archivedOverview=await(await request('/api/admin/overview?accountState=archived',token)).json();
+    assert.equal(archivedOverview.profiles.find(p=>p.id===1).isArchived,true);
+    assert.equal((await mutate('/api/admin/users/1/archive',token,'DELETE',{confirmUsername:'Alice'})).status,200);
+    assert.equal((await request('/api/protected-user',userToken)).status,403,'Old sessions stay invalid after restoring');
   } finally {
     await new Promise(resolve => server.close(resolve));
     await new Promise(resolve => db.close(resolve));

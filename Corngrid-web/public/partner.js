@@ -13,7 +13,7 @@
     rejected: 'pill-offline', published: 'pill-live'
   };
 
-  const state = { pageOpen: false, partner: null, busy: false };
+  const state = { pageOpen: false, partner: null, busy: false, payoutSummary: null, bankBusy: false, payoutBusy: false, payoutAttempt: null };
   const $ = id => document.getElementById(id);
 
   function escapeHtml(value) {
@@ -42,6 +42,7 @@
     if (!response.ok) {
       const error = new Error(data.error || 'The request could not be completed.');
       error.code = data.code;
+      error.field = data.field;
       throw error;
     }
     return data;
@@ -76,7 +77,7 @@
     if (active) {
       setPill($('partner-status-pill'), state.partner.status === 'active' ? 'Partner' : 'Suspended',
         state.partner.status === 'active' ? 'pill-live' : 'pill-offline');
-      await Promise.all([loadOverview(), loadSubmissions(), loadTransactions(), loadPayouts()]);
+      await Promise.all([loadOverview(), loadSubmissions(), loadTransactions(), loadPayouts(), loadPayoutSummary(true)]);
     } else {
       setPill($('partner-status-pill'), pending ? 'Awaiting approval' : data.partner ? 'Suspended' : 'Not registered', pending ? 'pill-delayed' : 'pill-muted');
     }
@@ -146,6 +147,10 @@
         <div class="partner-item-body">
           <strong>${escapeHtml(payout.payoutUid)}</strong>
           <span class="muted small">${escapeHtml(payout.method || 'manual')} · ${escapeHtml(fmtTime(payout.requestedAt))}</span>
+          ${payout.recipient ? `<span class="muted small">${escapeHtml(payout.recipient.bankName)} · ${escapeHtml(payout.recipient.accountHolder)} · account ending ${escapeHtml(payout.recipient.accountLast4)}</span>` : ''}
+          ${payout.reference ? `<span class="muted small">Transfer reference: ${escapeHtml(payout.reference)}</span>` : ''}
+          ${payout.paidAt ? `<span class="muted small">Paid ${escapeHtml(fmtTime(payout.paidAt))}</span>` : ''}
+          ${payout.reviewReason ? `<span class="muted small">Reason: ${escapeHtml(payout.reviewReason)}</span>` : ''}
         </div>
         <div class="partner-item-amount">
           <strong>${fmtMoney(payout.amount, payout.currency)}</strong>
@@ -155,26 +160,157 @@
     `).join('');
   }
 
+  async function loadPayoutSummary(fillBank = false) {
+    const data = await request('/partner/payout-summary');
+    state.payoutSummary = data;
+    $('partner-payout-available').textContent = fmtMoney(data.availableBalance);
+    $('partner-payout-reserved').textContent = fmtMoney(data.reservedBalance);
+    $('partner-payout-minimum').textContent = fmtMoney(data.minimumPayout);
+    const bank = data.bankDetails;
+    $('partner-bank-saved').textContent = bank
+      ? `${bank.bankName} · ${bank.accountHolder} · account ending ${bank.accountLast4}` : 'No bank account saved.';
+    $('partner-account-number').required = !bank;
+    $('partner-account-number-hint').textContent = bank
+      ? 'Leave blank to keep your saved account, or enter a new number.'
+      : 'Enter the account number exactly as shown by your bank.';
+    if (fillBank && bank) {
+      $('partner-bank-name').value = bank.bankName;
+      $('partner-account-holder').value = bank.accountHolder;
+      $('partner-account-number').value = '';
+    }
+    const amount = $('partner-payout-amount');
+    amount.min = String(Math.max(0.01, data.minimumPayout));
+    amount.max = String(data.availableBalance);
+    const eligible = Boolean(bank) && !data.hasOpenRequest && data.availableBalance > 0 && data.availableBalance >= data.minimumPayout;
+    $('partner-payout-request').disabled = !eligible || state.payoutBusy || state.bankBusy;
+    $('partner-payout-hint').textContent = data.hasOpenRequest ? 'Your payout is awaiting admin transfer and confirmation. You can submit another request after it is completed or rejected.'
+      : !bank ? 'Save your bank details above before requesting a payout.'
+      : !eligible ? 'Your approved available balance must reach the minimum payout before you can request payment.'
+      : `Payment will be sent to ${bank.bankName}, account ending ${bank.accountLast4}.`;
+  }
+
+  const bankFields = { bankName: 'partner-bank-name', accountHolder: 'partner-account-holder', accountNumber: 'partner-account-number', confirmOwnership: 'partner-bank-confirm' };
+  function clearPayoutErrors(form, fields) {
+    $(form).hidden = true;
+    Object.values(fields).forEach(id => {
+      $(id).removeAttribute('aria-invalid');
+      $(id + '-error').hidden = true;
+    });
+  }
+
+  function payoutError(summaryId, fields, error) {
+    const summary = $(summaryId);
+    summary.textContent = error.message;
+    summary.hidden = false;
+    if (fields[error.field]) {
+      const id = fields[error.field];
+      $(id).setAttribute('aria-invalid', 'true');
+      $(id + '-error').textContent = error.message;
+      $(id + '-error').hidden = false;
+    }
+    summary.focus();
+  }
+
+  async function saveBankDetails(event) {
+    event.preventDefault();
+    if (state.bankBusy) return;
+    clearPayoutErrors('partner-bank-error', bankFields);
+    state.bankBusy = true;
+    $('partner-bank-save').disabled = true;
+    $('partner-payout-request').disabled = true;
+    $('partner-bank-save').textContent = 'Saving…';
+    try {
+      await request('/partner/bank-details', { method: 'PUT', body: JSON.stringify({
+        bankName: $('partner-bank-name').value.trim(),
+        accountHolder: $('partner-account-holder').value.trim(),
+        accountNumber: $('partner-account-number').value.trim(),
+        confirmOwnership: $('partner-bank-confirm').checked
+      }) });
+      $('partner-account-number').value = '';
+      $('partner-bank-confirm').checked = false;
+      toast('Bank details saved.', 'success');
+    } catch (error) { payoutError('partner-bank-error', bankFields, error); }
+    finally {
+      state.bankBusy = false;
+      $('partner-bank-save').disabled = false;
+      $('partner-bank-save').textContent = 'Save bank details';
+      await loadPayoutSummary().catch(error => payoutError('partner-bank-error', bankFields, error));
+    }
+  }
+
+  async function requestPayout(event) {
+    event.preventDefault();
+    if (state.payoutBusy || state.bankBusy) return;
+    clearPayoutErrors('partner-payout-error', { amount: 'partner-payout-amount' });
+    const amount = Number($('partner-payout-amount').value);
+    if (!state.payoutAttempt || state.payoutAttempt.amount !== amount) state.payoutAttempt = { amount, requestKey: crypto.randomUUID() };
+    state.payoutBusy = true;
+    $('partner-payout-request').disabled = true;
+    $('partner-payout-request').textContent = 'Submitting…';
+    try {
+      const result = await request('/partner/payouts', { method: 'POST', body: JSON.stringify(state.payoutAttempt) });
+      state.payoutAttempt = null;
+      $('partner-payout-form').reset();
+      toast(result.message, 'success');
+      await Promise.all([loadPayouts(), loadOverview()]);
+    } catch (error) { payoutError('partner-payout-error', { amount: 'partner-payout-amount' }, error); }
+    finally {
+      state.payoutBusy = false;
+      $('partner-payout-request').textContent = 'Request payout';
+      await loadPayoutSummary().catch(error => payoutError('partner-payout-error', {}, error));
+    }
+  }
+
+  async function refreshPayouts() {
+    await Promise.all([loadPayoutSummary(), loadPayouts(), loadOverview(), loadTransactions()]);
+  }
+
   async function register(event) {
     event.preventDefault();
     if (state.busy) return;
     state.busy = true;
     try {
+      const agreement=await showPartnerAgreement();
+      if(!agreement)return;
       await request('/partner/register', {
         method: 'POST',
         body: JSON.stringify({
           displayName: $('partner-display-name').value.trim(),
           company: $('partner-company').value.trim(),
-          website: $('partner-website').value.trim()
+          website: $('partner-website').value.trim(),
+          agreement
         })
       });
       toast('Application submitted for administrator approval.', 'success');
       await loadProfile();
+      await loadAgreements();
     } catch (error) {
       toast(error.message, 'error');
     } finally {
       state.busy = false;
     }
+  }
+
+  async function loadAgreements(){
+    const data=await request('/partner/agreements');
+    let host=$('partner-agreement-records');
+    if(!host){host=document.createElement('section');host.id='partner-agreement-records';host.className='panel partner-agreement-records';$('page-partner').append(host);}
+    host.hidden=!data.agreements.length;
+    host.innerHTML='<h2>User agreements</h2><p class="muted small">Your saved electronic acceptance records / Rekod persetujuan elektronik anda.</p>'+data.agreements.map(row=>`<div class="partner-agreement-record"><div><strong>${escapeHtml(row.terms_version)}</strong><p class="muted small">${escapeHtml(row.signer_name)} · ${escapeHtml(fmtTime(row.accepted_at))} · ${escapeHtml(row.language.toUpperCase())}</p></div><a class="button button-secondary button-small" href="/api/partner/agreements/${encodeURIComponent(row.id)}/file">Download agreement</a></div>`).join('');
+  }
+
+  async function showPartnerAgreement(){
+    const terms=await request('/partner/terms');
+    const doc=terms.document;
+    const dialog=document.createElement('dialog');dialog.className='partner-agreement-dialog';dialog.setAttribute('aria-labelledby','partner-agreement-title');
+    dialog.innerHTML='<form method="dialog"><header class="partner-agreement-header"><div><p class="eyebrow">CORNGRID PARTNER PROGRAMME</p><h2 id="partner-agreement-title"></h2><p class="muted small">Version '+escapeHtml(doc.version)+' · '+escapeHtml(doc.effectiveDate)+'</p></div><button type="button" class="button button-secondary" data-agreement-close aria-label="Close agreement">✕</button></header><label class="partner-agreement-language">Language / Bahasa<select class="select-control" id="partner-agreement-language"><option value="ms">Bahasa Melayu</option><option value="en">English</option></select></label><div class="partner-agreement-content" tabindex="0" role="region" aria-label="Full partner terms"></div><div class="partner-agreement-footer"><label class="partner-agreement-name"><span data-signer-label></span><input class="input-control" id="partner-agreement-signer" maxlength="160" autocomplete="name" required></label><label class="partner-agreement-consent"><input type="checkbox" id="partner-agreement-accepted" required><span data-accept-label></span></label><label class="partner-agreement-consent"><input type="checkbox" id="partner-agreement-authority" required><span data-authority-label></span></label><p class="muted small" data-agreement-notice></p><div class="partner-agreement-actions"><button type="button" class="button button-secondary" data-agreement-cancel></button><button type="submit" class="button button-primary" data-agreement-submit disabled></button></div></div></form>';
+    document.body.append(dialog);
+    const language=dialog.querySelector('select');language.value=(localStorage.getItem('selectedLang')||document.documentElement.lang).startsWith('ms')?'ms':'en';
+    const accepted=dialog.querySelector('#partner-agreement-accepted'),authority=dialog.querySelector('#partner-agreement-authority'),signer=dialog.querySelector('#partner-agreement-signer'),submit=dialog.querySelector('[data-agreement-submit]');
+    function render(){const lang=language.value,ms=lang==='ms';dialog.querySelector('h2').textContent=doc.title[lang];dialog.querySelector('.partner-agreement-content').innerHTML=doc.sections.map((s,i)=>'<section><h3>'+(i+1)+'. '+escapeHtml(s.title[lang])+'</h3><p>'+escapeHtml(s.text[lang])+'</p></section>').join('');dialog.querySelector('[data-signer-label]').textContent=ms?'Nama penuh penandatangan':'Full name of signer';dialog.querySelector('[data-accept-label]').textContent=ms?'Saya telah membaca dan bersetuju dengan Terma & Syarat Program Partner versi ini.':'I have read and agree to this version of the Partner Programme Terms & Conditions.';dialog.querySelector('[data-authority-label]').textContent=ms?'Saya berumur 18 tahun ke atas dan berkuasa bertindak bagi diri sendiri atau organisasi yang dinyatakan.':'I am at least 18 and authorised to act for myself or the stated organisation.';dialog.querySelector('[data-agreement-notice]').textContent=ms?'CornGrid menyimpan nama, butiran akaun, teks dan versi terma, masa, IP dan pelayar sebagai rekod persetujuan. Anda boleh memuat turun salinan. Permohonan masih memerlukan kelulusan admin.':'CornGrid stores your name, account details, terms text/version, time, IP and browser as acceptance evidence. You can download a copy. Administrator approval is still required.';dialog.querySelector('[data-agreement-cancel]').textContent=ms?'Batal':'Cancel';submit.textContent=ms?'Setuju & hantar permohonan':'Accept & submit application';accepted.checked=false;authority.checked=false;submit.disabled=true;dialog.querySelector('.partner-agreement-content').scrollTop=0;}
+    function validity(){submit.disabled=!(accepted.checked&&authority.checked&&signer.value.trim().length>=2);}
+    render();language.addEventListener('change',render);accepted.addEventListener('change',validity);authority.addEventListener('change',validity);signer.addEventListener('input',validity);
+    return new Promise(resolve=>{let result=null;dialog.querySelector('form').addEventListener('submit',event=>{event.preventDefault();if(submit.disabled)return;result={accepted:true,authority:true,version:doc.version,termsHash:terms.termsHash,language:language.value,signerName:signer.value.trim()};dialog.close();});dialog.querySelectorAll('[data-agreement-close],[data-agreement-cancel]').forEach(b=>b.onclick=()=>dialog.close());dialog.addEventListener('close',()=>{dialog.remove();resolve(result);$('partner-register-form').querySelector('button[type="submit"]').focus();},{once:true});dialog.showModal();});
   }
 
   function readFileBase64(file) {
@@ -245,6 +381,28 @@
   function bind() {
     $('partner-register-form').addEventListener('submit', register);
     $('partner-submit-form').addEventListener('submit', submitEa);
+    $('partner-bank-form').addEventListener('submit', saveBankDetails);
+    $('partner-payout-form').addEventListener('submit', requestPayout);
+    $('partner-payout-refresh').addEventListener('click', async () => {
+      $('partner-payout-refresh').disabled = true;
+      try { await refreshPayouts(); }
+      catch (error) { payoutError('partner-payout-error', {}, error); }
+      finally { $('partner-payout-refresh').disabled = false; }
+    });
+    for (const id of [...Object.values(bankFields), 'partner-payout-amount']) {
+      $(id).addEventListener('invalid', () => {
+        $(id).setAttribute('aria-invalid', 'true');
+        $(id + '-error').textContent = $(id).validationMessage;
+        $(id + '-error').hidden = false;
+      });
+      $(id).addEventListener('input', () => {
+        $(id).removeAttribute('aria-invalid');
+        $(id + '-error').hidden = true;
+      });
+    }
+    window.setInterval(() => {
+      if (state.pageOpen && state.partner?.status === 'active' && document.visibilityState === 'visible' && !state.bankBusy && !state.payoutBusy) refreshPayouts().catch(() => {});
+    }, 30000);
   }
 
   window.CornGridPartner = {
@@ -257,6 +415,7 @@
           $('partner-dashboard-section').hidden = true;
         }
       });
+      loadAgreements().catch(error=>toast(error.message,'error'));
     },
     onClose() {
       state.pageOpen = false;

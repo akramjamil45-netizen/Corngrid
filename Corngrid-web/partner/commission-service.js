@@ -14,7 +14,7 @@
 
 const crypto = require('crypto');
 
-function createCommissionService({ db, events, now = () => Date.now() } = {}) {
+function createCommissionService({ db, events, payouts, now = () => Date.now() } = {}) {
   function run(sql, params = []) {
     return new Promise((resolve, reject) => {
       db.run(sql, params, function (error) {
@@ -122,6 +122,7 @@ function createCommissionService({ db, events, now = () => Date.now() } = {}) {
 
   // Partner's available balance: approved commissions not yet settled by a payout.
   async function availableBalance(partnerId) {
+    if (payouts) return (await payouts.summary(partnerId)).availableBalance;
     const row = await get(
       `SELECT COALESCE(SUM(commission_amount), 0) AS balance
        FROM partner_transactions

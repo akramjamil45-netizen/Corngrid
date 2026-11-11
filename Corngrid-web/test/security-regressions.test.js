@@ -29,6 +29,7 @@ test('old-password login never inherits a concurrent reset session version', asy
   const db = {
     exec(_sql, done) { done(null); },
     get(sql, _params, done) {
+      if(sql.startsWith('SELECT user_id FROM account_archives'))return done(null,undefined);
       if (sql.includes('FROM users WHERE email')) {
         const snapshot = { id: 1, email: 'user@example.test', username: 'User', password: hash, email_verified: 1, login_auth_version: currentVersion };
         // Complete a reset after the initial SELECT snapshot, before bcrypt.
@@ -49,6 +50,7 @@ test('old-password login never inherits a concurrent reset session version', asy
   assert.equal(jwt.verify(body.token, jwtSecret).authVersion, 0);
   let accepted = false;
   createUserAuth({ db, jwtSecret })({ method: 'GET', headers: { authorization: 'Bearer ' + body.token } }, response, () => { accepted = true; });
+  await new Promise(resolve=>setImmediate(resolve));
   assert.equal(accepted, false);
   assert.equal(status, 403);
 });

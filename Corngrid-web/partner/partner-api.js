@@ -175,7 +175,7 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
           earnings: {
             approvedTotal: Number(earnings.approved_total) || 0,
             pendingTotal: Number(earnings.pending_total) || 0,
-            paidTotal: Number(earnings.paid_total) || 0,
+            paidTotal: Number(payouts.paid_total) || 0,
             currency: 'MYR'
           },
           payouts: { count: Number(payouts.count) || 0, paidTotal: Number(payouts.paid_total) || 0 },
@@ -376,31 +376,7 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
       }
     });
 
-    app.get('/api/partner/payouts', verifyToken, async (req, res) => {
-      const profile = await requirePartner(req, res);
-      if (!profile) return;
-      try {
-        const rows = await all(
-          'SELECT payout_uid, amount, currency, status, method, reference, requested_at, paid_at FROM partner_payouts WHERE partner_id = ? ORDER BY id DESC LIMIT 100',
-          [req.user.id]
-        );
-        res.json({
-          payouts: rows.map(row => ({
-            payoutUid: row.payout_uid,
-            amount: row.amount,
-            currency: row.currency,
-            status: row.status,
-            method: row.method,
-            reference: row.reference,
-            requestedAt: row.requested_at,
-            paidAt: row.paid_at
-          }))
-        });
-      } catch (error) {
-        console.error('Failed to list payouts:', error.message);
-        res.status(500).json({ error: 'Unable to list payouts.' });
-      }
-    });
+
   }
 
   return { registerRoutes, scanSource, SUBMISSIONS_DIR };

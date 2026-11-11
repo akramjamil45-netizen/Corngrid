@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const {dbGet:get}=require('../db-async');
 const { test } = require('node:test');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -95,6 +96,10 @@ async function createFixture() {
   const adminToken = jwt.sign({ sub: 'admin', role: 'admin' }, jwtSecret);
 
   const request = async (route, { token, method = 'GET', body, headers = {} } = {}) => {
+    if(route==='/api/partner/register'&&body&&!Object.hasOwn(body,'agreement')){
+      const terms=require('../partner/partner-terms');
+      body={...body,agreement:{accepted:true,authority:true,version:terms.document.version,termsHash:terms.hash,language:'en',signerName:'Test Developer'}};
+    }
     const finalHeaders = { ...headers };
     if (token) finalHeaders.Authorization = 'Bearer ' + token;
     if (body) finalHeaders['Content-Type'] = 'application/json';
@@ -113,6 +118,44 @@ async function createFixture() {
 
 const VALID_PRESETS = [{ symbol: 'XAUUSD', name: 'GridMaster.set', contentBase64: Buffer.from('TakeProfit=100\r\n').toString('base64') }];
 
+test('partner agreements require explicit current consent and preserve private immutable receipts',async()=>{
+ const f=await createFixture();const {request,partnerToken,traderToken,adminToken,db}=f;
+ try{
+  const t=(await request('/api/partner/terms',{token:partnerToken})).body;
+  const accepted={accepted:true,authority:true,version:t.document.version,termsHash:t.termsHash,language:'ms',signerName:'Developer Sebenar'};
+  const apply=agreement=>request('/api/partner/register',{token:partnerToken,method:'POST',body:{displayName:'Agreement Developer',company:'CornGrid Test',agreement}});
+  for(const agreement of [null,{...accepted,accepted:false},{...accepted,authority:false},{...accepted,signerName:' '}])assert.equal((await apply(agreement)).status,400);
+  assert.equal((await apply({...accepted,version:'old'})).status,409);
+  assert.equal((await apply({...accepted,termsHash:'fake'})).status,409);
+  assert.equal((await get(db,'SELECT COUNT(*) AS n FROM partner_applications')).n,0);
+  const replies=await Promise.all([apply(accepted),apply(accepted)]);
+  assert.ok(replies.every(r=>r.status===201));
+  const id=replies[0].body.agreementId;assert.equal(id,replies[1].body.agreementId);
+  assert.equal((await get(db,'SELECT COUNT(*) AS n FROM partner_agreements')).n,1);
+  const download=await request('/api/partner/agreements/'+id+'/file',{token:partnerToken});
+  assert.equal(download.status,200);assert.equal(download.body.userId,1);assert.equal(download.body.signerName,'Developer Sebenar');assert.equal(download.body.termsHash,t.termsHash);assert.equal(download.body.terms.sections.length,19);assert.ok(download.body.acceptedAtUTC);assert.ok(download.body.ipAddress);
+  assert.equal((await request('/api/partner/agreements/'+id+'/file',{token:traderToken})).status,404);
+  assert.equal((await request('/api/admin/partner-agreements/'+id+'/file',{token:partnerToken})).status,403);
+  assert.equal((await request('/api/admin/partner-applications/1/agreement',{token:adminToken})).status,200);
+  const file=path.join(f.partner.partnerApi.SUBMISSIONS_DIR,'user-agreements','1',id+'.json');assert.ok(fs.existsSync(file));
+  const original=fs.readFileSync(file,'utf8');
+  await request('/api/admin/partner-applications/1/review',{token:adminToken,method:'POST',body:{status:'rejected',reviewNotes:'Update profile'}});
+  const resubmit=await apply({...accepted,signerName:'Updated Signer'});assert.equal(resubmit.status,201);assert.notEqual(resubmit.body.agreementId,id);assert.equal(fs.readFileSync(file,'utf8'),original);
+  assert.equal((await request('/api/partner/agreements',{token:partnerToken})).body.agreements.length,2);
+ }finally{f.server.close();await new Promise(resolve=>db.close(resolve));}
+});
+
+test('a failed agreement file write rolls back both acceptance and application',async()=>{
+ const f=await createFixture();
+ try{
+  const dir=path.join(f.partner.partnerApi.SUBMISSIONS_DIR,'user-agreements');fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'1'),'block directory creation');
+  const response=await f.request('/api/partner/register',{token:f.partnerToken,method:'POST',body:{displayName:'Blocked file writer'}});
+  assert.equal(response.status,500);
+  assert.equal((await get(f.db,'SELECT COUNT(*) AS n FROM partner_agreements')).n,0);
+  assert.equal((await get(f.db,'SELECT COUNT(*) AS n FROM partner_applications')).n,0);
+ }finally{f.server.close();await new Promise(resolve=>f.db.close(resolve));}
+});
+
 const VALID_MQ5 = `//+------------------------------------------------------------------+
 //| Sample EA                                                        |
 //+------------------------------------------------------------------+
@@ -125,6 +168,170 @@ const MALICIOUS_MQ5 = `// evil
 #import "evil_custom.dll"
 void OnTick() { WinExec("calc.exe", 1); }
 `;
+
+const PAYOUT_BANK = { bankName: 'Maybank', accountHolder: 'Test Partner', accountNumber: '123456789012', confirmOwnership: true };
+async function payoutFixture() {
+  const f = await createFixture();
+  const stamp = Date.now();
+  await run(f.db, `INSERT INTO partner_profiles(user_id, display_name, status, created_at, updated_at) VALUES(1, 'Payout Partner', 'active', ?, ?)`, [stamp, stamp]);
+  await run(f.db, `INSERT INTO partner_transactions(reference, idempotency_key, partner_id, gross_amount, commission_amount, currency, status, created_at, status_updated_at)
+    VALUES('COM-PAYOUT-TEST', 'test:payout:1', 1, 250, 100, 'MYR', 'approved', ?, ?)`, [stamp, stamp]);
+  const rule = await f.request('/api/admin/commissions', { token: f.adminToken, method: 'POST', body: { partnerId: 1, model: 'percent', percent: 40, minPayoutThreshold: 20 } });
+  assert.equal(rule.status, 201);
+  f.saveBank = body => f.request('/api/partner/bank-details', { token: f.partnerToken, method: 'PUT', body: body || PAYOUT_BANK });
+  f.askPayout = (amount = 30, requestKey = crypto.randomUUID()) => f.request('/api/partner/payouts', { token: f.partnerToken, method: 'POST', body: { amount, requestKey } });
+  f.approvePayout = (id, body = {}) => f.request(`/api/admin/payouts/${id}/status`, { token: f.adminToken, method: 'POST', body: { status: 'paid', reference: 'BANK-REF-' + id, confirmTransferred: true, ...body } });
+  f.payoutSummary = async () => (await f.request('/api/partner/payout-summary', { token: f.partnerToken })).body;
+  f.close = async () => { f.server.close(); await new Promise(resolve => f.db.close(resolve)); };
+  return f;
+}
+
+test('partner bank details validate ownership, encrypt accounts and mask all list responses', async () => {
+  const f = await payoutFixture();
+  try {
+    assert.equal((await f.request('/api/partner/payout-summary', { token: f.traderToken })).status, 403);
+    assert.equal((await f.request('/api/partner/bank-details', { token: f.traderToken, method: 'PUT', body: PAYOUT_BANK })).status, 403);
+    assert.equal((await f.askPayout()).status, 400);
+    for (const body of [{ ...PAYOUT_BANK, accountNumber: 'abc123' }, { ...PAYOUT_BANK, confirmOwnership: false }, { ...PAYOUT_BANK, bankName: '' }, { ...PAYOUT_BANK, accountHolder: '' }]) {
+      assert.equal((await f.saveBank(body)).status, 400);
+    }
+    const saved = await f.saveBank();
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.bankDetails.accountLast4, '9012');
+    assert.ok(!JSON.stringify(saved.body).includes(PAYOUT_BANK.accountNumber));
+    const stored = await get(f.db, 'SELECT payout_details_cipher FROM partner_profiles WHERE user_id=1');
+    assert.ok(!stored.payout_details_cipher.includes(PAYOUT_BANK.accountNumber));
+    assert.equal(JSON.parse(f.sandbox.crypto.decrypt(stored.payout_details_cipher)).accountNumber, PAYOUT_BANK.accountNumber);
+    const kept = await f.saveBank({ ...PAYOUT_BANK, accountNumber: '', bankName: 'Updated bank' });
+    assert.equal(kept.status, 200);
+    assert.equal(kept.body.bankDetails.accountLast4, '9012');
+    assert.equal((await f.payoutSummary()).bankDetails.bankName, 'Updated bank');
+    const audit = await new Promise((resolve, reject) => f.db.all('SELECT * FROM subscription_audit_logs', (error, rows) => error ? reject(error) : resolve(rows)));
+    assert.ok(!JSON.stringify(audit).includes(PAYOUT_BANK.accountNumber));
+  } finally { await f.close(); }
+});
+
+test('payout requests reserve funds once, freeze the bank account, and settle partial commissions exactly', async () => {
+  const f = await payoutFixture();
+  try {
+    await f.saveBank();
+    const key = crypto.randomUUID();
+    const replies = await Promise.all([f.askPayout(30, key), f.askPayout(30, key)]);
+    assert.deepEqual(replies.map(row => row.status).sort(), [200, 201]);
+    assert.equal(replies[0].body.payoutUid, replies[1].body.payoutUid);
+    assert.equal((await f.askPayout(40, key)).status, 409);
+    assert.equal((await f.askPayout(30)).status, 409);
+    assert.equal((await get(f.db, 'SELECT COUNT(*) AS n FROM partner_payouts')).n, 1);
+    let balance = await f.payoutSummary();
+    assert.equal(balance.availableBalance, 70);
+    assert.equal(balance.reservedBalance, 30);
+    assert.equal(await f.partner.commissionService.availableBalance(1), 70);
+    const payout = await get(f.db, 'SELECT * FROM partner_payouts');
+    assert.equal(payout.status, 'pending');
+    assert.equal(payout.paid_at, null);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'approved');
+    await f.saveBank({ ...PAYOUT_BANK, bankName: 'CIMB', accountNumber: '999999991234' });
+    assert.equal((await f.request(`/api/admin/payouts/${payout.id}/recipient`, { token: f.partnerToken })).status, 403);
+    const recipient = await f.request(`/api/admin/payouts/${payout.id}/recipient`, { token: f.adminToken });
+    assert.equal(recipient.body.recipient.bankName, PAYOUT_BANK.bankName);
+    assert.equal(recipient.body.recipient.accountNumber, PAYOUT_BANK.accountNumber);
+    for (const route of ['/api/admin/payouts', '/api/partner/payouts']) {
+      const response = await f.request(route, { token: route.includes('/admin/') ? f.adminToken : f.partnerToken });
+      assert.ok(!JSON.stringify(response.body).includes(PAYOUT_BANK.accountNumber));
+      assert.equal(response.body.payouts[0].recipient.accountLast4, '9012');
+    }
+    assert.equal((await f.approvePayout(payout.id, { reference: '' })).status, 400);
+    assert.equal((await f.approvePayout(payout.id, { confirmTransferred: false })).status, 400);
+    const approvals = await Promise.all([f.approvePayout(payout.id), f.approvePayout(payout.id)]);
+    assert.ok(approvals.every(row => row.status === 200));
+    assert.equal((await get(f.db, "SELECT COUNT(*) AS n FROM subscription_audit_logs WHERE action='payout_paid'")).n, 1);
+    balance = await f.payoutSummary();
+    assert.equal(balance.availableBalance, 70);
+    assert.equal(balance.reservedBalance, 0);
+    assert.equal((await f.request('/api/partner/overview', { token: f.partnerToken })).body.earnings.paidTotal, 30);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'approved');
+    assert.equal((await f.request(`/api/admin/payouts/${payout.id}/status`, { token: f.adminToken, method: 'POST', body: { status: 'rejected', reason: 'Cannot undo a paid transfer' } })).status, 409);
+    assert.equal((await f.approvePayout(payout.id, { reference: 'CHANGED' })).status, 409);
+    assert.equal((await f.askPayout(70)).status, 201);
+    const second = await get(f.db, 'SELECT * FROM partner_payouts ORDER BY id DESC LIMIT 1');
+    assert.equal((await f.approvePayout(second.id)).status, 200);
+    assert.equal((await f.payoutSummary()).availableBalance, 0);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'paid');
+    const history = await f.request('/api/partner/payouts', { token: f.partnerToken });
+    assert.equal(history.body.payouts.length, 2);
+    assert.ok(history.body.payouts.every(row => row.status === 'paid' && row.reference && row.paidAt));
+    assert.equal((await f.request('/api/partner/overview', { token: f.partnerToken })).body.payouts.paidTotal, 100);
+  } finally { await f.close(); }
+});
+
+test('minimum payouts, currency eligibility, rejection and concurrent requests preserve balances', async () => {
+  const f = await payoutFixture();
+  try {
+    await f.saveBank();
+    assert.equal((await f.askPayout(10)).status, 400);
+    assert.equal((await f.askPayout(101)).status, 409);
+    assert.equal((await f.askPayout(20.001)).status, 400);
+    const stamp = Date.now();
+    await run(f.db, `INSERT INTO partner_transactions(reference,idempotency_key,partner_id,gross_amount,commission_amount,currency,status,created_at,status_updated_at)
+      VALUES('USD-TEST','test:usd',1,1000,400,'USD','approved',?,?)`, [stamp, stamp]);
+    await run(f.db, `INSERT INTO partner_transactions(reference,idempotency_key,partner_id,gross_amount,commission_amount,currency,status,created_at,status_updated_at)
+      VALUES('PENDING-TEST','test:pending',1,1000,400,'MYR','pending',?,?)`, [stamp, stamp]);
+    assert.equal((await f.payoutSummary()).availableBalance, 100);
+    const results = await Promise.all([f.askPayout(80), f.askPayout(80)]);
+    assert.deepEqual(results.map(row => row.status).sort(), [201, 409]);
+    const payout = await get(f.db, 'SELECT id FROM partner_payouts');
+    const reject = body => f.request(`/api/admin/payouts/${payout.id}/status`, { token: f.adminToken, method: 'POST', body: { status: 'rejected', ...body } });
+    assert.equal((await reject({})).status, 400);
+    assert.equal((await f.request('/api/admin/payouts', { token: f.adminToken, method: 'POST', body: { partnerId: 1, amount: 20, reference: 'MANUAL' } })).status, 409);
+    assert.equal((await reject({ reason: 'Please confirm the bank account.' })).status, 200);
+    assert.equal((await f.payoutSummary()).availableBalance, 100);
+    const history = await f.request('/api/partner/payouts', { token: f.partnerToken });
+    assert.equal(history.body.payouts[0].reviewReason, 'Please confirm the bank account.');
+    assert.equal((await f.approvePayout(payout.id)).status, 409);
+    assert.equal((await f.askPayout(100)).status, 201);
+  } finally { await f.close(); }
+});
+
+test('payout requests and payment confirmation roll back fully if allocation or audit persistence fails', async () => {
+  const f = await payoutFixture();
+  try {
+    await f.saveBank();
+    await run(f.db, "CREATE TRIGGER fail_allocation BEFORE INSERT ON partner_payout_allocations BEGIN SELECT RAISE(ABORT, 'allocation failure'); END");
+    assert.equal((await f.askPayout()).status, 500);
+    assert.equal((await get(f.db, 'SELECT COUNT(*) AS n FROM partner_payouts')).n, 0);
+    assert.equal((await get(f.db, 'SELECT COUNT(*) AS n FROM partner_payout_details')).n, 0);
+    assert.equal((await f.payoutSummary()).availableBalance, 100);
+    await run(f.db, 'DROP TRIGGER fail_allocation');
+    assert.equal((await f.askPayout()).status, 201);
+    const payout = await get(f.db, 'SELECT id FROM partner_payouts');
+    await run(f.db, "CREATE TRIGGER fail_paid_audit BEFORE INSERT ON subscription_audit_logs WHEN NEW.action='payout_paid' BEGIN SELECT RAISE(ABORT, 'audit failure'); END");
+    assert.equal((await f.approvePayout(payout.id)).status, 500);
+    const unchanged = await get(f.db, 'SELECT * FROM partner_payouts');
+    assert.equal(unchanged.status, 'pending');
+    assert.equal(unchanged.reference, null);
+    assert.equal(unchanged.paid_at, null);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'approved');
+    assert.equal((await f.payoutSummary()).reservedBalance, 30);
+    await run(f.db, 'DROP TRIGGER fail_paid_audit');
+    assert.equal((await f.approvePayout(payout.id)).status, 200);
+  } finally { await f.close(); }
+});
+
+test('manual partial payouts retain the unpaid remainder and cannot overspend it', async () => {
+  const f = await payoutFixture();
+  try {
+    const manual = (amount, reference) => f.request('/api/admin/payouts', { token: f.adminToken, method: 'POST', body: { partnerId: 1, amount, method: 'bank_transfer', reference } });
+    assert.equal((await manual(30, 'MANUAL-PART-1')).status, 201);
+    assert.equal((await manual(30, 'MANUAL-PART-1')).status, 200);
+    assert.equal((await manual(31, 'MANUAL-PART-1')).status, 409);
+    assert.equal((await f.payoutSummary()).availableBalance, 70);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'approved');
+    assert.equal((await manual(71, 'OVERPAY')).status, 409);
+    assert.equal((await manual(70, 'MANUAL-PART-2')).status, 201);
+    assert.equal((await f.payoutSummary()).availableBalance, 0);
+    assert.equal((await get(f.db, 'SELECT status FROM partner_transactions')).status, 'paid');
+  } finally { await f.close(); }
+});
 
 test('EA testing sources and report completion are restricted to the assigned test node', async () => {
   const { db, server, request, sandbox, partner } = await createFixture();
@@ -332,7 +539,7 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
 
     // Over-payout is refused.
     const overpay = await request('/api/admin/payouts', {
-      token: adminToken, method: 'POST', body: { partnerId: 1, amount: 500 }
+      token: adminToken, method: 'POST', body: { partnerId: 1, amount: 500, reference: 'REF-OVERPAY' }
     });
     assert.equal(overpay.status, 409);
 
