@@ -13,6 +13,21 @@ const get = (db, sql, params = []) => new Promise((resolve, reject) =>
   db.get(sql, params, (error, row) => error ? reject(error) : resolve(row)));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test('router returns every row and supports callback-free startup writes', async () => {
+  const primary = new sqlite3.Database(':memory:');
+  const db = createDatabaseRouter({ primary, dbPath: ':memory:', readSize: 0 });
+  try {
+    db.exec('CREATE TABLE startup_test (id INTEGER PRIMARY KEY, value TEXT)');
+    await new Promise((resolve,reject)=>db.get('SELECT 1 FROM startup_test',[],e=>e?reject(e):resolve()));
+    db.run('INSERT INTO startup_test VALUES(1,?)',['first']);
+    await run(db,'INSERT INTO startup_test VALUES(2,?)',['second']);
+    const rows = await new Promise((resolve,reject)=>db.all('SELECT * FROM startup_test ORDER BY id',[],(e,r)=>e?reject(e):resolve(r)));
+    assert.deepEqual(rows.map(r=>r.value), ['first','second']);
+    const columns = await new Promise((resolve,reject)=>db.all('PRAGMA table_info(startup_test)',[],(e,r)=>e?reject(e):resolve(r)));
+    assert.deepEqual(columns.map(r=>r.name), ['id','value']);
+  } finally { await new Promise(resolve=>db.close(resolve)); }
+});
+
 test('read router uses read-only connections but keeps read-your-writes consistency', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'corngrid-router-'));
   const dbPath = path.join(root, 'database.sqlite');

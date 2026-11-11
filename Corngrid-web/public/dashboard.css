@@ -1494,6 +1494,9 @@ body.feed-lightbox-open { overflow: hidden; }
 .econ-time-cell { font-variant-numeric: tabular-nums; }
 .econ-source-note { margin: -6px 0 0; }
 
+#stripe-checkout-panel[hidden], #subscription-payment-section .subscription-payment-layout[hidden] { display: none !important; }
+#payment-provider { display: block; width: 100%; margin: 10px 0; min-height: 44px; }
+#stripe-checkout-button { width: 100%; min-height: 44px; }
 .message-composer-tools { display: flex; gap: 6px; align-items: center; }
 .message-composer-tools .button, .feed-composer-tools .feed-image-label { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 10px; }
 .message-composer-tools svg, .feed-composer-tools .feed-image-label svg { width: 20px; height: 20px; }

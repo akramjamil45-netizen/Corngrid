@@ -1374,6 +1374,8 @@
     tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Loading payment requests…</td></tr>';
     try {
       const data = await api('/api/admin/subscription-payments');
+      const stripeData = await api('/api/admin/stripe-orders').catch(() => ({orders:[]}));
+      const stripeOrders = new Map(stripeData.orders.map(order => [Number(order.payment_id), order]));
       if (!data.payments.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No payment requests yet.</td></tr>';
         return;
@@ -1385,7 +1387,7 @@
           <td data-label="Plan">${escapeHtml(payment.plan_name || '—')}</td>
           <td data-label="Amount" class="cell-key">${formatMoney(payment.amount, payment.currency)}</td>
           <td data-label="Reference" class="cell-extra">${escapeHtml(payment.payment_reference || '—')}${payment.hasProof ? ` · <a href="/api/admin/subscription-payments/${escapeHtml(String(payment.id))}/proof" target="_blank" rel="noopener">Proof</a>` : ''}</td>
-          <td data-label="Status">${subStatusBadge(payment.status)}</td>
+          <td data-label="Status">${subStatusBadge(payment.status)}<div class="muted small">${payment.payment_method === 'stripe' ? 'Stripe · ' + escapeHtml(stripeOrders.get(Number(payment.id))?.status || 'pending') : 'DuitNow · manual review'}</div><div class="muted small">${stripeOrders.get(Number(payment.id))?.activated_at ? 'Activated' : escapeHtml(payment.subscription_status || '')}${stripeOrders.get(Number(payment.id))?.review_status ? ' · Review: ' + escapeHtml(stripeOrders.get(Number(payment.id)).review_status) : ''}</div></td>
           <td class="cell-actions" data-label="Actions">
             ${payment.status === 'pending_approval' ? `
               <button class="button button-small" type="button" data-sub-action="approve-payment" data-id="${escapeHtml(String(payment.id))}">Approve</button>

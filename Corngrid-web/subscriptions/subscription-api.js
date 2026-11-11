@@ -458,11 +458,13 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       }
 
       const outcome = await withTransaction(async () => {
+        await run('UPDATE subscription_payments SET id=id WHERE id=? AND user_id=?', [paymentId, userId]);
         const payment = await get(
           'SELECT * FROM subscription_payments WHERE id = ? AND user_id = ?',
           [paymentId, userId]
         );
         if (!payment) return { http: 404, body: { error: 'Payment not found.' } };
+        if (payment.payment_method === 'stripe') return { http: 409, body: { error: 'Expire the Stripe checkout before cancelling this purchase.' } };
         if (payment.status === 'pending_approval') {
           return { http: 409, body: { error: 'Your payment is already under review. Contact support to cancel it.' } };
         }
@@ -558,6 +560,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
         const payment = await get('SELECT * FROM subscription_payments WHERE id = ? AND user_id = ?' +
           (isPostgres ? ' FOR UPDATE' : ''), [paymentId, userId]);
         if (!payment) return { http: 404, error: 'Payment not found.' };
+        if (payment.payment_method === 'stripe') return { http: 409, error: 'Stripe payments do not accept manual proof.' };
         if (!['pending_payment', 'pending_approval'].includes(payment.status)) {
           return { http: 409, error: 'This payment can no longer be updated.' };
         }
@@ -1033,16 +1036,12 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     return () => paymentApprovedListeners.delete(listener);
   }
 
-  app.post('/api/admin/subscription-payments/:id/approve', adminAuth.verifyToken, async (req, res) => {
-    try {
-      const paymentId = Number.parseInt(req.params.id, 10);
-      if (!Number.isSafeInteger(paymentId) || paymentId < 1) return res.status(400).json({ error: 'Invalid payment.' });
-      const adminId = req.admin?.id || null;
-      const note = typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 1000) : null;
-
-      const outcome = await withTransaction(async () => {
+  // Caller owns the transaction. Shared by DuitNow review and verified Stripe fulfillment.
+  async function activatePayment(paymentId, adminId = null, note = null, ip = null, paidAt = null) {
+        await run('UPDATE subscription_payments SET id=id WHERE id=?', [paymentId]);
         const payment = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
         if (!payment) return { http: 404, body: { error: 'Payment not found.' } };
+        if (payment.payment_method === 'stripe' && adminId !== null) return { http: 409, body: { error: 'Stripe payments require verified webhook confirmation.' } };
         if (payment.status === 'approved') return { http: 409, body: { error: 'This payment has already been approved.' } };
         if (payment.status !== 'pending_approval') {
           return { http: 409, body: { error: 'This payment is not awaiting approval.' } };
@@ -1061,6 +1060,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
         const plan = payment.plan_id
           ? await get('SELECT * FROM subscription_plans WHERE id = ?', [payment.plan_id])
           : null;
+        await run('UPDATE users SET id=id WHERE id=?', [payment.user_id]);
         const durationDays = subscription.duration_days || plan?.duration_days || 30;
         const approvedAt = now();
 
@@ -1073,7 +1073,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
           ORDER BY id DESC LIMIT 1
         `, [payment.user_id, subscription.id]);
 
-        let startsAt = approvedAt;
+        let startsAt = paidAt || approvedAt;
         if (previous && previous.status === 'active' && previous.expires_at && previous.expires_at > approvedAt) {
           startsAt = previous.expires_at;
         }
@@ -1095,14 +1095,23 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
         await logAudit(adminId, 'admin', 'payment_approved', 'payment', paymentId,
           { amount: Number(payment.amount), currency: payment.currency, subscriptionId: subscription.id, expiresAt },
-          note, req.ip);
+          note, ip);
         await notify(payment.user_id, 'payment_approved', 'Subscription active',
           `Your payment was approved. Your subscription is active until ${new Date(expiresAt).toISOString().slice(0, 10)}.`);
         await notify(payment.user_id, 'subscription_active', 'Subscription activated',
           'Your CornGrid EA subscription is now active.');
 
         return { http: 200, body: { message: 'Payment approved and subscription activated.', startsAt, expiresAt } };
-      });
+  }
+
+  app.post('/api/admin/subscription-payments/:id/approve', adminAuth.verifyToken, async (req, res) => {
+    try {
+      const paymentId = Number.parseInt(req.params.id, 10);
+      if (!Number.isSafeInteger(paymentId) || paymentId < 1) return res.status(400).json({ error: 'Invalid payment.' });
+      const adminId = req.admin?.id || null;
+      const note = typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 1000) : null;
+
+      const outcome = await withTransaction(() => activatePayment(paymentId, adminId, note, req.ip));
 
       if (outcome.http === 200) {
         const approvedPayment = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
@@ -1602,7 +1611,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   // Exposed for sibling modules (e.g. the sandbox manager) so subscription
   // eligibility is evaluated in exactly one place.
-  return { ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, logAudit, notify, onPaymentApproved };
+  return { activatePayment, paymentApprovedListeners, ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, logAudit, notify, onPaymentApproved };
 }
 
 function maskAccount(accountNumber) {

@@ -120,6 +120,9 @@ app.use((req, res, next) => {
 });
 
 app.use(cors());
+let stripePayments;
+// Signature verification must receive the original bytes before any JSON parser.
+app.post('/api/stripe/webhook', express.raw({type:'application/json',limit:'256kb'}), (req,res)=>stripePayments ? stripePayments.webhook(req,res) : res.sendStatus(503));
 // Payment proofs are submitted as base64 JSON (5 MB decoded is ~6.7 MB of
 // text), so this route needs a larger parser than the global API limit.
 app.use('/api/subscription/payment-proof', express.json({ limit: '8mb' }));
@@ -242,7 +245,11 @@ if (process.env.DATABASE_URL) {
       console.error('Failed to connect to SQLite:', err.message);
     } else {
       console.log('Connected to the CornGrid SQLite database.');
-      primaryDb.serialize(() => {
+      db.enableReads();
+    }
+  });
+  // Queue connection settings before subsystem migrations can open transactions.
+  primaryDb.serialize(() => {
         primaryDb.run('PRAGMA journal_mode = WAL;');
         primaryDb.run('PRAGMA busy_timeout = 5000;');
         primaryDb.run('PRAGMA synchronous = NORMAL;');
@@ -251,9 +258,6 @@ if (process.env.DATABASE_URL) {
         primaryDb.run('PRAGMA temp_store = MEMORY;');
         primaryDb.run('PRAGMA journal_size_limit = 67108864;');
         primaryDb.run('PRAGMA wal_autocheckpoint = 1000;');
-      });
-      db.enableReads();
-    }
   });
   db = createDatabaseRouter({ primary: primaryDb, dbPath: DATABASE_PATH, readSize: DB_READ_POOL_SIZE });
 }
@@ -343,7 +347,11 @@ registerAdminApi(
   adminAuth.verifyToken,
   Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180
 );
+const stripeRouter = express.Router();
+app.use(stripeRouter);
 const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation);
+stripePayments = require('./subscriptions/stripe-payments')(stripeRouter, db, verifyToken, adminAuth, subscriptionApi);
+stripePayments.mountProtection();
 const sandboxSystem = createSandboxSystem(app, db, {
   verifyToken,
   adminAuth,
@@ -845,7 +853,7 @@ backupScheduler.start();
     process.exit(1);
   }
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, process.env.HOST || undefined, () => {
     console.log(`CornGrid backend is running at http://localhost:${PORT}`);
   });
 

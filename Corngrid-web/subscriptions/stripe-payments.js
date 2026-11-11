@@ -1,0 +1,107 @@
+'use strict';
+const express = require('express');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const {dbGet,dbAll,dbRun,withTransaction,isPostgres}=require('../db-async');
+function createStripePayments(app,db,verifyUser,adminAuth,subscriptions,options={}) {
+ const config=options.env||process.env;
+ const stripe=options.stripe || (config.STRIPE_SECRET_KEY ? require('./stripe-client').createStripeClient(config.STRIPE_SECRET_KEY) : null);
+ const enabled=!!(stripe&&config.STRIPE_WEBHOOK_SECRET&&config.APP_BASE_URL);
+ let base;
+ if(enabled){base=new URL(config.APP_BASE_URL);if(base.username||base.password||base.search||base.hash||base.pathname!=='/'||!(base.protocol==='https:'||(base.protocol==='http:'&&['localhost','127.0.0.1'].includes(base.hostname))))throw Error('APP_BASE_URL must be a trusted HTTPS origin (HTTP localhost allowed).');}
+ const get=(s,p)=>dbGet(db,s,p),run=(s,p)=>dbRun(db,s,p);
+ const ready=async()=>{await subscriptions.ready();if(!isPostgres(db))await new Promise((resolve,reject)=>db.exec(fs.readFileSync(path.join(__dirname,'../migrations/sqlite/0008_stripe.sql'),'utf8'),e=>e?reject(e):resolve()));else await get('SELECT id FROM stripe_orders LIMIT 1');};
+ const init=ready();init.catch(()=>console.error('Stripe schema unavailable; apply 0008_stripe migration.'));
+ const buckets=new Map();
+ function guard(req,res,next){
+  if(!enabled)return res.status(503).json({error:'Card payments are not configured. Please use DuitNow.'});
+  if(req.get('Origin')&&req.get('Origin')!==base.origin)return res.status(403).json({error:'Invalid request origin.'});
+  const key=req.user.id,now=Date.now();for(const[k,v]of buckets)if(v.until<now)buckets.delete(k);
+  const b=buckets.get(key)||{n:0,until:now+60000};buckets.set(key,b);
+  if(++b.n>10)return res.status(429).json({error:'Please wait before trying checkout again.'});next();
+ }
+ app.get('/api/subscription/payment-methods',verifyUser,async(_q,r)=>{try{await init;r.json({duitnow:true,stripe:enabled});}catch{r.json({duitnow:true,stripe:false});}});
+ app.post('/api/subscription/stripe/checkout',verifyUser,guard,async(req,res)=>{
+  try{await init;
+   const order=await withTransaction(db,async()=>{
+    // Serialize all purchases for a user across workers, including different orders.
+    await run('UPDATE users SET id=id WHERE id=?',[req.user.id]);
+    await run('UPDATE subscription_payments SET id=id WHERE id=? AND user_id=?',[req.body?.paymentId,req.user.id]);
+    const payment=await get('SELECT * FROM subscription_payments WHERE id=? AND user_id=?',[req.body?.paymentId,req.user.id]);
+    if(!payment||payment.status!=='pending_payment')throw Error('Select an unpaid subscription first.');
+    const sub=await get('SELECT * FROM user_subscriptions WHERE id=?',[payment.subscription_id]);
+    if(!sub||sub.deleted_at||sub.status!=='pending_payment')throw Error('Subscription is not payable.');
+    const old=await get('SELECT * FROM stripe_orders WHERE payment_id=?',[payment.id]);
+    if(old)return old;
+    // Existing plan currencies with two decimal places only; no conversion or guessing.
+    if(!['MYR','USD','EUR','GBP','SGD','AUD','CAD'].includes(payment.currency.toUpperCase()))throw Error('This currency is not configured for card payments.');
+    const amount=Math.round(Number(payment.amount)*100);if(!Number.isSafeInteger(amount)||amount<=0)throw Error('Invalid package price.');
+    const id=crypto.randomUUID();
+    await run('INSERT INTO stripe_orders(id,payment_id,user_id,amount_minor,currency,created_at) VALUES(?,?,?,?,?,?)',[id,payment.id,req.user.id,amount,payment.currency.toLowerCase(),Date.now()]);
+    await run("UPDATE subscription_payments SET payment_method='stripe' WHERE id=?",[payment.id]);
+    return get('SELECT * FROM stripe_orders WHERE id=?',[id]);
+   });
+   if(order.status!=='pending')return res.status(409).json({error:'Checkout has ended. Select DuitNow or create a new purchase.'});
+   if(order.session_id){const session=await stripe.checkout.sessions.retrieve(order.session_id);return res.json({orderId:order.id,url:session.url,status:session.status});}
+   if(Date.now()-Number(order.created_at)>23*3600000)return res.status(409).json({error:'Checkout retry window ended. Contact support before creating another payment.'});
+   const session=await stripe.checkout.sessions.create({mode:'payment',...(config.STRIPE_PAYMENT_METHOD_CONFIGURATION?{payment_method_configuration:config.STRIPE_PAYMENT_METHOD_CONFIGURATION}:{}),client_reference_id:order.id,
+    metadata:{order_id:order.id,user_id:String(order.user_id),payment_id:String(order.payment_id)},
+    payment_intent_data:{metadata:{order_id:order.id}},line_items:[{quantity:1,price_data:{currency:order.currency,unit_amount:order.amount_minor,product_data:{name:'CornGrid EA subscription'}}}],
+    success_url:base.origin+'/dashboard.html?stripe=success&order='+order.id+'#subscription',cancel_url:base.origin+'/dashboard.html?stripe=cancel&order='+order.id+'#subscription'}, {idempotencyKey:'corngrid-checkout-'+order.id});
+   await run('UPDATE stripe_orders SET session_id=?,checkout_url=? WHERE id=?',[session.id,session.url,order.id]);res.json({orderId:order.id,url:session.url});
+  }catch(e){console.error('Stripe checkout failed:',{type:e.type||'CheckoutError',code:e.code||null,status:e.statusCode||null});res.status(409).json({error:'Unable to open card checkout. Retry the same purchase or contact support.'});}
+ });
+ app.get('/api/subscription/stripe/orders/:id',verifyUser,async(req,res)=>{
+  try{await init;const o=await get('SELECT o.id,o.status,o.review_status,o.amount_minor,o.currency,o.paid_at,o.activated_at,s.status AS subscription_status,s.expires_at FROM stripe_orders o JOIN subscription_payments p ON p.id=o.payment_id JOIN user_subscriptions s ON s.id=p.subscription_id WHERE o.id=? AND o.user_id=?',[req.params.id,req.user.id]);res.status(o?200:404).json(o||{error:'Order not found.'});}catch{res.status(503).json({error:'Payment status unavailable.'});}
+ });
+ app.get('/api/subscription/stripe/payment/:id',verifyUser,async(req,res)=>{try{await init;const o=await get('SELECT id,status FROM stripe_orders WHERE payment_id=? AND user_id=?',[req.params.id,req.user.id]);res.status(o?200:404).json(o||{error:'Order not found.'});}catch{res.sendStatus(503);}});
+ app.post('/api/subscription/stripe/orders/:id/duitnow',verifyUser,guard,async(req,res)=>{
+  try{await init;const o=await get('SELECT * FROM stripe_orders WHERE id=? AND user_id=?',[req.params.id,req.user.id]);if(!o||o.status==='paid')return res.status(409).json({error:'Order cannot be changed.'});
+   if(!o.session_id)return res.status(409).json({error:'Retry card checkout first to reconcile its session.'});
+   let session=await stripe.checkout.sessions.retrieve(o.session_id);if(session.status==='open')session=await stripe.checkout.sessions.expire(o.session_id);
+   if(session.status!=='expired')return res.status(409).json({error:'Payment is processing or complete. Wait for confirmation.'});
+   await withTransaction(db,async()=>{await run("UPDATE stripe_orders SET status='expired' WHERE id=? AND activated_at IS NULL",[o.id]);await run("UPDATE subscription_payments SET payment_method='duitnow' WHERE id=? AND status='pending_payment'",[o.payment_id]);});res.json({success:true});
+  }catch{res.status(409).json({error:'Unable to switch payment method safely. Please retry.'});}
+ });
+ // Prevent manual approval, proof submission or local cancellation from racing a live card session.
+ const protect=async(req,res,next)=>{try{const id=req.body?.paymentId||req.params.id;const p=await get('SELECT payment_method FROM subscription_payments WHERE id=?',[id]);if(p?.payment_method==='stripe')return res.status(409).json({error:'Stripe payments are confirmed automatically. Return to card checkout or switch to DuitNow first.'});next();}catch{res.status(503).json({error:'Payment unavailable.'});}};
+ // Installed by server before subscription routes via mountProtection().
+ function mountProtection(){for(const p of ['/api/subscription/payment-proof','/api/subscription/cancel'])app.post(p,verifyUser,protect);for(const action of ['approve','reject'])app.post('/api/admin/subscription-payments/:id/'+action,adminAuth.verifyToken,protect);}
+ async function processEvent(event){
+  await init;
+  const supported=['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed','checkout.session.expired','payment_intent.payment_failed','charge.refunded','charge.dispute.created','charge.dispute.closed'];
+  if(!supported.includes(event.type))return;
+  const object=event.data.object;
+  let session=null;if(event.type.startsWith('checkout.session.'))session=await stripe.checkout.sessions.retrieve(object.id);
+  let approved=null;
+  await withTransaction(db,async()=>{
+   // Event unique insert + order/user row locks make duplicate and concurrent delivery atomic.
+   const inserted=await run('INSERT INTO stripe_events(id,type,processed_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING',[event.id,event.type,Date.now()]);if(!inserted.changes)return;
+   let o=session?await get('SELECT * FROM stripe_orders WHERE id=?',[session.metadata?.order_id]):await get('SELECT * FROM stripe_orders WHERE payment_intent_id=? OR id=?',[object.payment_intent||object.id,object.metadata?.order_id||'']);
+   if(!o){if(session?.metadata?.order_id)throw Error('Order missing');return;}
+   await run('UPDATE users SET id=id WHERE id=?',[o.user_id]);
+   o=await get('SELECT * FROM stripe_orders WHERE id=?',[o.id]);
+   if(!session){await run('UPDATE stripe_orders SET review_status=? WHERE id=?',[event.type,o.id]);return;}
+   if((o.session_id&&session.id!==o.session_id)||session.client_reference_id!==o.id||session.metadata?.user_id!==String(o.user_id)||session.metadata?.payment_id!==String(o.payment_id)||session.amount_total!==Number(o.amount_minor)||session.currency!==o.currency||session.mode!=='payment')throw Error('Payment reconciliation mismatch');
+   if(o.activated_at)return;
+   if(session.payment_status==='paid'&&session.status==='complete'){
+    const paidAt=event.created*1000;
+    await run('UPDATE stripe_orders SET session_id=?,payment_intent_id=?,status=?,paid_at=? WHERE id=?',[session.id,typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id,'paid',paidAt,o.id]);
+    await run("UPDATE subscription_payments SET status='pending_approval',payment_reference=?,updated_at=? WHERE id=? AND payment_method='stripe' AND status='pending_payment'",[session.id,Date.now(),o.payment_id]);
+    const result=await subscriptions.activatePayment(o.payment_id,null,'Stripe verified payment',null,paidAt);
+    if(result.http!==200)throw Error('Subscription activation blocked');
+    await run('UPDATE stripe_orders SET activated_at=? WHERE id=?',[Date.now(),o.id]);approved=await get('SELECT * FROM subscription_payments WHERE id=?',[o.payment_id]);
+   }else if(session.status==='expired'||event.type.endsWith('async_payment_failed'))await run('UPDATE stripe_orders SET status=? WHERE id=?',[session.status==='expired'?'expired':'failed',o.id]);
+  });
+  if(approved)for(const listener of subscriptions.paymentApprovedListeners){try{await listener(approved);}catch{console.error('Stripe post-approval listener failed.');}}
+ }
+ async function webhook(req,res){if(!enabled)return res.sendStatus(503);let event;
+  try{event=stripe.webhooks.constructEvent(req.body,req.get('stripe-signature'),config.STRIPE_WEBHOOK_SECRET);}catch{return res.status(400).json({error:'Invalid Stripe signature.'});}
+  if(event.livemode!==/^(sk|rk)_live_/.test(config.STRIPE_SECRET_KEY))return res.sendStatus(400);
+  try{await processEvent(event);res.json({received:true});}catch{console.error('Stripe event requires retry/reconciliation:',event.id);res.sendStatus(500);}
+ }
+ app.get('/api/admin/stripe-orders',adminAuth.verifyToken,async(_q,res)=>{try{await init;res.json({orders:await dbAll(db,'SELECT id,payment_id,user_id,amount_minor,currency,status,review_status,session_id,payment_intent_id,paid_at,activated_at FROM stripe_orders ORDER BY created_at DESC LIMIT 200')});}catch{res.status(503).json({error:'Stripe orders unavailable.'});}});
+ return {webhook,processEvent,ready:()=>init,mountProtection};
+}
+module.exports=createStripePayments;

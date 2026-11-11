@@ -35,6 +35,7 @@
     "nodemailer": "^10.1.2",
     "pg": "^8.23.1",
     "sqlite3": "^6.0.1",
+    "stripe": "^23.1.0",
     "ws": "^8.22.1"
   },
   "devDependencies": {

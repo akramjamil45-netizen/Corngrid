@@ -118,7 +118,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261111-composer-layout1">
+  <link rel="stylesheet" href="dashboard.css?v=20261111-stripe1">
 </head>
 <body>
   <div class="app-shell">
@@ -301,14 +301,14 @@
 
         <section class="page" id="page-subscription">
           <div class="page-heading">
-            <div><p class="eyebrow">EA SUBSCRIPTION</p><h1>Subscription</h1><p class="muted">Subscribe to CornGrid EA, make payment via DuitNow, and manage your license activations.</p></div>
-            <span class="subscription-heading-badge">DuitNow checkout</span>
+            <div><p class="eyebrow">EA SUBSCRIPTION</p><h1>Subscription</h1><p class="muted">Choose your CornGrid EA plan, pay with DuitNow or card, and manage your license activations.</p></div>
+            <span class="subscription-heading-badge">Secure checkout</span>
           </div>
 
           <ol class="cg-purchase-steps" aria-label="How to subscribe">
             <li><span aria-hidden="true">01</span><div><strong>Choose your plan</strong><p>Pick the access duration that suits you.</p></div></li>
-            <li><span aria-hidden="true">02</span><div><strong>Pay with DuitNow</strong><p>Scan the QR and upload your receipt.</p></div></li>
-            <li><span aria-hidden="true">03</span><div><strong>Get approved</strong><p>Your access starts after administrator approval.</p></div></li>
+            <li><span aria-hidden="true">02</span><div><strong>Choose payment</strong><p>DuitNow QR or secure card checkout.</p></div></li>
+            <li><span aria-hidden="true">03</span><div><strong>Activate access</strong><p>DuitNow: admin review. Card: automatic after confirmation.</p></div></li>
           </ol>
           <div id="subscription-overview" class="subscription-section">
             <section class="panel subscription-panel">
@@ -327,6 +327,11 @@
           </div>
 
           <div id="subscription-payment-section" class="subscription-section" style="display: none;">
+            <section class="panel" style="padding:20px;margin-bottom:18px">
+              <label for="payment-provider" id="payment-provider-label">Payment method</label>
+              <select class="input-control" id="payment-provider"><option value="duitnow">DuitNow QR</option><option value="stripe" disabled>Card / Stripe</option></select>
+              <div id="stripe-checkout-panel" hidden><p id="stripe-checkout-summary"></p><p class="muted small" id="stripe-checkout-help">One-time card payment. No automatic renewal.</p><button type="button" class="button button-primary" id="stripe-checkout-button">Pay by card</button></div>
+            </section>
             <section class="panel subscription-panel">
               <div class="panel-header subscription-panel-header"><div><p class="eyebrow">PAYMENT</p><h2>Complete your payment</h2></div></div>
               <div class="subscription-payment-layout">
@@ -987,7 +992,8 @@
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
   <script src="message-tools.js?v=20261111-2"></script>
-  <script src="dashboard.js?v=20261111-download-directory1"></script>
+  <script src="stripe-checkout.js?v=20261111-1"></script>
+  <script src="dashboard.js?v=20261111-stripe1"></script>
   <script src="market.js?v=20261106-chart-back1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
   <script src="feed.js?v=20261111-message-icons1"></script>

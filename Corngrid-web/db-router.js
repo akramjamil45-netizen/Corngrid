@@ -96,7 +96,7 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
   }
 
   // Callback-based wrapper for existing Node-style callback code
-  function withCallback(db, sql, params, timeoutMs, callback) {
+  function withCallback(db, sql, params, timeoutMs, callback, method = 'get') {
     const timer = setTimeout(() => {
       const error = new Error(`Database query timed out after ${timeoutMs}ms: ${sql.slice(0, 80)}`);
       error.code = 'ETIMEOUT';
@@ -104,7 +104,7 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
       else reject(error);
     }, timeoutMs);
 
-    db.get(sql, params, (error, row) => {
+    db[method](sql, params, (error, row) => {
       clearTimeout(timer);
       if (typeof callback === 'function') {
         if (error) callback(error);
@@ -149,14 +149,14 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
     },
     all(sql, params, callback) {
       if (typeof params === 'function') { callback = params; params = []; }
-      if (inWriteTransaction()) { withCallback(primary, sql, params, DB_WRITE_TIMEOUT_MS, callback); }
-      else { withCallback(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS, callback); }
+      if (inWriteTransaction()) { withCallback(primary, sql, params, DB_WRITE_TIMEOUT_MS, callback, 'all'); }
+      else { withCallback(pickReader(), sql, params, DB_QUERY_TIMEOUT_MS, callback, 'all'); }
     },
     run(sql, params, callback) {
       if (typeof params === 'function') { callback = params; params = []; }
       const timer = setTimeout(() => callback(new Error('Database query timed out')), DB_WRITE_TIMEOUT_MS);
       this.runWithPromise(sql, params, timer).then(
-        result => { clearTimeout(timer); if (typeof callback === 'function') callback.call(result, null, result); else throw null; },
+        result => { clearTimeout(timer); if (typeof callback === 'function') callback.call(result, null, result); },
         error => { clearTimeout(timer); if (typeof callback === 'function') callback(error); else throw error; }
       );
     },
@@ -164,7 +164,7 @@ function createDatabaseRouter({ primary, dbPath, readSize = 0 }) {
       if (typeof callback !== 'function') callback = null;
       const timer = setTimeout(() => { if (callback) callback(new Error('Database exec timed out')); else throw new Error('Database exec timed out'); }, DB_WRITE_TIMEOUT_MS);
       this.execWithPromise(sql, timer).then(
-        result => { clearTimeout(timer); if (callback) callback(null, result); else throw null; },
+        result => { clearTimeout(timer); if (callback) callback(null, result); },
         error => { clearTimeout(timer); if (callback) callback(error); else throw error; }
       );
     },

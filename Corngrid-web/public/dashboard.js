@@ -670,6 +670,7 @@
 
   // ---------------------------- Subscription ----------------------------
   let activePayment = null;
+  document.addEventListener('corngrid:payment-confirmed', () => loadSubscription());
 
   function subscriptionMoney(amount, currency = 'MYR') {
     try {
@@ -714,6 +715,7 @@
       $('#subscription-payment-section').style.display = '';
       $('#payment-amount').textContent = subscriptionMoney(latest.amount, latest.currency);
       $('#payment-plan-name').textContent = activePayment.planName;
+      window.CornGridStripe?.setPayment(activePayment, latest.payment_method);
       $('#submit-payment-proof').textContent = latest.status === 'pending_approval' ? 'Update Payment Proof' : 'Submit Payment Proof';
       $('#cancel-subscription').hidden = latest.status !== 'pending_payment';
     } else {
@@ -903,6 +905,7 @@
         body: JSON.stringify({ planId: Number(button.dataset.subscribePlan) })
       });
       activePayment = { id: data.paymentId, amount: data.amount, currency: data.currency, planName: data.plan?.name || 'Subscription' };
+      window.CornGridStripe?.setPayment(activePayment, 'duitnow');
       $('#payment-amount').textContent = subscriptionMoney(data.amount, data.currency);
       $('#payment-plan-name').textContent = activePayment.planName;
       $('#payment-reference').value = '';
