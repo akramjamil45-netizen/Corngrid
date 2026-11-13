@@ -33,8 +33,9 @@ adjustments and mobile navigation behavior apply to both public pages.
 
 - Pricing is available only through the authenticated subscription API. The public
   page links to actual plans and labels infrastructure-specific packages as upcoming.
-- The current sandbox manager permits **one sandbox per user**, distinct from MT5
-  account activation limits. No public price or resource limit is invented.
+- Sandbox setup uses the existing subscription activation allowance; each MT5
+  account/strategy deployment consumes its existing license slot. Node capacity
+  and physical resources also constrain placement. No public limit is invented.
 - Sandbox separation is by terminal folder/process, not full VM or dedicated IP.
 - Database credentials use AES-256-GCM, but authorized nodes need plaintext terminal
   startup details. The privacy information explains this limitation.

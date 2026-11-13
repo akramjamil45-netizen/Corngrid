@@ -11,9 +11,10 @@ function ensureArchiveSchema(db){
  return initializations.get(db);
 }
 async function accountArchived(db,userId){await ensureArchiveSchema(db);return !!await dbGet(db,'SELECT user_id FROM account_archives WHERE user_id=?',[userId]);}
-async function changeArchive(db,{userId,confirmUsername,reason,actor='admin',restore=false}){
+// Internal transaction body, shared by direct admin archive and approval of a
+// user request. Its caller must own the surrounding database transaction.
+async function changeArchiveInTransaction(db,{userId,confirmUsername,reason,actor='admin',restore=false}){
  await ensureArchiveSchema(db);
- return withTransaction(db,async()=>{
   await dbRun(db,'UPDATE users SET id=id WHERE id=?',[userId]);
   const user=await dbGet(db,'SELECT id,username FROM users WHERE id=?',[userId]);
   if(!user)return {http:404,error:'User not found.'};
@@ -27,6 +28,9 @@ async function changeArchive(db,{userId,confirmUsername,reason,actor='admin',res
   await dbRun(db,'INSERT INTO user_auth_versions(user_id,version) VALUES(?,1) ON CONFLICT(user_id) DO UPDATE SET version=user_auth_versions.version+1',[userId]);
   await dbRun(db,'INSERT INTO account_archive_events(id,user_id,username,action,actor,reason,created_at) VALUES(?,?,?,?,?,?,?)',[crypto.randomUUID(),userId,user.username,restore?'restored':'archived',actor,reason,stamp]);
   return {http:200,archived:!restore,message:restore?'Account restored. The user must sign in again. Existing suspension rules still apply.':'Account archived. Login is blocked; EA, presets, customer sandboxes, subscriptions and financial records are preserved.'};
- });
 }
-module.exports={ensureArchiveSchema,accountArchived,changeArchive};
+async function changeArchive(db,options){
+ await ensureArchiveSchema(db);
+ return withTransaction(db,()=>changeArchiveInTransaction(db,options));
+}
+module.exports={ensureArchiveSchema,accountArchived,changeArchive,changeArchiveInTransaction};

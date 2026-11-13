@@ -4,12 +4,15 @@
 // Announcements are authored by the separate administrator identity (not a user row),
 // so community_posts.author_user_id stays NULL for them.
 
-const crypto = require('node:crypto');
+
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { quotaSchema, respondDailyLimit } = require('./daily-limits');
 const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
+const { createAnnouncementImageUpload, MAX_BYTES: MAX_IMAGE_BYTES, FORMATS: IMAGE_TYPES } = require('./announcement-images');
+const { createFeedImages, readImages } = require('./feed-images');
+const { withTransaction, isPostgres } = require('./db-async');
 
 function run(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -117,40 +120,6 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_feed_reports_open ON feed_reports(resolved_at, created_at);
 `;
 
-// Shared image upload: validates magic bytes (never trusts extension or headers alone).
-const IMAGE_TYPES = {
-  'image/jpeg': { ext: 'jpg', magic: b => b.length > 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF },
-  'image/png': { ext: 'png', magic: b => b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 && b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A },
-  'image/webp': { ext: 'webp', magic: b => b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' }
-};
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-function createImageUploadHandler(uploadDir) {
-  return (req, res) => {
-    const contentType = String(req.headers['content-type'] || '').toLowerCase();
-    const type = IMAGE_TYPES[contentType];
-    const body = req.body;
-    if (!type || !Buffer.isBuffer(body) || body.length === 0) {
-      return res.status(400).json({ error: 'Upload a JPEG, PNG, or WebP image.' });
-    }
-    if (body.length > MAX_IMAGE_BYTES) {
-      return res.status(413).json({ error: 'Image must be 5 MB or smaller.' });
-    }
-    if (!type.magic(body)) {
-      return res.status(400).json({ error: 'The uploaded file is not a valid image.' });
-    }
-    try {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const filename = `${crypto.randomBytes(16).toString('hex')}.${type.ext}`;
-      fs.writeFileSync(path.join(uploadDir, filename), body);
-      return res.status(201).json({ url: `/uploads/feed/${filename}` });
-    } catch (error) {
-      console.error('Failed to store feed image:', error.message);
-      return res.status(500).json({ error: 'Unable to store the uploaded image.' });
-    }
-  };
-}
-
 // Post shape shared by feed listing and single-post reads (no N+1: aggregated subqueries).
 // One `?` binds the viewer id for the liked_by_me flag.
 const POST_SELECT = `
@@ -195,9 +164,12 @@ function shapePost(row) {
 
 function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
   const uploadDir = options.uploadDir || path.join(__dirname, 'public', 'uploads', 'feed');
-  db.exec(schema + quotaSchema('post', [{ table: 'feed_posts', user: 'author_user_id', condition: "kind = 'community'", newCondition: "NEW.kind = 'community'" }]) + quotaSchema('comment', [{ table: 'feed_comments', user: 'author_user_id' }]), error => {
-    if (error) console.error('Failed to initialize feed schema:', error.message);
-  });
+  const media=createFeedImages(db,uploadDir);
+  const shapePosts=rows=>media.shapePosts(rows,shapePost);
+  const mediaSchema=fs.readFileSync(path.join(__dirname,'migrations/sqlite/0018_feed_images.sql'),'utf8');
+  const ready=new Promise((resolve,reject)=>db.exec(schema + mediaSchema + quotaSchema('post', [{ table: 'feed_posts', user: 'author_user_id', condition: "kind = 'community'", newCondition: "NEW.kind = 'community'" }]) + quotaSchema('comment', [{ table: 'feed_comments', user: 'author_user_id' }]),error=>error?reject(error):resolve())).then(()=>get(db,'SELECT image_path FROM feed_post_images LIMIT 0'));
+  ready.catch(error=>console.error('Feed schema initialization failed:',error.code||error.name));
+  app.use('/api/feed',async(_req,res,next)=>{try{await ready;next();}catch{res.status(503).json({error:'The feed is temporarily unavailable.'});}});
 
   const postRateLimit = rateLimit({ limit: 10, windowMs: 10 * 60 * 1000, message: 'You are posting too quickly. Please wait a moment.' });
   const commentRateLimit = rateLimit({ limit: 30, windowMs: 10 * 60 * 1000, message: 'You are commenting too quickly. Please wait a moment.' });
@@ -218,7 +190,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
   // Raw image upload (JPEG/PNG/WebP, magic-byte validated, 5 MB cap).
   app.post('/api/feed/uploads', verifyToken, uploadRateLimit,
     express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES }),
-    createImageUploadHandler(uploadDir));
+    createAnnouncementImageUpload(uploadDir,{onStored:media.stored}));
 
   // GET /api/feed?filter=latest|popular|announcements|mine — cursor pagination on post id.
   app.get('/api/feed', verifyToken, async (req, res) => {
@@ -246,7 +218,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
         : 'ORDER BY p.is_pinned DESC, p.id DESC';
       const rows = await all(db, `${POST_SELECT} ${where} ${order} LIMIT ?`, [...params, limit + 1]);
       const hasMore = rows.length > limit;
-      const page = rows.slice(0, limit).map(shapePost);
+      const page = await shapePosts(rows.slice(0, limit));
       return res.json({
         posts: page,
         nextCursor: hasMore && page.length ? page[page.length - 1].id : null
@@ -267,7 +239,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     try {
       const row = await get(db, `${POST_SELECT} WHERE p.id = ? AND p.deleted_at IS NULL`, [req.user.id, postId]);
       if (!row) return res.status(404).json({ error: 'Post not found.' });
-      return res.json({ post: shapePost(row) });
+      return res.json({ post: (await shapePosts([row]))[0] });
     } catch (error) {
       console.error('Failed to load feed post:', error.message);
       return res.status(500).json({ error: 'Unable to load the post.' });
@@ -280,47 +252,51 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     if (!content) {
       return res.status(400).json({ error: 'Post content is required (1–4000 characters).' });
     }
-    const imagePath = validateImagePath(req.body && req.body.imagePath);
-    if (req.body && req.body.imagePath != null && !imagePath) {
-      return res.status(400).json({ error: 'Image must be uploaded through the image endpoint first.' });
-    }
     try {
-      const now = Date.now();
-      const result = await run(db, `
-        INSERT INTO feed_posts (author_user_id, kind, content, image_path, created_at)
-        VALUES (?, 'community', ?, ?, ?)
-      `, [req.user.id, content, imagePath, now]);
-      const row = await get(db, `${POST_SELECT} WHERE p.id = ?`, [req.user.id, result.lastID]);
-      return res.status(201).json({ post: shapePost(row) });
-    } catch (error) {
-      if (respondDailyLimit(error, res)) return;
-      console.error('Failed to create feed post:', error.message);
-      return res.status(500).json({ error: 'Unable to publish the post.' });
+      const images=readImages(req.body)||[];
+      const row=await withTransaction(db,async()=>{
+        await media.validate(images,req.user.id);
+        const result=await run(db,"INSERT INTO feed_posts(author_user_id,kind,content,image_path,created_at) VALUES(?,'community',?,?,?)",[req.user.id,content,images[0]||null,Date.now()]);
+        await media.replace(result.lastID,images);
+        return get(db,`${POST_SELECT} WHERE p.id=?`,[req.user.id,result.lastID]);
+      });
+      return res.status(201).json({post:(await shapePosts([row]))[0]});
+    } catch(error) {
+      if(error.status===400)return res.status(400).json({error:error.message});
+      if(respondDailyLimit(error,res))return;
+      console.error('Failed to create feed post:',error.code||error.name);
+      return res.status(500).json({error:'Unable to publish the post.'});
     }
   });
 
-  // PATCH /api/feed/posts/:id — edit an owned community post (admins may edit announcements too).
-  app.patch('/api/feed/posts/:id', verifyToken, postRateLimit, async (req, res) => {
-    const postId = Number.parseInt(req.params.id, 10);
-    if (!Number.isSafeInteger(postId) || postId < 1) {
-      return res.status(400).json({ error: 'Invalid post identifier.' });
-    }
-    const content = cleanText(req.body && req.body.content, 4000);
-    if (!content) return res.status(400).json({ error: 'Post content is required (1–4000 characters).' });
-    try {
-      const existing = await get(db, 'SELECT author_user_id, kind FROM feed_posts WHERE id = ? AND deleted_at IS NULL', [postId]);
-      if (!existing) return res.status(404).json({ error: 'Post not found.' });
-      if (existing.author_user_id !== req.user.id) {
-        return res.status(403).json({ error: 'You can only edit your own posts.' });
-      }
-      await run(db, 'UPDATE feed_posts SET content = ?, updated_at = ? WHERE id = ?', [content, Date.now(), postId]);
-      const row = await get(db, `${POST_SELECT} WHERE p.id = ?`, [req.user.id, postId]);
-      return res.json({ post: shapePost(row) });
-    } catch (error) {
-      console.error('Failed to edit feed post:', error.message);
-      return res.status(500).json({ error: 'Unable to edit the post.' });
+  // Text-only edits retain attachments; an explicit imagePaths array replaces/removes them.
+  app.patch('/api/feed/posts/:id',verifyToken,postRateLimit,async(req,res)=>{
+    const postId=Number(req.params.id),content=cleanText(req.body?.content,4000);
+    if(!Number.isSafeInteger(postId)||postId<1)return res.status(400).json({error:'Invalid post identifier.'});
+    if(!content)return res.status(400).json({error:'Post content is required (1–4000 characters).'});
+    try{
+      const images=readImages(req.body);
+      const row=await withTransaction(db,async()=>{
+        const existing=await get(db,'SELECT * FROM feed_posts WHERE id=? AND deleted_at IS NULL'+(isPostgres(db)?' FOR UPDATE':''),[postId]);
+        if(!existing)throw Object.assign(Error('Post not found.'),{status:404});
+        if(existing.kind!=='community'||existing.author_user_id!==req.user.id)throw Object.assign(Error('You can only edit your own posts.'),{status:403});
+        if(images!==undefined){
+          const old=await shapePosts([existing]);
+          await media.validate(images,req.user.id,old[0].imagePaths);
+          await media.replace(postId,images);
+          await run(db,'UPDATE feed_posts SET image_path=? WHERE id=?',[images[0]||null,postId]);
+        }
+        await run(db,'UPDATE feed_posts SET content=?,updated_at=? WHERE id=?',[content,Date.now(),postId]);
+        return get(db,`${POST_SELECT} WHERE p.id=?`,[req.user.id,postId]);
+      });
+      return res.json({post:(await shapePosts([row]))[0]});
+    }catch(error){
+      if(error.status)return res.status(error.status).json({error:error.message});
+      console.error('Failed to edit feed post:',error.code||error.name);
+      return res.status(500).json({error:'Unable to edit the post.'});
     }
   });
+
 
   // DELETE /api/feed/posts/:id — soft-delete an owned community post.
   app.delete('/api/feed/posts/:id', verifyToken, async (req, res) => {
@@ -556,7 +532,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
           postCount: stats.post_count,
           commentCount: stats.comment_count
         },
-        posts: rows.map(shapePost)
+        posts: await shapePosts(rows)
       });
     } catch (error) {
       console.error('Failed to load profile:', error.message);
@@ -630,6 +606,18 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
   // ---------------- Administrator announcements (enforced by verifyAdminToken) ----------------
   const announcementRateLimit = rateLimit({ limit: 30, windowMs: 10 * 60 * 1000, message: 'Too many announcement changes. Please wait.' });
 
+  // Admin sessions are separate from user JWTs. Normalize actual image bytes
+  // before storing them in the existing feed image directory.
+  app.post('/api/feed/announcements/uploads',verifyAdminToken,uploadRateLimit,
+    express.raw({type:Object.keys(IMAGE_TYPES),limit:MAX_IMAGE_BYTES}),
+    createAnnouncementImageUpload(uploadDir),
+    (error,_req,res,next)=>error.type==='entity.too.large'?res.status(413).json({error:'Image must be 5 MB or smaller.'}):next(error));
+
+  async function announcementImageExists(imagePath){
+    if(!imagePath)return true;
+    try{return (await fs.promises.stat(path.join(uploadDir,path.basename(imagePath)))).isFile();}catch{return false;}
+  }
+
   function validateAnnouncement(body, { requireAll = true } = {}) {
     const title = body && body.title != null ? cleanText(body.title, 140) : undefined;
     const content = body && body.content != null ? cleanText(body.content, 8000) : undefined;
@@ -680,6 +668,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     }
     const isPinned = Boolean(req.body && req.body.isPinned);
     try {
+      if(!await announcementImageExists(imagePath))return res.status(400).json({error:'Upload the announcement image before publishing.'});
       const now = Date.now();
       const result = await run(db, `
         INSERT INTO feed_posts (author_user_id, kind, title, content, image_path, is_pinned, created_at)
@@ -700,12 +689,16 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
     }
     const { title, content, error } = validateAnnouncement(req.body, { requireAll: false });
     if (error) return res.status(400).json({ error });
+    const hasImage=Object.hasOwn(req.body||{},'imagePath');
+    const imagePath=hasImage?validateImagePath(req.body.imagePath):undefined;
+    if(hasImage&&imagePath===undefined)return res.status(400).json({error:'Choose an uploaded image or remove the existing image.'});
     const hasPin = req.body && (req.body.isPinned === true || req.body.isPinned === false);
     try {
       const existing = await get(db, 'SELECT id FROM feed_posts WHERE id = ? AND kind = ? AND deleted_at IS NULL', [announcementId, 'announcement']);
       if (!existing) return res.status(404).json({ error: 'Announcement not found.' });
       const sets = [];
       const params = [];
+      if(hasImage){if(!await announcementImageExists(imagePath))return res.status(400).json({error:'Upload the announcement image before saving.'});sets.push('image_path = ?');params.push(imagePath);}
       if (title !== undefined) { sets.push('title = ?'); params.push(title); }
       if (content !== undefined) { sets.push('content = ?'); params.push(content); }
       if (hasPin) { sets.push('is_pinned = ?'); params.push(Boolean(req.body.isPinned)); }
@@ -802,6 +795,7 @@ function registerFeedApi(app, db, verifyToken, verifyAdminToken, options = {}) {
       return res.status(500).json({ error: 'Unable to resolve the report.' });
     }
   });
+  return {ready};
 }
 
 module.exports = registerFeedApi;

@@ -332,7 +332,7 @@
     const fileInput = $('ea-files');
     const files = [...fileInput.files];
     if (!files.length) {
-      toast('Choose at least one source file (.mq5, .mqh, or .zip).', 'error');
+      toast('Choose the EA executable (.ex5) or source project files.', 'error');
       return;
     }
     state.busy = true;
@@ -341,6 +341,7 @@
     button.textContent = 'Uploading…';
     try {
       const encoded = [];
+      if(files.length>20||files.some(file=>file.size>10*1024*1024)||files.reduce((sum,file)=>sum+file.size,0)>20*1024*1024)throw new Error('Use up to 20 files, 10 MB each and 20 MB total.');
       for (const file of files) {
         encoded.push({ name: file.name, contentBase64: await readFileBase64(file) });
       }
@@ -356,6 +357,8 @@
         method: 'POST',
         body: JSON.stringify({
           name: $('ea-name').value.trim(),
+          requestKey: state.submissionKey ||= crypto.randomUUID(),
+          entryFile: $('ea-entry-file').value.trim() || undefined,
           version: $('ea-version').value.trim(),
           description: $('ea-description').value.trim(),
           symbols: $('ea-symbols').value.trim(),
@@ -368,6 +371,7 @@
       });
       toast(result.message || 'Submission received.', 'success');
       $('partner-submit-form').reset();
+      state.submissionKey = null;
       await Promise.all([loadSubmissions(), loadOverview()]);
     } catch (error) {
       toast(error.message, 'error');
@@ -381,6 +385,7 @@
   function bind() {
     $('partner-register-form').addEventListener('submit', register);
     $('partner-submit-form').addEventListener('submit', submitEa);
+    $('partner-submit-form').addEventListener('input',()=>{state.submissionKey=null;});
     $('partner-bank-form').addEventListener('submit', saveBankDetails);
     $('partner-payout-form').addEventListener('submit', requestPayout);
     $('partner-payout-refresh').addEventListener('click', async () => {

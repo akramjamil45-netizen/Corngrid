@@ -32,6 +32,8 @@ const createDatabaseRouter = require('./db-router');
 const createPostgresDatabase = require('./db-postgres');
 const createSubscriptionApi = require('./subscriptions/subscription-api');
 const { createSandboxSystem } = require('./sandbox');
+const { startAutoPublisher } = require('./sandbox/node-updates');
+const { createMarketplace } = require('./marketplace');
 const { createPartnerSystem } = require('./partner');
 const {
   clearAuthCookie,
@@ -129,6 +131,7 @@ app.use('/api/subscription/payment-proof', express.json({ limit: '8mb' }));
 // EA source submissions carry base64-encoded .mq5/.mqh/.zip files (10 MB
 // decoded per file ≈ 13.4 MB of text each; the route validates real sizes).
 app.use('/api/partner/submissions', express.json({ limit: '30mb' }));
+app.use(/^\/api\/partner\/marketplace\/eas\/[^/]+\/submit$/, (req,res,next)=>verifyToken(req,res,next), express.json({limit:'30mb'}));
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
@@ -340,7 +343,8 @@ marketFeed.registerRoutes(app, { verifyToken, authenticateInstallation });
 registerMarketApi(app, db, verifyToken, marketFeed);
 const economicCalendar = createEconomicCalendar({ db });
 economicCalendar.registerRoutes(app, { verifyToken });
-registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
+const feedApi=registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
+const accountDeletion = require('./account-deletion')(app,db,{verifyToken,verifyAdminToken:adminAuth.verifyToken,rateLimit});
 registerAdminApi(
   app,
   db,
@@ -359,6 +363,9 @@ const sandboxSystem = createSandboxSystem(app, db, {
   rateLimit,
   jwtSecret: SECRET_KEY
 });
+// Publishes only a complete RELEASE.json deployment, in a separate process.
+// Existing published code remains available if a new deployment is incomplete.
+startAutoPublisher();
 const partnerSystem = createPartnerSystem(app, db, {
   verifyToken,
   adminAuth,
@@ -369,6 +376,11 @@ const partnerSystem = createPartnerSystem(app, db, {
   rateLimit,
   authenticateNodeRequest: sandboxSystem.nodeApi ? sandboxSystem.nodeApi.authenticateNodeRequest : undefined
 });
+const marketplace = createMarketplace(app, db, {
+  verifyToken, adminAuth, subscriptions: subscriptionApi, sandbox: sandboxSystem,
+  rateLimit, prerequisite: sandboxSystem.ready
+});
+marketplace.setPublicationSystem(partnerSystem.publication);
 const emailAdmin = registerEmailAdmin(app, db, adminAuth.verifyToken, {
   encryptionKey: process.env.EMAIL_ENCRYPTION_KEY || SECRET_KEY,
   appBaseUrl: process.env.APP_BASE_URL,
@@ -846,8 +858,13 @@ backupScheduler.start();
     // (PostgreSQL) must finish before the first request is accepted.
     await emailVerification.ready();
     await subscriptionApi.ready();
+    await stripePayments.ready();
     await emailAdmin.ready();
     await sandboxSystem.ready;
+    await marketplace.ready;
+    await partnerSystem.ready;
+    await feedApi.ready;
+    await accountDeletion.ready;
   } catch (error) {
     console.error('Database initialization failed; aborting startup:', error.message);
     process.exit(1);
@@ -855,6 +872,7 @@ backupScheduler.start();
 
   const server = app.listen(PORT, process.env.HOST || undefined, () => {
     console.log(`CornGrid backend is running at http://localhost:${PORT}`);
+    stripePayments.start();
   });
 
   // WebSocket hub for sandbox node agents (/ws/sandbox/node) and the admin
@@ -876,6 +894,7 @@ backupScheduler.start();
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`Received ${signal}; shutting down CornGrid backend.`);
+    const stripeRecoveryStopped = stripePayments.stop();
     const forceExit = setTimeout(() => {
       console.error('Graceful shutdown timed out; forcing exit.');
       process.exit(1);
@@ -885,7 +904,8 @@ backupScheduler.start();
     if (backupScheduler && backupScheduler.stop) backupScheduler.stop();
     emailVerification.close();
     if (emailAdmin && typeof emailAdmin.close === 'function') emailAdmin.close();
-    server.close(() => {
+    server.close(async () => {
+      await stripeRecoveryStopped;
       try {
         if (typeof marketFeed.close === 'function') marketFeed.close();
       } catch (feedError) {

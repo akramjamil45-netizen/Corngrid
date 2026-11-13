@@ -111,6 +111,119 @@ async function giveActiveSubscription(db, userId) {
     [userId, now - 1000, now + 30 * 86400000, now, now]);
 }
 
+async function multiSandboxFixture(t, limit = 3, nodeCapacity = 10) {
+  const f = await createFixture();
+  t.after(async () => { await new Promise(resolve => f.server.close(resolve)); await new Promise(resolve => f.db.close(resolve)); });
+  await giveActiveSubscription(f.db, 1);
+  await run(f.db, 'UPDATE user_subscriptions SET max_activations = ?', [limit]);
+  const node = await f.request('/api/admin/sandbox/nodes', { token: f.adminToken, method: 'POST', body: { name: 'Multiple sandbox node', maxInstances: nodeCapacity } });
+  await f.request(`/api/admin/sandbox/nodes/${node.body.node.id}/status`, { token: f.adminToken, method: 'POST', body: { status: 'active' } });
+  f.nodeId = node.body.node.id;
+  f.nodeHeaders = { 'X-Node-Id': node.body.node.nodeUid, 'X-Node-Token': node.body.token };
+  await f.request('/api/sandbox/node/heartbeat', { method: 'POST', headers: f.nodeHeaders, body: {} });
+  f.activate = (number, extra = {}) => f.request('/api/sandbox/activate', { token: f.userToken, method: 'POST', body: { brokerServer: 'Multi-Demo', accountNumber: number, password: 'test-only', ...extra } });
+  return f;
+}
+
+test('multiple sandboxes share activation allowance, retry safely, and isolate user/admin controls', async t => {
+  const f = await multiSandboxFixture(t, 2);
+  const a = await f.activate('9001'), b = await f.activate('9002');
+  assert.equal(a.status, 201); assert.equal(b.status, 201);
+  const uidA = a.body.sandbox.instanceUid, uidB = b.body.sandbox.instanceUid;
+  assert.notEqual(uidA, uidB);
+  assert.equal((await f.activate('9001')).body.sandbox.instanceUid, uidA);
+  assert.equal((await f.activate('9003', { maxActivations: 100, userId: 2 })).body.code, 'SANDBOX_LIMIT_REACHED');
+  let status = await f.request('/api/sandbox/status?instanceUid=' + uidB, { token: f.userToken });
+  assert.equal(status.body.sandboxes.length, 2);
+  assert.equal(status.body.sandbox.instanceUid, uidB);
+  assert.deepEqual(status.body.capacity, { maxSandboxes: 2, sandboxCount: 2, activeActivations: 2, canAdd: false });
+  assert.ok(!JSON.stringify(status.body).includes('test-only'));
+  for (const action of ['stop', 'restart', 'pause', 'resume', 'reconnect']) {
+    assert.equal((await f.request('/api/sandbox/' + action, { token: f.otherUserToken, method: 'POST', body: { instanceUid: uidA } })).status, 404);
+  }
+  assert.equal((await f.request('/api/sandbox/status?instanceUid=' + uidA, { token: f.otherUserToken })).status, 404);
+  assert.equal((await f.request('/api/sandbox', { token: f.otherUserToken, method: 'DELETE', body: { instanceUid: uidA, confirm: true } })).status, 404);
+  assert.equal((await f.request('/api/sandbox/stop', { token: f.userToken, method: 'POST' })).body.code, 'INSTANCE_REQUIRED');
+  assert.equal((await f.request('/api/sandbox', { token: f.userToken, method: 'DELETE', body: { confirm: true } })).status, 409);
+  const { dbGet } = require('../db-async');
+  const rowA = await dbGet(f.db, 'SELECT id FROM sandbox_instances WHERE instance_uid = ?', [uidA]);
+  const adminStop = await f.request(`/api/admin/sandbox/instances/${rowA.id}/control`, { token: f.adminToken, method: 'POST', body: { action: 'stop' } });
+  assert.equal(adminStop.status, 200);
+  status = await f.request('/api/sandbox/status?instanceUid=' + uidB, { token: f.userToken });
+  assert.equal(status.body.sandbox.status, 'deploying', 'admin targets first instance, not newest');
+  assert.equal((await f.request('/api/sandbox/status?instanceUid=' + uidA, { token: f.userToken })).body.sandbox.status, 'stopping');
+  assert.equal((await f.request('/api/sandbox', { token: f.userToken, method: 'DELETE', body: { instanceUid: uidA, confirm: true } })).status, 200);
+  assert.equal((await f.request('/api/sandbox/status', { token: f.userToken })).body.sandbox.instanceUid, uidB);
+  assert.equal(Number((await dbGet(f.db, `SELECT COUNT(*) AS c FROM mt5_installations i JOIN mt5_accounts a ON a.id=i.account_id WHERE a.account_number='9002' AND i.revoked_at IS NULL`)).c), 1);
+  assert.equal((await f.activate('9003')).body.code, 'ACTIVATION_LIMIT_REACHED', 'deleting a sandbox preserves its existing license activation');
+  assert.equal((await f.activate('9001')).status, 201, 'an already licensed account can be hosted again');
+});
+
+test('parallel sandbox and desktop activations cannot exceed the shared allowance', async t => {
+  const f = await multiSandboxFixture(t, 2);
+  const stamp = Date.now(), secret = 'a'.repeat(64);
+  const account = await run(f.db, `INSERT INTO mt5_accounts(user_id,account_number,broker_server,currency,account_name,linked_at) VALUES(1,'9100','Multi-Demo','USD','Desktop test',?)`, [stamp]);
+  await run(f.db, 'INSERT INTO mt5_installations(account_id,secret_hash,created_at) VALUES(?,?,?)', [account.lastID, crypto.createHash('sha256').update(secret).digest('hex'), stamp]);
+  const desktop = () => f.request('/api/license/activate', { method: 'POST', headers: { Authorization: 'Bearer ' + secret }, body: {} });
+  const outcomes = await Promise.all([f.activate('9101'), f.activate('9101'), f.activate('9102'), desktop()]);
+  const { dbGet } = require('../db-async');
+  assert.equal(Number((await dbGet(f.db, "SELECT COUNT(*) AS c FROM ea_license_activations WHERE license_status='active'")).c), 2);
+  assert.equal(outcomes.filter(row => row.status === 201).length, 2);
+  assert.equal(outcomes[0].body.sandbox.instanceUid, outcomes[1].body.sandbox.instanceUid);
+  assert.equal(Number((await dbGet(f.db, "SELECT COUNT(*) AS c FROM sandbox_deployments WHERE command='deploy'")).c), Number((await dbGet(f.db, 'SELECT COUNT(*) AS c FROM sandbox_instances')).c));
+});
+
+test('sandbox reuses existing activation without rotating license and obeys expiry/revocation', async t => {
+  const f = await multiSandboxFixture(t, 1);
+  const first = await f.activate('9201');
+  const { dbGet } = require('../db-async');
+  const activation = await dbGet(f.db, 'SELECT * FROM ea_license_activations');
+  await f.request('/api/sandbox', { token: f.userToken, method: 'DELETE', body: { confirm: true, instanceUid: first.body.sandbox.instanceUid } });
+  assert.equal((await f.activate('9201')).status, 201);
+  assert.equal((await dbGet(f.db, 'SELECT * FROM ea_license_activations')).activation_identifier, activation.activation_identifier);
+  await run(f.db, 'UPDATE user_subscriptions SET expires_at = ?', [Date.now() - 1]);
+  assert.equal((await f.activate('9201')).body.code, 'SUBSCRIPTION_REQUIRED');
+  await run(f.db, "UPDATE sandbox_instances SET status='stopped' WHERE deleted_at IS NULL");
+  assert.equal((await f.request('/api/sandbox/start', { token: f.userToken, method: 'POST' })).body.code, 'SUBSCRIPTION_REQUIRED');
+  assert.equal((await f.request('/api/sandbox/status', { token: f.userToken })).body.capacity.canAdd, false);
+  await run(f.db, 'UPDATE user_subscriptions SET expires_at = ?', [Date.now() + 86400000]);
+  await f.request('/api/sandbox', { token: f.userToken, method: 'DELETE', body: { confirm: true } });
+  await run(f.db, "UPDATE ea_license_activations SET license_status='revoked'");
+  assert.equal((await f.activate('9201')).body.code, 'ACTIVATION_BLOCKED');
+});
+
+test('concurrent creation and restart reserve node capacity and failed queue rolls back license', async t => {
+  const f = await multiSandboxFixture(t, 4, 1);
+  const result = await Promise.all([f.activate('9301'), f.activate('9302')]);
+  assert.deepEqual(result.map(row => row.status).sort(), [201, 503]);
+  const uid = result.find(row => row.status === 201).body.sandbox.instanceUid;
+  await run(f.db, "UPDATE sandbox_instances SET status='stopped'");
+  const second = await f.activate('9303'); assert.equal(second.status, 201);
+  assert.equal((await f.request('/api/sandbox/start', { token: f.userToken, method: 'POST', body: { instanceUid: uid } })).body.code, 'NO_CAPACITY');
+  await run(f.db, "UPDATE sandbox_instances SET status='stopped'");
+  const queue = f.sandbox.nodes.queueCommand;
+  f.sandbox.nodes.queueCommand = async () => { throw new Error('Test queue failure'); };
+  assert.equal((await f.activate('9304')).status, 500);
+  f.sandbox.nodes.queueCommand = queue;
+  const { dbGet } = require('../db-async');
+  assert.equal(await dbGet(f.db, "SELECT id FROM ea_license_activations WHERE mt5_account_number='9304'"), undefined);
+  assert.equal(await dbGet(f.db, "SELECT id FROM sandbox_instances WHERE mt5_account_number='9304'"), undefined);
+});
+
+test('multiple sandbox migration preserves a legacy instance and its encrypted credentials', async t => {
+  const f = await multiSandboxFixture(t, 2);
+  const original = await f.activate('9401');
+  const { dbGet } = require('../db-async');
+  const credential = await dbGet(f.db, 'SELECT * FROM sandbox_credentials');
+  await run(f.db, 'DROP INDEX idx_sandbox_instances_active_account');
+  await run(f.db, 'CREATE UNIQUE INDEX idx_sandbox_instances_active_user ON sandbox_instances(user_id) WHERE deleted_at IS NULL');
+  await require('../sandbox/sandbox-schema').ensureSchema(f.db);
+  await require('../sandbox/sandbox-schema').ensureSchema(f.db);
+  assert.equal((await dbGet(f.db, 'SELECT * FROM sandbox_credentials')).cipher, credential.cipher);
+  assert.equal((await f.request('/api/sandbox/status', { token: f.userToken })).body.sandbox.instanceUid, original.body.sandbox.instanceUid);
+  assert.equal((await f.activate('9402')).status, 201);
+});
+
 test('sandbox credential encryption round-trips and rejects tampering', () => {
   const { createSandboxCrypto, maskAccountNumber } = require('../sandbox/sandbox-crypto');
   const key = crypto.randomBytes(32).toString('hex');
@@ -256,11 +369,42 @@ test('admin node capacity validates limits, protects occupied slots and enables 
     assert.equal((await update(1)).status, 200, 'stopped instances release capacity');
     const audit = await new Promise((resolve, reject) => db.get("SELECT * FROM subscription_audit_logs WHERE action='sandbox_node_capacity_updated' ORDER BY id DESC LIMIT 1", (error, row) => error ? reject(error) : resolve(row)));
     assert.ok(audit, 'capacity edits are audited');
+    const auditCount = async () => (await new Promise((resolve, reject) => db.get("SELECT COUNT(*) AS count FROM subscription_audit_logs WHERE action='sandbox_node_capacity_updated'", [], (error, row) => error ? reject(error) : resolve(row)))).count;
+    const beforeRetry = await auditCount();
+    const retry = await request(route, { token: adminToken, method: 'PATCH', body: { maxInstances: 1, expectedMaxInstances: 3 } });
+    assert.equal(retry.status, 200, 'a lost reply may be retried safely after the first edit committed');
+    assert.equal(await auditCount(), beforeRetry, 'idempotent retries do not duplicate the audit');
+    const stale = await request(route, { token: adminToken, method: 'PATCH', body: { maxInstances: 5, expectedMaxInstances: 3 } });
+    assert.equal(stale.status, 409, 'an old dialog cannot overwrite another administrator');
+    assert.equal((await request('/api/admin/sandbox/nodes', { token: adminToken })).body.nodes[0].maxInstances, 1);
   } finally { server.close(); }
 });
 
+test('capacity lock contention returns a retryable error and a later edit succeeds', async t => {
+  const f = await createFixture();
+  t.after(async () => { await new Promise(resolve => f.server.close(resolve)); await new Promise(resolve => f.db.close(resolve)); });
+  const created = await f.request('/api/admin/sandbox/nodes', {
+    token: f.adminToken, method: 'POST', body: { name: 'Busy capacity node', maxInstances: 20 }
+  });
+  const route = `/api/admin/sandbox/nodes/${created.body.node.id}/capacity`;
+  const originalGet = f.db.get.bind(f.db);
+  f.db.get = (sql, params, callback) => {
+    if (sql.startsWith('SELECT * FROM sandbox_nodes WHERE id =')) {
+      queueMicrotask(() => callback(Object.assign(new Error('lock timeout'), { code: '55P03' })));
+      return;
+    }
+    return originalGet(sql, params, callback);
+  };
+  const response = await f.request(route, { token: f.adminToken, method: 'PATCH', body: { maxInstances: 10 } });
+  assert.equal(response.status, 503);
+  assert.match(response.body.error, /Refresh.*try again/);
+  f.db.get = originalGet;
+  assert.equal((await f.request('/api/admin/sandbox/nodes', { token: f.adminToken })).body.nodes[0].maxInstances, 20);
+  assert.equal((await f.request(route, { token: f.adminToken, method: 'PATCH', body: { maxInstances: 10 } })).status, 200);
+});
+
 test('sandbox activation requires a subscription and is idempotent', async () => {
-  const { db, server, request, userToken, adminToken } = await createFixture();
+  const { db, server, request, userToken, adminToken, sandbox } = await createFixture();
   try {
     // Create + activate a node so capacity exists.
     const created = await request('/api/admin/sandbox/nodes', {
@@ -315,12 +459,13 @@ test('sandbox activation requires a subscription and is idempotent', async () =>
     assert.ok(activation);
     assert.equal(activation.license_status, 'active');
 
-    // Credentials are encrypted at rest — the raw password never appears.
+    // Encryption is authenticated and reversible only with the sandbox key.
     const credential = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM sandbox_credentials', (e, row) => (e ? reject(e) : resolve(row)));
     });
     assert.ok(credential);
-    assert.ok(!credential.cipher.includes('pw'));
+    assert.notEqual(credential.cipher, 'pw');
+    assert.equal(sandbox.crypto.decryptJson(credential.cipher).password, 'pw');
     assert.ok(credential.cipher.startsWith('v1.'));
 
     // The deploy command reaches the node with the installation secret.

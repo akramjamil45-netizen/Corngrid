@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONFIG_FILE = path.join(__dirname, 'agent-config.json');
+const CONFIG_FILE = process.env.CORNGRID_AGENT_CONFIG_FILE || path.join(__dirname, 'agent-config.json');
 
 function readConfigFile() {
   try {
@@ -24,6 +24,9 @@ function loadConfig() {
   const env = process.env;
 
   const config = {
+    agentHome: env.CORNGRID_AGENT_HOME || __dirname,
+    autoUpdateEnabled: env.CORNGRID_AGENT_AUTO_UPDATE !== 'false' && file.autoUpdateEnabled !== false,
+    autoUpdateIntervalMs: Number(file.autoUpdateIntervalMs) || 300000,
     // CornGrid backend base URL, e.g. https://corngrid.com
     backendUrl: env.CORNGRID_BACKEND_URL || file.backendUrl || 'https://corngrid.com',
     brokerServerDataDirs: file.brokerServerDataDirs || {},

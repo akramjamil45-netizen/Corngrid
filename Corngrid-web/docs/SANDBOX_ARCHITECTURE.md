@@ -23,7 +23,7 @@ The CornGrid Sandbox Management System lets users run MetaTrader 5 with the Corn
 │              Windows Sandbox Node (agent/agent.js)               │
 │  ├─ transport.js     WSS primary, HTTPS polling fallback         │
 │  ├─ mt5-manager.js   isolated per-user MT5 terminals             │
-│  ├─ ea-tester.js     isolated EA compile/run testing             │
+│  ├─ ea-tester.js     assigned test-node compilation             │
 │  └─ system-monitor.js CPU / RAM / disk sampling                  │
 │                                                                  │
 │  C:\CornGrid\Sandbox\MT5\            base terminal files         │
@@ -39,6 +39,14 @@ The CornGrid Sandbox Management System lets users run MetaTrader 5 with the Corn
 - SQLite deployments self-apply the schema from `sandbox/sandbox-schema.js`. PostgreSQL deployments apply `migrations/postgres/0005_sandbox.sql`.
 
 ### 2. Sandbox Manager (`sandbox/sandbox-manager.js`)
+Users can host multiple MT5 accounts up to their existing subscription activation
+allowance. A partial unique index prevents duplicate live sandboxes for one user's
+broker/account. User/subscription locks coordinate sandbox creation with desktop
+EA activation; node locks reserve physical capacity. Instance creation, credentials,
+license activation and queued deployment commit together, with WebSocket delivery
+after commit. Controls and deletion select an explicit owned `instanceUid` whenever
+the user has multiple instances. Apply migration 0014 before updating PostgreSQL deployments.
+
 Orchestrates activation: validates input → verifies the active subscription via `subscriptionApi.eligibleSubscription` → allocates a node → creates the instance + AES-256-GCM-encrypted credentials → creates/reuses the `mt5_accounts` row, an installation secret, and an `ea_license_activations` row (automatic license integration) → queues the `deploy` command.
 
 ### 3. Node Registry (`sandbox/sandbox-nodes.js`)
@@ -53,7 +61,10 @@ Orchestrates activation: validates input → verifies the active subscription vi
 - A 30 s sweep marks nodes offline when their heartbeat lapses.
 
 ### 5. Windows Sandbox Agent (`agent/`)
-- Node.js service (only dependency: `ws`). Runs under a Scheduled Task or NSSM.
+- Node.js agent (`ws` dependency), plus Python x64/MetaTrader5 for broker preflight.
+  The broker directory helper uses English MT5 window controls in the selected
+  Windows session. The setup guide recommends an Interactive logon task. SYSTEM
+  or NSSM requires separate context/session acceptance testing.
 - Outbound connections only — no inbound firewall rules needed.
 - Manages the full MT5 lifecycle per sandbox: robocopy the base terminal into an isolated directory, write auto-login config + license bundle, download the EA, launch `terminal64.exe /portable`, monitor, restart on crash (max 5 restarts / 10 min), tear down on delete.
 
@@ -76,7 +87,9 @@ All significant transitions are persisted to `sandbox_events` and broadcast to a
 
 ## Idempotency & concurrency
 
-- One active sandbox per user, enforced by a partial unique index (`sandbox_instances.user_id WHERE deleted_at IS NULL`). Repeated Activate clicks return the existing sandbox.
+- Multiple sandboxes per user share the subscription's activation allowance.
+  A partial unique index on user/broker/account prevents duplicate live instances
+  for that account; repeated Activate requests reuse that account's sandbox.
 - Commission rows carry a unique `idempotency_key` (`payment:<id>:partner:<id>`), so replayed payment hooks can never double-pay.
 - Command rows expire after 5 minutes if never acknowledged.
 - Multi-step writes run inside the existing `db-write.js` exclusive queue (SQLite) or a pinned transaction (PostgreSQL).

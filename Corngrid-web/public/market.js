@@ -114,11 +114,21 @@
   // load counter.js, so this helper must stay local; relying on a global
   // `animateNumber` threw a ReferenceError and left the whole page stuck at
   // OFFLINE even when the API had returned live data.
+  const numberAnimations = new Map();
+  function cancelNumberAnimations() {
+    for (const animation of numberAnimations.values()) cancelAnimationFrame(animation.frame);
+    numberAnimations.clear();
+  }
+
   function animateNumber(element, start, end, options = {}) {
+    const previous = numberAnimations.get(element);
+    if (previous) cancelAnimationFrame(previous.frame);
+    numberAnimations.delete(element);
     const format = options.format || '#,##0.###';
-    const decimalMatch = /\.(\d+)/.exec(format);
+    const decimalMatch = /\.([0#]+)/.exec(format);
     const maximumFractionDigits = decimalMatch ? Math.min(8, decimalMatch[1].length) : 0;
-    const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits });
+    const minimumFractionDigits = decimalMatch ? Math.min(maximumFractionDigits, decimalMatch[1].replace(/#/g, '').length) : 0;
+    const formatter = new Intl.NumberFormat(undefined, { minimumFractionDigits, maximumFractionDigits });
     const render = value => { element.textContent = formatter.format(value); };
     const finish = () => {
       render(end);
@@ -128,14 +138,17 @@
     const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 600;
     if (!duration) { finish(); return; }
     const startedAt = performance.now();
+    const animation = { frame: null };
+    numberAnimations.set(element, animation);
     const tick = now => {
+      if (numberAnimations.get(element) !== animation) return;
       const progress = Math.min((now - startedAt) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       render(start + (end - start) * eased);
-      if (progress < 1) requestAnimationFrame(tick);
-      else finish();
+      if (progress < 1) animation.frame = requestAnimationFrame(tick);
+      else { numberAnimations.delete(element); finish(); }
     };
-    requestAnimationFrame(tick);
+    animation.frame = requestAnimationFrame(tick);
   }
 
   function setChartState(mode, message) {
@@ -389,6 +402,7 @@
     if (live.source !== 'corngrid-ea') return;
     const current = localState();
     const usable = current === 'LIVE' || current === 'DELAYED';
+    const priceFormat = '#,##0.' + '0'.repeat(decimals());
 
     // Animate bid price
     const bidElement = $('market-price');
@@ -396,7 +410,7 @@
       const currentText = bidElement.textContent || '0';
       const currentBid = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(bidElement, currentBid, live.bid, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600,
         onComplete: () => {
           bidElement.classList.toggle('muted', !usable);
@@ -431,7 +445,7 @@
       const currentText = closeElement.textContent || '0';
       const currentClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(closeElement, currentClose, live.bid, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600
       });
     } else {
@@ -454,8 +468,12 @@
   }
 
   function applySummary(summary) {
+    cancelNumberAnimations();
     state.summary = summary;
     const live = state.live;
+    const digits = summary.source?.kind === 'corngrid-ea' && Number.isInteger(summary.digits)
+      ? summary.digits : (DECIMALS[summary.symbol] ?? 2);
+    const priceFormat = '#,##0.' + '0'.repeat(digits);
     state.stats = { previousClose: summary.previousClose, dayOpen: summary.dayOpen, dayHigh: summary.dayHigh, dayLow: summary.dayLow };
     $('market-quote-symbol').textContent = summary.symbol;
     $('market-quote-label').textContent = summary.label;
@@ -466,7 +484,7 @@
       const currentText = openElement.textContent || '0';
       const currentOpen = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(openElement, currentOpen, summary.dayOpen, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600
       });
     } else {
@@ -479,7 +497,7 @@
       const currentText = highElement.textContent || '0';
       const currentHigh = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(highElement, currentHigh, summary.dayHigh, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600
       });
     } else {
@@ -492,7 +510,7 @@
       const currentText = lowElement.textContent || '0';
       const currentLow = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(lowElement, currentLow, summary.dayLow, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600
       });
     } else {
@@ -505,7 +523,7 @@
       const currentText = prevCloseElement.textContent || '0';
       const currentPrevClose = parseFloat(currentText.replace(/[^\d\-\.]/g, '') || '0');
       animateNumber(prevCloseElement, currentPrevClose, summary.previousClose, {
-        format: '#,##0.###',
+        format: priceFormat,
         duration: 600
       });
     } else {
@@ -565,6 +583,7 @@
         return;
       }
       Object.assign(live, { source: unavailable ? 'none' : live.source, state: 'OFFLINE', bid: null, ask: null });
+      cancelNumberAnimations();
       stopLive();
       $('market-price').textContent = '—';
       $('market-quote-meta').textContent = 'Bid — · Ask — · Spread —';
@@ -765,7 +784,7 @@
 
   function onVisibilityChange() {
     if (!state.pageOpen) return;
-    if (document.hidden) { stopLive(); return; }
+    if (document.hidden) { cancelNumberAnimations(); stopLive(); return; }
     loadSummary(true);
     loadCandles();
   }
@@ -974,6 +993,7 @@
 
   function selectSymbol(symbol) {
     if (!symbol || symbol === state.symbol) return;
+    cancelNumberAnimations();
     state.symbol = symbol;
     stopLive();
     Object.assign(state.live, { source: null, feed: null, bid: null, ask: null, receivedMs: 0, rev: 0, anchor: 0, state: 'OFFLINE' });
@@ -1021,6 +1041,7 @@
   let eventsBound = false;
 
   function destroy() {
+    cancelNumberAnimations();
     exitChartFullscreen();
     // Release chart resources and observers when the dashboard page unloads.
     stopLive();
@@ -1066,6 +1087,7 @@
       loadDrawings();
     },
     onClose() {
+      cancelNumberAnimations();
       exitChartFullscreen();
       // Leaving the Market page: abort in-flight requests, stop streaming/timers,
       // but keep the chart instance so repeated page switches do not thrash the

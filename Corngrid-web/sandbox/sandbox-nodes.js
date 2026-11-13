@@ -239,7 +239,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
   // Command dispatch
   // -------------------------------------------------------------------------
 
-  async function queueCommand(nodeId, command, { instanceId = null, payload = null } = {}) {
+  async function queueCommand(nodeId, command, { instanceId = null, payload = null, deferDelivery = false } = {}) {
     const timestamp = now();
     const commandUid = `cmd_${crypto.randomBytes(12).toString('hex')}`;
     const result = await run(
@@ -248,7 +248,11 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
       [commandUid, instanceId, nodeId, command, payload == null ? null : JSON.stringify(payload), timestamp, timestamp]
     );
     const record = { id: result.lastID, commandUid, command, instanceId, nodeId, payload };
+    return deferDelivery ? record : dispatchCommand(record);
+  }
 
+  async function dispatchCommand(record) {
+    const { nodeId, commandUid, command, instanceId, payload } = record;
     // Push immediately when the agent is connected over WebSocket.
     const connection = liveConnections.get(nodeId);
     if (connection) {
@@ -268,7 +272,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
           instanceId,
           payload
         }));
-        await run('UPDATE sandbox_deployments SET status = ?, updated_at = ? WHERE id = ?', ['sent', now(), record.id]);
+        await run("UPDATE sandbox_deployments SET status = ?, updated_at = ? WHERE id = ? AND status = 'queued'", ['sent', now(), record.id]);
         record.status = 'sent';
       } catch (error) {
         console.error(`Failed to push command ${commandUid} to node ${nodeId}:`, error.message);
@@ -365,31 +369,36 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
 
   // Pick the active, non-test node with the most free capacity. Manual
   // assignment passes preferredNodeId; the node must still have capacity.
-  async function allocateNode({ preferredNodeId = null } = {}) {
+  async function allocateNode({ preferredNodeId = null, excludeInstanceId = null } = {}) {
     const cutoff = now() - NODE_OFFLINE_AFTER_MS;
     const candidates = await all(
       `SELECT n.*,
               (SELECT COUNT(*) FROM sandbox_instances i
                WHERE i.node_id = n.id AND i.deleted_at IS NULL
-                 AND i.status IN ('deploying','starting','running','stopping')) AS active_instances
+                 AND i.status IN ('requested','allocating','deploying','starting','running','stopping')) AS active_instances
        FROM sandbox_nodes n
        WHERE n.status = 'active' AND n.is_test_node = FALSE
          AND n.last_heartbeat_at IS NOT NULL AND n.last_heartbeat_at >= ?
        ORDER BY (n.max_instances - (SELECT COUNT(*) FROM sandbox_instances i
                WHERE i.node_id = n.id AND i.deleted_at IS NULL
-                 AND i.status IN ('deploying','starting','running','stopping'))) DESC,
+                 AND i.status IN ('requested','allocating','deploying','starting','running','stopping'))) DESC,
                COALESCE(n.cpu_percent, 9999) ASC`,
       [cutoff]
     );
 
-    const available = candidates.filter(node => node.active_instances < node.max_instances);
-    if (!available.length) return null;
-
-    if (preferredNodeId != null) {
-      const preferred = available.find(node => node.id === preferredNodeId);
-      return preferred || null;
+    // The caller holds its transaction until its instance is reserved. Re-read
+    // capacity after locking the node so other users/processes cannot overbook.
+    for (const candidate of candidates) {
+      if (preferredNodeId != null && candidate.id !== preferredNodeId) continue;
+      const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?' + (typeof db.transaction === 'function' ? ' FOR UPDATE SKIP LOCKED' : ''), [candidate.id]);
+      if (!node || node.status !== 'active' || node.is_test_node || node.last_heartbeat_at < cutoff) continue;
+      const usage = await get(`SELECT COUNT(*) AS count FROM sandbox_instances
+        WHERE node_id = ? AND deleted_at IS NULL ${excludeInstanceId == null ? '' : 'AND id <> ?'}
+          AND status IN ('requested','allocating','deploying','starting','running','stopping')`,
+        excludeInstanceId == null ? [node.id] : [node.id, excludeInstanceId]);
+      if (Number(usage.count) < node.max_instances) return node;
     }
-    return available[0];
+    return null;
   }
 
   function attachConnection(nodeId, connection, tokenHash) {
@@ -423,6 +432,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     recordHeartbeat,
     markOfflineNodes,
     queueCommand,
+    dispatchCommand,
     pendingCommands,
     completeCommand,
     allocateNode,

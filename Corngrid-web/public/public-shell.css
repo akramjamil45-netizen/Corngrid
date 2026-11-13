@@ -10,3 +10,24 @@
 .public-page .infra-footer { text-align: left; }
 .public-page .infra-footer .container { width: min(90%,1200px); }
 @media(max-width:1100px) { .public-page .public-main { padding-top: 100px; } }
+
+/* Portfolio content uses card spacing rather than marketing section padding. */
+:is(.public-directory-page,.public-detail-page) :is(.public-heading,.public-directory-grid) { padding: 0; }
+:is(.public-directory-page,.public-detail-page) .public-heading { margin: 0 0 20px; }
+:is(.public-directory-page,.public-detail-page) .public-heading > .muted { margin: 0; }
+:is(.public-directory-page,.public-detail-page) .public-data-note { margin: 0 0 16px; }
+.public-detail-page #portfolio-content .stat-grid { padding: 0; margin: 0 0 18px; }
+.public-detail-page #portfolio-content .panel { padding: 20px; }
+.public-detail-page #portfolio-content .table-panel { padding: 0; }
+.public-detail-page .public-heading h1 { overflow-wrap: anywhere; }
+@media(max-width:639px) {
+  :is(.public-directory-page,.public-detail-page) .public-main { padding: 96px 16px 32px; }
+  :is(.public-directory-page,.public-detail-page) .public-heading { margin-bottom: 18px; }
+  :is(.public-directory-page,.public-detail-page) .public-heading h1 { margin: 5px 0 8px; font-size: clamp(26px,7vw,32px); line-height: 1.2; }
+  :is(.public-directory-page,.public-detail-page) .public-heading > .muted { font-size: 14px; line-height: 1.65; }
+  :is(.public-directory-page,.public-detail-page) .public-data-note { gap: 10px; padding: 12px; font-size: 12px; line-height: 1.6; }
+  .public-detail-page #portfolio-content .panel { padding: 14px; }
+  .public-detail-page #portfolio-content :is(.public-section,.table-panel) { padding: 0; }
+  .public-detail-page .stat-value { white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; font-size: clamp(16px,4.5vw,20px); line-height: 1.4; }
+  .public-detail-page .connection-panel { min-height: 0; }
+}

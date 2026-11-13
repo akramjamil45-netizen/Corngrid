@@ -3,17 +3,10 @@
 // Partner Program API (EA developers). Partners are ordinary CornGrid users
 // with a partner_profiles row; authentication reuses the existing user JWT.
 
-const crypto = require('crypto');
-const { decodePresets } = require('./presets');
 const fs = require('fs');
 const path = require('path');
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // per file, decoded
-const MAX_FILES = 20;
-const ALLOWED_EXTENSIONS = new Set(['.mq5', '.mqh', '.zip']);
-const FILENAME_PATTERN = /^[A-Za-z0-9._ -]{1,120}$/;
-
-function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storageDir } = {}) {
+function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storageDir, publication } = {}) {
   const SUBMISSIONS_DIR = storageDir || path.join(__dirname, '..', 'storage', 'ea-submissions');
   fs.mkdirSync(SUBMISSIONS_DIR, { recursive: true });
 
@@ -229,119 +222,14 @@ function createPartnerApi({ db, events, crypto: sandboxCrypto, rateLimit, storag
 
     // Files arrive as base64 JSON (same pattern as payment proofs).
     app.post('/api/partner/submissions', uploadRateLimit, verifyToken, async (req, res) => {
-      const profile = await requirePartner(req, res);
-      if (!profile) return;
-      const body = req.body || {};
-
-      const name = typeof body.name === 'string' ? body.name.trim() : '';
-      const version = typeof body.version === 'string' ? body.version.trim() : '';
-      if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'An EA name between 2 and 80 characters is required.' });
-      if (!/^[0-9A-Za-z._-]{1,20}$/.test(version)) return res.status(400).json({ error: 'A valid version (e.g. 1.0) is required.' });
-      const description = typeof body.description === 'string' ? body.description.trim().slice(0, 2000) : '';
-      if (description.length < 10) return res.status(400).json({ error: 'A description of at least 10 characters is required.' });
-
-      const files = Array.isArray(body.files) ? body.files : [];
-      if (!files.length) return res.status(400).json({ error: 'At least one source file (.mq5, .mqh, or .zip) is required.' });
-      if (files.length > MAX_FILES) return res.status(400).json({ error: `A maximum of ${MAX_FILES} files per submission is allowed.` });
-
-      // Validate and decode every file before touching the database.
-      const decoded = [];
-      const scanFindings = [];
-      let hasMq5 = false;
-      for (const file of files) {
-        const filename = typeof file.name === 'string' ? path.basename(file.name) : '';
-        if (!FILENAME_PATTERN.test(filename)) {
-          return res.status(400).json({ error: `Invalid file name: ${filename || '(empty)'}` });
-        }
-        const ext = path.extname(filename).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.has(ext)) {
-          return res.status(400).json({ error: `File type ${ext || '(none)'} is not allowed. Upload .mq5, .mqh, or .zip files.` });
-        }
-        let buffer;
-        try {
-          buffer = Buffer.from(String(file.contentBase64 || ''), 'base64');
-        } catch (_error) {
-          return res.status(400).json({ error: `File ${filename} could not be decoded.` });
-        }
-        if (!buffer.length) return res.status(400).json({ error: `File ${filename} is empty.` });
-        if (buffer.length > MAX_FILE_BYTES) return res.status(400).json({ error: `File ${filename} exceeds the 10 MB limit.` });
-        if (ext === '.zip') {
-          // ZIP magic bytes.
-          if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
-            return res.status(400).json({ error: `File ${filename} is not a valid ZIP archive.` });
-          }
-        } else {
-          const text = buffer.toString('utf8');
-          if (ext === '.mq5') hasMq5 = true;
-          scanFindings.push(...scanSource(filename, text));
-        }
-        decoded.push({ filename, buffer });
-      }
-      const hasZip = decoded.some(file => file.filename.toLowerCase().endsWith('.zip'));
-      if (!hasMq5 && !hasZip) {
-        return res.status(400).json({ error: 'A submission must contain at least one .mq5 source file or a .zip project.' });
-      }
-
-      const timestamp = now();
-      let presets;
-      try { presets = decodePresets(body.presets); if (!presets.length) return res.status(400).json({ error: 'Upload at least one .set preset for this EA.' }); } catch (error) { return res.status(400).json({ error: error.message }); }
-      const submissionUid = `sub_${crypto.randomBytes(9).toString('hex')}`;
-      const submissionDir = path.join(SUBMISSIONS_DIR, submissionUid);
-      fs.mkdirSync(submissionDir, { recursive: true });
-
+      const profile = await requirePartner(req,res); if (!profile) return;
       try {
-        const inserted = await run(
-          `INSERT INTO ea_submissions
-             (submission_uid, partner_id, name, description, version, symbols, strategy_description, risk_description, documentation, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_review', ?, ?)`,
-          [submissionUid, req.user.id, name, description, version,
-            typeof body.symbols === 'string' ? body.symbols.trim().slice(0, 200) : null,
-            typeof body.strategyDescription === 'string' ? body.strategyDescription.trim().slice(0, 2000) : null,
-            typeof body.riskDescription === 'string' ? body.riskDescription.trim().slice(0, 2000) : null,
-            typeof body.documentation === 'string' ? body.documentation.trim().slice(0, 4000) : null,
-            timestamp, timestamp]
-        );
-        const submissionId = inserted.lastID;
-        for (const preset of presets) {
-          await run('INSERT INTO ea_submission_presets(submission_id,symbol,file_name,content_text) VALUES(?,?,?,?)', [submissionId,preset.symbol,preset.name,preset.text]);
-        }
-
-        const sourceHash = crypto.createHash('sha256');
-        for (const file of decoded) {
-          // Filenames are sanitized (path.basename + pattern), so writes stay
-          // inside the submission directory.
-          fs.writeFileSync(path.join(submissionDir, file.filename), file.buffer);
-          sourceHash.update(file.buffer);
-        }
-        await run(
-          'INSERT INTO ea_versions (submission_id, version, file_path, file_count, source_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [submissionId, version, submissionUid, decoded.length, sourceHash.digest('hex'),
-            scanFindings.length ? 'stored' : 'stored', timestamp]
-        );
-
-        if (scanFindings.length) {
-          await run(
-            'UPDATE ea_submissions SET review_notes = ?, updated_at = ? WHERE id = ?',
-            [`Automated scan flagged: ${scanFindings.join('; ')}`.slice(0, 1000), timestamp, submissionId]
-          );
-        }
-
-        await events.emit('EA_SUBMITTED', {
-          actorType: 'partner', actorId: req.user.id,
-          payload: { submissionUid, name, version, fileCount: decoded.length, scanFindings: scanFindings.length }
-        });
-
-        res.status(201).json({
-          message: scanFindings.length
-            ? 'Submission received. The automated scan flagged constructs an administrator will review.'
-            : 'Submission received and queued for review.',
-          submissionUid,
-          scanFindings
-        });
+        const result = await publication().createSubmission(req.user.id,req.body||{});
+        res.status(result.alreadyCreated?200:201).json(result);
       } catch (error) {
-        console.error('EA submission failed:', error.message);
-        fs.rmSync(submissionDir, { recursive: true, force: true });
-        res.status(500).json({ error: 'Unable to store the submission.' });
+        if (error.status) return res.status(error.status).json({error:error.message,code:error.code});
+        console.error('EA submission failed:',error.code||error.name);
+        res.status(500).json({error:'Unable to store the EA release. Please retry.'});
       }
     });
 

@@ -1,4 +1,5 @@
 (() => {
+  const releaseProofs=new Map();
   // CornGrid Admin: Sandbox Management, EA Submissions, Commissions.
   // Realtime updates arrive over /ws/admin/sandbox (cookie-authenticated).
   const state = {
@@ -38,18 +39,65 @@
   }
 
   async function api(path, options = {}) {
-    const response = await fetch(path, {
-      ...options,
-      credentials: 'same-origin',
-      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(data.error || 'The request could not be completed.');
-      error.field = data.field;
+    const { timeoutMs = 30000, ...requestOptions } = options;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(path, {
+        ...requestOptions,
+        signal: controller.signal,
+        credentials: 'same-origin',
+        headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
+      });
+      const data = await response.json().catch(error => {
+        if (controller.signal.aborted) throw error;
+        return {};
+      });
+      if (!response.ok) {
+        const error = new Error(data.error || 'The request could not be completed.');
+        error.field = data.field;
+        error.status = response.status;
+        error.retryable = [502, 503, 504].includes(response.status);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw Object.assign(new Error('The connection timed out. Refresh to check whether your change was saved, then try again.'), { retryable: true });
+      }
+      if (error instanceof TypeError) throw Object.assign(new Error('The connection was interrupted. Please check your connection and try again.'), { retryable: true });
       throw error;
+    } finally {
+      window.clearTimeout(timer);
     }
-    return data;
+  }
+
+  async function saveNodeCapacity(nodeId, maxInstances, expectedMaxInstances, progress) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await api(`/api/admin/sandbox/nodes/${nodeId}/capacity`, {
+          method: 'PATCH', timeoutMs: 10000,
+          body: JSON.stringify({ maxInstances, expectedMaxInstances })
+        });
+      } catch (error) {
+        if (!error.retryable) throw error;
+        progress('Checking saved capacity…');
+        // The server may have committed even though the response was lost.
+        // Read authoritative state before sending the same absolute value again.
+        try {
+          const data = await api('/api/admin/sandbox/nodes', { timeoutMs: 5000 });
+          const node = data.nodes.find(item => item.id === nodeId);
+          if (!node) throw new Error('Node no longer exists. Refresh the node list.');
+          if (node.maxInstances === maxInstances) return { node };
+          if (node.maxInstances !== expectedMaxInstances) throw new Error('Capacity was changed by another administrator. Close this dialog, refresh the node list and try again.');
+        } catch (verificationError) {
+          if (!verificationError.retryable) throw verificationError;
+        }
+        if (attempt === 1) throw new Error('The save could not be confirmed because the connection is unavailable. Check your connection and try Save capacity again.');
+        progress('Reconnecting…');
+        await new Promise(resolve => window.setTimeout(resolve, 750));
+      }
+    }
   }
 
   function fmtTime(value) {
@@ -462,6 +510,7 @@
     try {
       const data = await api(`/api/admin/ea-submissions/${id}`);
       const sub = data.submission;
+      const release=data.publication;releaseProofs.set(String(sub.id),release?.reviewDigest);
       $('ea-detail-panel').hidden = false;
       $('ea-detail-title').textContent = `${sub.name} v${sub.version}`;
       const files = (data.files || []).map(file =>
@@ -483,14 +532,15 @@
         <h3>Strategy</h3><p class="muted small">${escapeHtml(sub.strategyDescription || '—')}</p>
         <h3>Risk management</h3><p class="muted small">${escapeHtml(sub.riskDescription || '—')}</p>
         ${sub.reviewNotes ? `<h3>Review notes</h3><p class="muted small">${escapeHtml(sub.reviewNotes)}</p>` : ''}
-        <h3>Source files</h3><ul class="admin-file-list">${files || '<li class="muted">No files</li>'}</ul>
+        <h3>EA release files</h3><ul class="admin-file-list">${files || '<li class="muted">No files</li>'}</ul>
         <h3>EA presets</h3>${(data.presets || []).map(preset => `<details><summary>${escapeHtml(preset.symbol)} - ${escapeHtml(preset.name)}</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(preset.text)}</pre></details>`).join('') || '<p class="muted small">No presets submitted. This EA cannot be deployed until a reviewed preset is available.</p>'}
-        <h3>Test reports</h3>
+        ${release?`<aside class="mp-release-proof"><strong>${release.artifactReady?'EX5 ready for approval':'Waiting for compiled EX5'}</strong><p class="muted small">Approving publishes this exact artifact and its presets to Marketplace and Sandbox.</p>${release.artifact?`<a href="/api/admin/ea-submissions/${sub.id}/artifact">Download EX5</a><p class="mp-hash">SHA-256: ${escapeHtml(release.artifact.sha256)}</p>`:`<label>Upload reviewed compiled EX5<input type="file" accept=".ex5" data-ea-artifact="${sub.id}" class="input-control"></label>`}<button type="button" class="button button-secondary button-small" data-ea-view="${sub.id}">Refresh review</button></aside>`:'<p class="muted small">Legacy submission: upload a new release with EA and preset files to use automatic publication.</p>'}
+        <h3>Compile reports</h3>
         <div class="table-scroll"><table><thead><tr><th>Time</th><th>Kind</th><th>Status</th><th>Result</th></tr></thead><tbody>${reports || '<tr><td class="table-empty" colspan="4">No tests run yet.</td></tr>'}</tbody></table></div>
         <div class="sandbox-controls">
-          ${sub.status === 'pending_review' ? `<button class="button button-primary" data-ea-action="review" data-ea-id="${sub.id}">Start review</button>` : ''}
-          ${['under_review', 'testing_failed', 'testing_passed'].includes(sub.status) ? `<button class="button button-secondary" data-ea-action="test" data-ea-id="${sub.id}">Run sandbox test</button>` : ''}
-          ${['testing_passed', 'under_review'].includes(sub.status) ? `<button class="button button-primary" data-ea-action="approve" data-ea-id="${sub.id}">Approve</button>` : ''}
+          ${['pending_review','testing_failed'].includes(sub.status) ? `<button class="button button-primary" data-ea-action="review" data-ea-id="${sub.id}">${sub.status==='testing_failed'?'Resume review':'Start review'}</button>` : ''}
+          ${['under_review', 'testing_failed', 'testing_passed'].includes(sub.status) && /\.mq5$/i.test(release?.entryFile||'') ? `<button class="button button-secondary" data-ea-action="test" data-ea-id="${sub.id}">Compile on test node</button>` : ''}
+          ${release?.canApprove ? `<button class="button button-primary" data-ea-action="approve" data-ea-id="${sub.id}">Approve &amp; publish</button>` : ''}
           ${sub.status === 'approved' ? `<button class="button button-primary" data-ea-action="publish" data-ea-id="${sub.id}">Publish</button>` : ''}
           ${!['rejected', 'published'].includes(sub.status) ? `<button class="button button-danger" data-ea-action="reject" data-ea-id="${sub.id}">Reject</button>` : ''}
         </div>
@@ -504,6 +554,10 @@
   async function submissionAction(id, action) {
     try {
       let body;
+      if(['approve','publish'].includes(action)){
+        if(!confirm('Approve the reviewed EA and preset files, and publish to Marketplace and Sandbox?'))return;
+        body={reviewDigest:releaseProofs.get(String(id))};
+      }
       if (action === 'reject') {
         const reason = window.prompt('Rejection reason (shown to the partner):');
         if (!reason || reason.trim().length < 5) {
@@ -852,6 +906,12 @@
   }
 
   function bind() {
+    document.addEventListener('change',async event=>{
+      const input=event.target.closest('[data-ea-artifact]');if(!input||!input.files[0])return;
+      input.disabled=true;
+      try{await api('/api/admin/ea-submissions/'+input.dataset.eaArtifact+'/artifact',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:input.files[0]});await openSubmission(input.dataset.eaArtifact);}
+      catch(error){toast(error.message,'error');input.disabled=false;}
+    });
     setupWorkspaceTables();
     setupWorkspaceTabs();
     // Sandbox tabs
@@ -887,17 +947,20 @@
       $('sb-capacity-form').setAttribute('aria-busy', 'true');
       updateCapacityPreview();
       try {
-        await api(`/api/admin/sandbox/nodes/${state.capacityNodeId}/capacity`, {
-          method: 'PATCH', body: JSON.stringify({ maxInstances: Number($('sb-capacity-max').value) })
-        });
+        const result = await saveNodeCapacity(state.capacityNodeId, Number($('sb-capacity-max').value),
+          Number($('sb-capacity-current').textContent), message => { $('sb-capacity-save').textContent = message; });
+        const index = state.nodes.findIndex(node => node.id === result.node.id);
+        if (index >= 0) state.nodes[index] = { ...state.nodes[index], ...result.node };
+        renderNodes();
         $('sb-capacity-dialog').close();
         toast('Hosting capacity updated.', 'success');
-        await Promise.all([loadNodes(), loadSandboxOverview()]);
+        // Saving has finished. A slow follow-up refresh must not keep the
+        // dialog locked, or prevent editing another node.
+        void Promise.all([loadNodes(), loadSandboxOverview()]);
       } catch (error) {
         $('sb-capacity-error').textContent = error.message;
         $('sb-capacity-error').hidden = false;
-        $('sb-capacity-max').setAttribute('aria-invalid', 'true');
-        $('sb-capacity-max').focus();
+        $('sb-capacity-error').focus();
       } finally {
         state.capacitySaving = false;
         $('sb-capacity-save').disabled = false;
@@ -1147,8 +1210,12 @@
   };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind);
+    document.addEventListener('DOMContentLoaded', () => {
+      bind();
+      if (!$('sandbox').hidden) window.CornGridAdminSandbox.openSandbox();
+    });
   } else {
     bind();
+    if (!$('sandbox').hidden) window.CornGridAdminSandbox.openSandbox();
   }
 })();

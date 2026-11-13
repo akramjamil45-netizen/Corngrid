@@ -118,7 +118,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261111-payout1">
+  <link rel="stylesheet" href="dashboard.css?v=20261113-gallery2">
+  <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
+  <link rel="stylesheet" href="marketplace.css?v=20261112-partner-release1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout-layout3">
 </head>
 <body>
@@ -141,7 +143,9 @@
         <button class="nav-item" data-page="accounts"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>MT5 Accounts</button>
         <button class="nav-item" data-page="subscription"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription</button>
         <button class="nav-item" data-page="sandbox"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 9l2.5 2L7 13M12 13h4"/></svg></span>Sandbox</button>
+        <button class="nav-item" data-page="marketplace" data-marketplace-nav hidden><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h16l-2-5H6L4 9Zm1 0v11h14V9M9 20v-6h6v6"/><path d="M4 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/></svg></span>Marketplace</button>
         <button class="nav-item" data-page="partner"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Partner Program</button>
+        <button class="nav-item" data-page="partner-marketplace" data-marketplace-partner hidden><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h16l-2-5H6L4 9Zm1 0v11h14V9M9 20v-6h6v6"/></svg></span>Marketplace Management</button>
         <button class="nav-item" data-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v3h16v-3"/></svg></span>Downloads</button>
       </nav>
       <div class="sidebar-bottom">
@@ -720,14 +724,13 @@
                   <div class="feed-avatar" id="feed-composer-avatar">?</div>
                   <textarea id="feed-composer-input" class="input-control feed-composer-input" rows="3" maxlength="4000" placeholder="Share an update with the community…" aria-label="Post content"></textarea>
                 </div>
-                <div class="feed-composer-image" id="feed-composer-image" hidden>
-                  <img id="feed-composer-image-preview" alt="Selected upload preview">
-                  <button type="button" class="button button-secondary button-small" id="feed-composer-image-remove"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Remove</button>
-                </div>
+                <div class="feed-composer-images" id="feed-composer-images" aria-label="Selected images" hidden></div>
+                <p class="feed-upload-status muted small" id="feed-upload-status" role="status" aria-live="polite"></p>
                 <div class="feed-composer-actions">
                   <div class="feed-composer-tools">
-                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file" aria-label="Add image" title="Add image"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></label>
-                    <input type="file" id="feed-composer-file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <label class="feed-image-label button button-secondary button-small" for="feed-composer-file" aria-label="Add images, up to 5" title="Add images, up to 5" tabindex="0" role="button"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></label>
+                    <input type="file" id="feed-composer-file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+                    <span class="muted small feed-image-count" id="feed-image-count" aria-live="polite"></span>
                     <span class="feed-char-count muted small" id="feed-char-count">0 / 4000</span>
                   </div>
                   <div class="feed-composer-buttons">
@@ -793,7 +796,7 @@
           <div class="page-heading"><div><p class="eyebrow">PREFERENCES &amp; PROFILE</p><h1>Settings</h1><p class="muted">Manage profile and dashboard display preferences.</p></div></div>
           <p class="notice notice-info"><span class="notice-icon">i</span><span><strong>Install CornGrid on Android.</strong> Open corngrid.com in Chrome, then choose <em>Install app</em> or <em>Add to Home screen</em> from the browser menu. An install button also appears when your browser supports it. Current trading and account data still requires an internet connection.</span></p>
           <div class="settings-layout"><nav class="settings-tabs" aria-label="Settings sections"><button class="settings-tab is-active" data-setting="profile">Profile</button><button class="settings-tab" data-setting="security">Security</button><button class="settings-tab" data-setting="appearance">Appearance</button><button class="settings-tab" data-setting="notifications">Notifications</button><button class="settings-tab" data-setting="privacy">Privacy</button></nav>
-            <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><div class="avatar-settings"><div id="avatar-preview" class="avatar-preview"></div><div class="avatar-settings-body"><strong>Profile photo</strong><p class="muted small">JPEG, PNG, or WebP. Photos are cropped to a square and resized before upload, and appear in Live Feed, comments, chat, and the header.</p><div class="avatar-actions"><button type="button" class="button button-secondary button-small" id="avatar-choose">Choose photo</button><input type="file" id="avatar-file" class="sr-only" accept="image/jpeg,image/png,image/webp" aria-label="Choose a profile photo" tabindex="-1"><button type="button" class="button button-primary button-small" id="avatar-save" disabled>Save photo</button><button type="button" class="button button-secondary button-small" id="avatar-cancel" hidden>Cancel</button><button type="button" class="button button-secondary button-small" id="avatar-remove" hidden>Remove photo</button></div><progress id="avatar-progress" max="100" value="0" hidden></progress><p class="muted small" id="avatar-status" role="status" aria-live="polite"></p></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form><div class="cache-settings"><div><strong>App cache</strong><p class="muted small">If a page looks outdated after an update, clear the saved site files and reload. You stay signed in and your data is not affected.</p></div><button type="button" class="button button-secondary button-small" id="clear-cache-btn">Clear cache</button></div></section>
+            <section class="panel settings-panel" id="setting-profile"><div class="panel-header"><div><p class="eyebrow">PERSONAL INFORMATION</p><h2>Profile</h2></div></div><div class="avatar-settings"><div id="avatar-preview" class="avatar-preview"></div><div class="avatar-settings-body"><strong>Profile photo</strong><p class="muted small">JPEG, PNG, or WebP. Photos are cropped to a square and resized before upload, and appear in Live Feed, comments, chat, and the header.</p><div class="avatar-actions"><button type="button" class="button button-secondary button-small" id="avatar-choose">Choose photo</button><input type="file" id="avatar-file" class="sr-only" accept="image/jpeg,image/png,image/webp" aria-label="Choose a profile photo" tabindex="-1"><button type="button" class="button button-primary button-small" id="avatar-save" disabled>Save photo</button><button type="button" class="button button-secondary button-small" id="avatar-cancel" hidden>Cancel</button><button type="button" class="button button-secondary button-small" id="avatar-remove" hidden>Remove photo</button></div><progress id="avatar-progress" max="100" value="0" hidden></progress><p class="muted small" id="avatar-status" role="status" aria-live="polite"></p></div></div><form id="profile-form" class="settings-form"><label>Display name<input id="profile-username" class="input-control" type="text" maxlength="60" required></label><label>Email address<input id="profile-email" class="input-control" type="email" disabled></label><label>About you<textarea id="profile-bio" class="input-control" rows="3" maxlength="500"></textarea></label><p class="muted small">Account created <span id="created-at">N/A</span></p><button class="button button-primary" type="submit">Save profile</button></form><details class="account-closure" id="account-deletion-details"><summary><strong>Account closure</strong><span id="account-deletion-summary">Request account deletion</span></summary><p>Administrator approval archives your account and blocks sign-in. Account records and published EAs are retained. Trading and subscriptions are managed separately.</p><p class="account-request-status" id="account-deletion-status" role="status" aria-live="polite"></p><div class="account-request-pending" id="account-deletion-pending" hidden><strong>Pending administrator review</strong><span id="account-deletion-pending-text"></span><button type="button" class="button button-secondary button-small" id="account-deletion-cancel">Cancel request</button></div><form id="account-deletion-form" class="settings-form"><p class="muted small">Type your current display name to confirm: <strong id="account-deletion-username">Loading…</strong></p><label>Confirm display name<input class="input-control" id="account-deletion-confirm-name" maxlength="60" autocomplete="off" required disabled></label><label>Reason (optional)<textarea class="input-control" id="account-deletion-reason" rows="2" maxlength="1000" placeholder="Tell us why you want to close your account" disabled></textarea></label><label class="account-request-check"><input id="account-deletion-confirm" type="checkbox" required disabled><span>I understand my account will be archived only after administrator approval.</span></label><button type="submit" class="button button-danger" id="account-deletion-submit" disabled>Send deletion request</button></form></details><div class="cache-settings"><div><strong>App cache</strong><p class="muted small">If a page looks outdated after an update, clear the saved site files and reload. You stay signed in and your data is not affected.</p></div><button type="button" class="button button-secondary button-small" id="clear-cache-btn">Clear cache</button></div></section>
             <section class="panel settings-panel" id="setting-security" hidden><div class="panel-header"><div><p class="eyebrow">ACCOUNT PROTECTION</p><h2>Security</h2></div></div><form id="password-form" class="settings-form"><label>Current password<input id="current-password" class="input-control" type="password" autocomplete="current-password" required></label><label>New password<input id="new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm new password<input id="confirm-new-password" class="input-control" type="password" minlength="8" autocomplete="new-password" required></label><p class="muted small">Changing your password revokes existing dashboard sessions. You will need to sign in again.</p><button class="button button-primary" type="submit">Change password</button></form><div class="privacy-copy"><h3>Password recovery</h3><p>Use the existing secure password-reset link from the login page if you cannot sign in. Passwords are stored as hashes and are never displayed.</p></div></section>
             <section class="panel settings-panel" id="setting-appearance" hidden><div class="panel-header"><div><p class="eyebrow">DISPLAY PREFERENCES</p><h2>Appearance</h2></div></div><form id="preferences-form" class="settings-form"><label>Theme<select id="pref-theme" class="select-control"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select></label><label>Display currency<select id="pref-currency" class="select-control"><option value="account">Account currency</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><label>Date format<select id="pref-date-format" class="select-control"><option value="locale">Browser default</option><option value="en-US">MM/DD/YYYY</option><option value="en-GB">DD/MM/YYYY</option><option value="iso">ISO 8601</option></select></label><label>Time zone<input id="pref-timezone" class="input-control" type="text" maxlength="64" value="UTC" placeholder="UTC"></label><p class="notice notice-info"><span class="notice-icon">i</span><span>Currency is a display preference only. Values are not converted and remain in the MT5 account currency. Use an IANA time-zone name such as UTC or Asia/Kuala_Lumpur.</span></p><button class="button button-primary" type="submit">Save preferences</button></form></section>
             <section class="panel settings-panel" id="setting-notifications" hidden><div class="panel-header"><div><p class="eyebrow">ALERT PREFERENCES</p><h2>Notifications</h2></div></div><div class="empty-settings"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.9 17.9 0 0 1 18 8"/><path d="M6.26 6.26A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span><h3>Email notifications are not configured</h3><p>This installation does not currently provide a notification delivery service. No inactive controls are shown.</p></div></section>
@@ -801,6 +804,8 @@
           </div>
         </section>
 
+        <section class="page" id="page-marketplace"><div class="mp" id="marketplace-root"></div></section>
+        <section class="page" id="page-partner-marketplace"><div class="mp" id="partner-marketplace-root"></div></section>
         <section class="page" id="page-sandbox">
           <div class="page-heading">
             <div><p class="eyebrow">CLOUD HOSTED TRADING</p><h1>Sandbox</h1><p class="muted">Run CornGrid EA automatically on a managed Windows server — your MT5 terminal trades 24/7, even when your computer is off.</p></div>
@@ -809,7 +814,16 @@
 
           <div class="notice notice-warning" id="sandbox-error" hidden></div>
 
-          <!-- Activation: shown when no sandbox exists -->
+          <section class="panel sandbox-picker-panel" aria-label="Sandbox selection">
+            <div class="sandbox-picker-heading"><h2>Your sandboxes</h2><span id="sandbox-quota" class="pill pill-muted">Loading…</span></div>
+            <div class="sandbox-picker-row" id="sandbox-picker-row" hidden>
+              <label for="sandbox-instance-select">MT5 sandbox<select id="sandbox-instance-select" class="select-control"></select></label>
+              <button type="button" id="sandbox-add-btn" class="button button-primary">+ Add sandbox</button>
+            </div>
+            <p id="sandbox-license-summary" class="muted small" role="status"></p>
+          </section>
+
+          <!-- Activation: first setup or an additional licensed MT5 account -->
           <div id="sandbox-activation-section" hidden>
             <section class="panel">
               <div class="panel-header"><div><p class="eyebrow">GET STARTED</p><h2>Activate your sandbox</h2></div></div>
@@ -853,6 +867,7 @@
                   <p class="muted small">Your MT5 credentials are encrypted and used only to connect your sandbox.</p>
                   <div class="sandbox-form-actions">
                     <button class="button button-primary" type="submit" id="sandbox-activate-btn">Activate Sandbox</button>
+                    <button class="button button-secondary" type="button" id="sandbox-cancel-add-btn" hidden>Back to sandbox</button>
                   </div>
                 </form>
                 <aside class="cg-setup-guide" aria-label="Sandbox setup guide">
@@ -947,12 +962,13 @@
                   <label>Trading strategy description<textarea id="ea-strategy-desc" class="input-control" rows="3" maxlength="2000"></textarea></label>
                   <label>Risk management description<textarea id="ea-risk-desc" class="input-control" rows="3" maxlength="2000"></textarea></label>
                   <label>Documentation (optional)<textarea id="ea-documentation" class="input-control" rows="2" maxlength="4000"></textarea></label>
-                  <label>Source files (.mq5, .mqh, or .zip project)<input id="ea-files" class="input-control" type="file" accept=".mq5,.mqh,.zip" multiple required></label>
+                  <label>EA files (.ex5 executable or source project)<input id="ea-files" class="input-control" type="file" accept=".ex5,.mq5,.mqh,.zip" multiple required><small class="muted">EX5 is ready for review. MQ5 source requires compilation on a test node. Up to 10 MB per file, 20 MB total.</small></label>
+                  <label>Main MQ5 entry file (optional)<input id="ea-entry-file" class="input-control" maxlength="120" placeholder="e.g. MyExpert.mq5"><small class="muted">Required only when the project contains several main MQ5 files.</small></label>
                   <fieldset class="cg-preset-grid"><legend>EA presets by pair</legend><p class="muted small">Upload your own .set file for each pair your EA supports (maximum 128 KB each). At least one preset is required. CornGrid presets are reserved for CornGrid EA.</p><label for="ea-preset-XAUUSD">XAUUSD preset (.set)<input id="ea-preset-XAUUSD" class="input-control" type="file" accept=".set"></label>
                   <label for="ea-preset-EURUSD">EURUSD preset (.set)<input id="ea-preset-EURUSD" class="input-control" type="file" accept=".set"></label>
                   <label for="ea-preset-GBPUSD">GBPUSD preset (.set)<input id="ea-preset-GBPUSD" class="input-control" type="file" accept=".set"></label>
                   <label for="ea-preset-USDJPY">USDJPY preset (.set)<input id="ea-preset-USDJPY" class="input-control" type="file" accept=".set"></label></fieldset>
-                  <p class="muted small">Source code is reviewed and tested in an isolated environment before publication. It is never executed on production servers.</p>
+                  <p class="muted small">EA and preset files remain private until administrator review. Approval publishes the reviewed EX5 and presets to Marketplace and Sandbox. Source compilation uses an assigned test node.</p>
                   <button class="button button-primary" type="submit" id="ea-submit-btn">Submit for review</button>
                 </form>
               </div>
@@ -1021,18 +1037,26 @@
         <button type="button" class="button button-secondary button-small" id="feed-lightbox-close" data-feed-lightbox-close aria-label="Close image preview">Close</button>
       </div>
       <img class="feed-lightbox-image" id="feed-lightbox-image" alt="Expanded post image">
+      <div class="feed-gallery-controls feed-lightbox-navigation" id="feed-lightbox-navigation" hidden>
+        <button type="button" id="feed-lightbox-prev" aria-label="Previous image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+        <span id="feed-lightbox-counter" aria-live="polite" aria-atomic="true">1 / 1</span>
+        <button type="button" id="feed-lightbox-next" aria-label="Next image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+      </div>
     </div>
   </div>
   <script src="vendor/lightweight-charts.standalone.production.js?v=4.2.3"></script>
   <script src="table-cards.js?v=20261029-2"></script>
-  <script src="message-tools.js?v=20261111-2"></script>
-  <script src="stripe-checkout.js?v=20261111-1"></script>
-  <script src="dashboard.js?v=20261111-stripe1"></script>
-  <script src="market.js?v=20261106-chart-back1"></script>
+  <script src="message-tools.js?v=20261111-native-input1"></script>
+  <script src="stripe-checkout.js?v=20261112-recovery1"></script>
+  <script src="marketplace-ui.js?v=20261112-partner-release1"></script>
+  <script src="marketplace.js?v=20261112-partner-release1"></script>
+  <script src="account-requests.js?v=20261113-account-requests1"></script>
+  <script src="dashboard.js?v=20261113-account-requests1"></script>
+  <script src="market.js?v=20261111-price-transition1"></script>
   <script src="economic-news.js?v=20261030-4"></script>
-  <script src="feed.js?v=20261111-message-icons1"></script>
-  <script src="sandbox.js?v=20261105-broker-picker2"></script>
-  <script src="partner.js?v=20261111-payout-layout3"></script>
+  <script src="feed.js?v=20261113-gallery1"></script>
+  <script src="sandbox.js?v=20261112-marketplace1"></script>
+  <script src="partner.js?v=20261112-partner-release1"></script>
 </body>
 </html>
 

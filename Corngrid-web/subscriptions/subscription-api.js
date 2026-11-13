@@ -67,6 +67,11 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_sub_pay_user ON subscription_payments(user_id);
   CREATE INDEX IF NOT EXISTS idx_sub_pay_status ON subscription_payments(status);
   CREATE INDEX IF NOT EXISTS idx_sub_pay_sub ON subscription_payments(subscription_id);
+  CREATE TABLE IF NOT EXISTS subscription_payment_archives (
+    payment_id INTEGER PRIMARY KEY REFERENCES subscription_payments(id),
+    archived_at BIGINT NOT NULL,
+    archived_by INTEGER
+  );
   CREATE TABLE IF NOT EXISTS ea_license_activations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -148,6 +153,8 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   const now = () => Date.now();
   const isPostgres = typeof db.transaction === 'function';
+  let paymentRemovalReconciler = null;
+  function setPaymentRemovalReconciler(reconcile) { paymentRemovalReconciler = reconcile; }
 
   function run(sql, params = []) {
     return new Promise((resolve, reject) => {
@@ -332,7 +339,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       const subscription = current || latest;
       const status = effectiveStatus(subscription);
       const payments = await all(
-        `SELECT pay.id, pay.amount, pay.currency, pay.status, pay.payment_reference,
+        `SELECT pay.id, pay.amount, pay.currency, pay.status, pay.payment_method, pay.payment_reference,
                 pay.created_at, pay.reviewed_at, pay.rejection_reason, p.name AS plan_name
          FROM subscription_payments pay
          LEFT JOIN subscription_plans p ON p.id = pay.plan_id
@@ -824,6 +831,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       if (!account) return res.status(403).json({ success: false, license_status: 'account_not_authorized', message: 'MT5 account is not authorized.' });
 
       const result = await withTransaction(async () => {
+        // Sandbox creation uses this same lock before checking the shared
+        // activation allowance, including across separate server processes.
+        if (isPostgres) await get('SELECT id FROM users WHERE id = ? FOR UPDATE', [account.user_id]);
         const subscription = await eligibleSubscription(account.user_id);
         if (!subscription) {
           const fallback = (await currentSubscription(account.user_id))
@@ -981,8 +991,8 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     try {
       const status = typeof req.query.status === 'string' ? req.query.status : '';
       const params = [];
-      let where = '';
-      if (status) { where = 'WHERE pay.status = ?'; params.push(status); }
+      let where = 'WHERE NOT EXISTS (SELECT 1 FROM subscription_payment_archives a WHERE a.payment_id = pay.id)';
+      if (status) { where += ' AND pay.status = ?'; params.push(status); }
       const payments = await all(`
         SELECT pay.id, pay.user_id, pay.subscription_id, pay.plan_id, pay.amount, pay.currency,
                pay.payment_method, pay.payment_reference, pay.payment_proof_path, pay.status,
@@ -1170,33 +1180,67 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   });
 
-  // Permanently removes a payment request that is no longer actionable. Only
-  // cancelled/rejected records can be removed so approved history is preserved.
+  // Remove closed requests from the admin queue while retaining payment and
+  // Stripe reconciliation records. A Checkout may still deliver late events.
   app.delete('/api/admin/subscription-payments/:id', adminAuth.verifyToken, async (req, res) => {
     try {
-      const paymentId = Number.parseInt(req.params.id, 10);
+      const paymentId = Number(req.params.id);
       if (!Number.isSafeInteger(paymentId) || paymentId < 1) return res.status(400).json({ error: 'Invalid payment.' });
       const adminId = req.admin?.id || null;
-      let proofPath = null;
-
+      const candidate = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
+      if (!candidate) return res.status(404).json({ error: 'Payment not found.' });
+      if (!['cancelled', 'rejected'].includes(candidate.status)) {
+        return res.status(409).json({ error: 'Only cancelled or rejected payment requests can be deleted.' });
+      }
+      const reconciliation = paymentRemovalReconciler ? await paymentRemovalReconciler(candidate) : null;
+      if (reconciliation?.http) return res.status(reconciliation.http).json(reconciliation.body);
       const outcome = await withTransaction(async () => {
+        const owner = await get('SELECT user_id FROM subscription_payments WHERE id = ?', [paymentId]);
+        if (!owner) return { http: 404, body: { error: 'Payment not found.' } };
+        // Match the webhook's user -> payment lock order across PostgreSQL workers.
+        await run('UPDATE users SET id = id WHERE id = ?', [owner.user_id]);
+        await run('UPDATE subscription_payments SET id = id WHERE id = ?', [paymentId]);
         const payment = await get('SELECT * FROM subscription_payments WHERE id = ?', [paymentId]);
         if (!payment) return { http: 404, body: { error: 'Payment not found.' } };
         if (!['cancelled', 'rejected'].includes(payment.status)) {
           return { http: 409, body: { error: 'Only cancelled or rejected payment requests can be deleted.' } };
         }
 
-        proofPath = payment.payment_proof_path || null;
-        await run('DELETE FROM subscription_payments WHERE id = ?', [paymentId]);
-        await logAudit(adminId, 'admin', 'payment_deleted', 'payment', paymentId,
-          { status: payment.status, amount: Number(payment.amount), currency: payment.currency }, null, req.ip);
+        // Stripe is optional. Never guess away database failures or consult only
+        // payment_method: a cancelled DuitNow request can retain a Stripe order.
+        const stripeTable = isPostgres
+          ? await get("SELECT to_regclass('stripe_orders') AS name")
+          : await get("SELECT name FROM sqlite_master WHERE type='table' AND name='stripe_orders'");
+        if (stripeTable?.name) {
+          const order = await get('SELECT * FROM stripe_orders WHERE payment_id = ?', [paymentId]);
+          if (order && reconciliation && order.paid_at == null && order.activated_at == null && order.status !== 'paid'
+            && reconciliation.orderId === order.id && reconciliation.sessionId === order.session_id
+            && reconciliation.paymentId === payment.id && reconciliation.userId === payment.user_id
+            && Number(order.user_id) === payment.user_id && Number(order.payment_id) === payment.id
+            && reconciliation.amountMinor === Number(order.amount_minor) && reconciliation.currency === order.currency
+            && reconciliation.amountMinor === Math.round(Number(payment.amount) * 100) && reconciliation.currency === String(payment.currency).toLowerCase()
+            && reconciliation.status === 'expired') {
+            await run("UPDATE stripe_orders SET status='expired' WHERE id=?", [order.id]);
+            order.status = 'expired';
+          }
+          if (order && (order.paid_at != null || order.activated_at != null || !['expired', 'failed'].includes(order.status))) {
+            return { http: 409, body: { error: 'This request still has a paid or unresolved Stripe checkout. Reconcile the card payment before removing it.' } };
+          }
+        }
+        const timestamp = now();
+        const inserted = await run(
+          'INSERT INTO subscription_payment_archives (payment_id, archived_at, archived_by) VALUES (?, ?, ?) ON CONFLICT(payment_id) DO NOTHING',
+          [paymentId, timestamp, adminId]
+        );
+        if (inserted.changes) {
+          // The audit write must commit together with removal from the queue.
+          await run(`INSERT INTO subscription_audit_logs
+            (actor_id, actor_role, action, affected_type, affected_id, metadata, ip_address, created_at)
+            VALUES (?, 'admin', 'payment_deleted', 'payment', ?, ?, ?, ?)`,
+          [adminId, paymentId, JSON.stringify({ status: payment.status, amount: Number(payment.amount), currency: payment.currency, retainedForReconciliation: true, stripeCheckoutReconciled: Boolean(reconciliation) }), req.ip, timestamp]);
+        }
         return { http: 200, body: { message: 'Payment request deleted.' } };
       });
-
-      if (outcome.http === 200 && proofPath) {
-        const absolute = path.join(PROOF_DIR, path.basename(proofPath));
-        if (absolute.startsWith(PROOF_DIR)) fs.promises.unlink(absolute).catch(() => {});
-      }
       return res.status(outcome.http).json(outcome.body);
     } catch (error) {
       console.error('Failed to delete payment request:', error.message);
@@ -1611,7 +1655,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   // Exposed for sibling modules (e.g. the sandbox manager) so subscription
   // eligibility is evaluated in exactly one place.
-  return { activatePayment, paymentApprovedListeners, ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, logAudit, notify, onPaymentApproved };
+  return { activatePayment, paymentApprovedListeners, ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, maxActivationsFor, activeActivationCount, logAudit, notify, onPaymentApproved, setPaymentRemovalReconciler };
 }
 
 function maskAccount(accountNumber) {

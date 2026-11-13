@@ -28,7 +28,8 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
     return new Promise((resolve, reject) => {
       const url = new URL(config.backendUrl + path);
       const client = url.protocol === 'https:' ? https : http;
-      const payload = body ? JSON.stringify(body) : null;
+      const binary = Buffer.isBuffer(body);
+      const payload = body ? (binary ? body : JSON.stringify(body)) : null;
       const req = client.request({
         method,
         hostname: url.hostname,
@@ -37,9 +38,9 @@ function createTransport({ config, onCommand, onOpen, onClose }) {
         headers: {
           'X-Node-Id': config.nodeUid,
           'X-Node-Token': config.nodeToken,
-          ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {})
+          ...(payload ? { 'Content-Type': binary ? 'application/octet-stream' : 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {})
         },
-        timeout: 30000
+        timeout: binary ? 120000 : 30000
       }, res => {
         const chunks = [];
         res.on('data', chunk => chunks.push(chunk));

@@ -43,8 +43,27 @@ function normalizeError(error) {
   return error;
 }
 
-function createPostgresDatabase(databaseUrl) {
-  const pool = new Pool({ connectionString: databaseUrl });
+function createPostgresDatabase(databaseUrl, { timeouts = {} } = {}) {
+  function milliseconds(value, fallback) {
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+  }
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    // A disconnected database or blocked row must not hold the shared write
+    // queue forever. Server timeouts cancel the SQL, rather than only abandoning
+    // the HTTP response while a write continues in the background.
+    connectionTimeoutMillis: milliseconds(timeouts.connection ?? process.env.PG_CONNECTION_TIMEOUT_MS, 5000),
+    statement_timeout: milliseconds(timeouts.statement ?? process.env.PG_STATEMENT_TIMEOUT_MS, 15000),
+    lock_timeout: milliseconds(timeouts.lock ?? process.env.PG_LOCK_TIMEOUT_MS, 5000),
+    query_timeout: milliseconds(timeouts.query ?? process.env.PG_QUERY_TIMEOUT_MS, 20000),
+    keepAlive: true
+  });
+  // pg emits errors for idle pooled clients when PostgreSQL/network restarts.
+  // Without a listener EventEmitter terminates the entire website process.
+  pool.on('error', error => {
+    console.error('PostgreSQL idle connection lost:', error.code || 'CONNECTION_ERROR');
+  });
   // A transaction pins one pooled connection for the duration of the task, so
   // every query made inside it must use that same client.
   const transactionContext = new AsyncLocalStorage();
@@ -107,16 +126,22 @@ function createPostgresDatabase(databaseUrl) {
       // Nested calls already share the outer transaction.
       if (transactionContext.getStore()) return task();
       const client = await pool.connect();
+      let discard;
       try {
         await client.query('BEGIN');
         const result = await transactionContext.run({ client }, task);
         await client.query('COMMIT');
         return result;
       } catch (error) {
-        try { await client.query('ROLLBACK'); } catch { /* connection is already unusable */ }
+        // A client-side query timeout can leave a command in flight. Discard
+        // that connection so it cannot leak a late write into another request.
+        if (error.message === 'Query read timeout') discard = error;
+        else {
+          try { await client.query('ROLLBACK'); } catch (rollbackError) { discard = rollbackError; }
+        }
         throw error;
       } finally {
-        client.release();
+        client.release(discard);
       }
     },
     async run(sql, params, callback) {

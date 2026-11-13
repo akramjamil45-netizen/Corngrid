@@ -74,8 +74,11 @@ const SCHEMA = `
     updated_at INTEGER NOT NULL,
     deleted_at INTEGER
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sandbox_instances_active_user
+  DROP INDEX IF EXISTS idx_sandbox_instances_active_user;
+  CREATE INDEX IF NOT EXISTS idx_sandbox_instances_user
     ON sandbox_instances(user_id) WHERE deleted_at IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sandbox_instances_active_account
+    ON sandbox_instances(user_id, broker_server, mt5_account_number) WHERE deleted_at IS NULL;
   CREATE INDEX IF NOT EXISTS idx_sandbox_instances_node ON sandbox_instances(node_id);
   CREATE INDEX IF NOT EXISTS idx_sandbox_instances_status ON sandbox_instances(status);
   CREATE INDEX IF NOT EXISTS idx_sandbox_instances_account ON sandbox_instances(mt5_account_number);

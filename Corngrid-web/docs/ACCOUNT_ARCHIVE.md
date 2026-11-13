@@ -1,5 +1,9 @@
 # Account archive
 
+Users can now submit an account closure request in Settings → Profile, with
+administrator approval in Account requests. See [ACCOUNT_DELETION_REQUESTS.md](ACCOUNT_DELETION_REQUESTS.md).
+The approval calls this same archive mechanism and retains its existing behavior.
+
 Admin Archive replaces permanent account deletion. The legacy
 `DELETE /api/admin/users/:userId` endpoint also archives, protecting old clients
 from cascading deletion. New actions:

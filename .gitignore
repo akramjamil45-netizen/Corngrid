@@ -21,6 +21,9 @@ Corngrid-web/source/
 
 # Local deployment credentials and private runtime data
 Corngrid-web/agent/agent-config.json
+Corngrid-web/agent/update-trust.pem
+Corngrid-web/agent/agent-active-release.json
+Corngrid-web/agent/agent-update-failure.json
 Corngrid-web/storage/
 Corngrid-web/public/uploads/
 
@@ -51,3 +54,13 @@ marketing/agent-task-before-*.xml
 # Local MT5 broker verification dependencies
 Corngrid-web/agent/broker-python/
 **/__pycache__/
+
+marketing/second-vps-install-cache/
+
+# Local VPS audit reports and Remote Desktop setup/session artifacts
+marketing/second-vps-*.json
+marketing/second-vps-*.png
+marketing/second-vps-*.txt
+marketing/second-vps-*.rdp
+marketing/remote-sandbox-*.txt
+marketing/remote-sandbox-desktop.png

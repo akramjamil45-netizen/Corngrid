@@ -72,9 +72,9 @@ async function createFixture() {
   const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, mt5.authenticateInstallation);
   await subscriptionApi.ready();
 
-  const sandbox = createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret });
-  await sandbox.ready;
   const storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corngrid-partner-test-'));
+  const sandbox = createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret, strategyStorageDir:path.join(storageDir,'_deployment') });
+  await sandbox.ready;
   const partner = createPartnerSystem(app, db, {
     verifyToken, adminAuth,
     events: sandbox.events, nodes: sandbox.nodes, crypto: sandbox.crypto,
@@ -82,6 +82,7 @@ async function createFixture() {
     storageDir,
     authenticateNodeRequest: sandbox.nodeApi.authenticateNodeRequest
   });
+  await partner.ready;
 
   const server = await new Promise(resolve => {
     const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
@@ -96,6 +97,10 @@ async function createFixture() {
   const adminToken = jwt.sign({ sub: 'admin', role: 'admin' }, jwtSecret);
 
   const request = async (route, { token, method = 'GET', body, headers = {} } = {}) => {
+    if(token===adminToken && /\/api\/admin\/ea-submissions\/\d+\/(approve|publish)$/.test(route) && !body){
+      const proof=await partner.publication.inspect(Number(route.split('/')[4]));
+      body={reviewDigest:proof?.reviewDigest};
+    }
     if(route==='/api/partner/register'&&body&&!Object.hasOwn(body,'agreement')){
       const terms=require('../partner/partner-terms');
       body={...body,agreement:{accepted:true,authority:true,version:terms.document.version,termsHash:terms.hash,language:'en',signerName:'Test Developer'}};
@@ -117,6 +122,8 @@ async function createFixture() {
 }
 
 const VALID_PRESETS = [{ symbol: 'XAUUSD', name: 'GridMaster.set', contentBase64: Buffer.from('TakeProfit=100\r\n').toString('base64') }];
+const EX5_BYTES=Buffer.alloc(128,1);EX5_BYTES.write('EX5',0,'ascii');EX5_BYTES[3]=2;
+const EX5_FILE={name:'reviewed.ex5',contentBase64:EX5_BYTES.toString('base64')};
 
 test('partner agreements require explicit current consent and preserve private immutable receipts',async()=>{
  const f=await createFixture();const {request,partnerToken,traderToken,adminToken,db}=f;
@@ -398,7 +405,7 @@ test('partner registration, EA submission, scanning, and review workflow', async
       token: partnerToken, method: 'POST',
       body: {
         name: 'Grid Master', version: '1.0', description: 'A grid trading EA for XAUUSD.',
-        symbols: 'XAUUSD', presets: VALID_PRESETS, files: [{ name: 'GridMaster.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }]
+        symbols: 'XAUUSD', presets: VALID_PRESETS, files: [EX5_FILE, { name: 'GridMaster.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }]
       }
     });
     assert.equal(submitted.status, 201);
@@ -462,7 +469,7 @@ test('commission generation, idempotency, approval, and payout settlement', asyn
     assert.equal((await request('/api/admin/partner-applications/1/review', { token: adminToken, method: 'POST', body: { status: 'approved' } })).status, 200);
     const submitted = await request('/api/partner/submissions', {
       token: partnerToken, method: 'POST',
-      body: { name: 'Grid Master', version: '1.0', description: 'A grid trading EA.', presets: VALID_PRESETS, files: [{ name: 'g.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
+      body: { name: 'Grid Master', version: '1.0', description: 'A grid trading EA.', presets: VALID_PRESETS, files: [EX5_FILE, { name: 'g.mq5', contentBase64: Buffer.from(VALID_MQ5).toString('base64') }] }
     });
     const list = await request('/api/admin/ea-submissions', { token: adminToken });
     const sub = list.body.submissions.find(s => s.submissionUid === submitted.body.submissionUid);
@@ -618,7 +625,7 @@ test('partner presets remain tied to their own reviewed EA and never fall back t
   }
   const strategies=[];
   for(const [token,value] of [[partnerToken,111],[traderToken,222]]){
-   const submitted=await request('/api/partner/submissions',{token,method:'POST',body:{name:'EA '+value,version:'1.0',description:'Independent partner EA preset.',files:[{name:'ea.mq5',contentBase64:Buffer.from(VALID_MQ5).toString('base64')}],presets:[{symbol:'EURUSD',name:'ea.set',contentBase64:Buffer.from('TakeProfit='+value+'\r\n').toString('base64')}]}});
+   const submitted=await request('/api/partner/submissions',{token,method:'POST',body:{name:'EA '+value,version:'1.0',description:'Independent partner EA preset.',files:[EX5_FILE,{name:'ea.mq5',contentBase64:Buffer.from(VALID_MQ5).toString('base64')}],presets:[{symbol:'EURUSD',name:'ea.set',contentBase64:Buffer.from('TakeProfit='+value+'\r\n').toString('base64')}]}});
    assert.equal(submitted.status,201);
    const row=await get('SELECT * FROM ea_submissions WHERE submission_uid=?',[submitted.body.submissionUid]);
    if(value===111)assert.equal((await request('/api/partner/submissions/'+row.submission_uid,{token:traderToken})).status,404);

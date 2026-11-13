@@ -40,7 +40,7 @@
           <action type="Rewrite" url="en/index.html" />
         </rule>
         <rule name="CornGrid Node backend" stopProcessing="true">
-          <match url="^(api/.*|ws/.*|sandbox/?|sandbox\.js|admin-sandbox\.js|partner/?|partner\.html|partner\.js|partner-payouts\.css|login/?|login\.html|admin/?|admin\.html|admin\.css|admin\.js|dashboard\.html|dashboard\.css|dashboard\.js|market\.js|economic-news\.js|feed\.js|stripe-checkout\.js|vendor/.*|uploads/.*|portfolios/?|portfolio/.*|public-portfolios(?:\.html|\.js)?|public-portfolio(?:\.html|\.js)?|reset-password(?:\.html|\.js)?|style\.css|login\.js|manifest\.webmanifest|offline\.html|pwa\.(?:css|js)|public-shell\.css|images/pwa-(?:192|512)\.png|favicon\.ico)$" />
+          <match url="^(api/.*|ws/.*|sandbox/?|sandbox\.js|admin-sandbox\.js|partner/?|partner\.html|partner\.js|partner-payouts\.css|login/?|login\.html|admin/?|admin\.html|admin\.css|admin\.js|dashboard\.html|dashboard\.css|dashboard\.js|market\.js|economic-news\.js|feed\.js|stripe-checkout\.js|marketplace(?:-ui)?\.js|marketplace\.css|admin-marketplace\.js|account-requests\.(?:css|js)|vendor/.*|uploads/.*|portfolios/?|portfolio/.*|public-portfolios(?:\.html|\.js)?|public-portfolio(?:\.html|\.js)?|reset-password(?:\.html|\.js)?|style\.css|login\.js|manifest\.webmanifest|offline\.html|pwa\.(?:css|js)|public-shell\.css|images/pwa-(?:192|512)\.png|favicon\.ico)$" />
           <action type="Rewrite" url="http://127.0.0.1:3000/{R:0}" />
         </rule>
       </rules>

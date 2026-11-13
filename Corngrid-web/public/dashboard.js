@@ -51,7 +51,7 @@
 
 (() => {
   const API = '/api';
-  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', subscription: 'Subscription', sandbox: 'Sandbox', partner: 'Partner Program', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
+  const pageNames = { overview: 'Overview', accounts: 'MT5 Accounts', positions: 'Open Positions', history: 'Trade History', monitoring: 'EA Monitoring', subscription: 'Subscription', sandbox: 'Sandbox', partner: 'Partner Program', marketplace: 'Marketplace', 'partner-marketplace': 'Marketplace Management', chat: 'Terminal Chat', downloads: 'Downloads', market: 'Market Overview', economic: 'Economic News', feed: 'Live Feed', settings: 'Settings' };
   const state = { page: 'overview', period: '30d', positions: [], trades: [], positionTotal: 0, tradeTotal: 0, positionPage: 0, tradePage: 0, pageSize: 20, profile: null, accounts: [], overviewAccountId: localStorage.getItem('corngrid_overview_account_id') || '', pairingTimer: null, sharing: { isPublic: false, shareUrl: null }, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', dateFormat: 'locale', positionSearchTimer: null, tradeSearchTimer: null, chat: { peer: null, supportActive: false, mode: 'conversations', mobileShowConversation: false, searchTimer: null, searchRequestId: 0, historyRequestId: 0, conversationSignature: '', messages: [] } };
   const statCounters = new WeakMap();
   const statUpdateTimers = new WeakMap();
@@ -360,6 +360,7 @@
         button.title = item.filename + ' · ' + item.version;
       })).catch(error => toast(error.message, 'error'));
     }
+    if (name === 'settings') window.CornGridAccountRequests?.openUser();
     if (name === 'subscription') loadSubscription();
     if (name === 'chat') {
       setChatMobileView();
@@ -375,6 +376,9 @@
     if (name === 'sandbox' && window.CornGridSandbox) window.CornGridSandbox.onOpen();
     if (name !== 'partner' && window.CornGridPartner) window.CornGridPartner.onClose();
     if (name === 'partner' && window.CornGridPartner) window.CornGridPartner.onOpen();
+    if (name !== 'marketplace') window.CornGridMarketplace?.onClose();
+    if (name === 'marketplace') window.CornGridMarketplace?.onOpen();
+    if (name === 'partner-marketplace') window.CornGridMarketplace?.onManageOpen();
   }
 
   function setChatMobileView(showConversation = state.chat.mobileShowConversation) {
@@ -1623,7 +1627,10 @@
     document.body.classList.toggle('theme-light', light);
   }
 
-  $$('.nav-item[data-page]').forEach(item => item.addEventListener('click', () => showPage(item.dataset.page)));
+  $$('.nav-item[data-page]').forEach(item => item.addEventListener('click', () => {
+    if (['marketplace','partner-marketplace'].includes(item.dataset.page)) history.replaceState(null,'','#'+item.dataset.page);
+    showPage(item.dataset.page);
+  }));
   $('#mobile-menu').addEventListener('click', () => {
     const open = !$('#sidebar').classList.contains('is-open');
     setSidebarOpen(open);
@@ -1917,8 +1924,8 @@
   loadProfile();
   loadPortfolioSharing();
   const openLinkedPage = () => {
-    const page = window.location.hash.slice(1);
-    if (['subscription', 'sandbox', 'partner'].includes(page)) showPage(page);
+    const page = window.location.hash.slice(1).split('/')[0];
+    if (['subscription', 'sandbox', 'partner', 'marketplace', 'partner-marketplace'].includes(page)) showPage(page);
   };
   window.addEventListener('hashchange', openLinkedPage);
   // Public CTAs open existing menus once the dashboard modules have loaded.

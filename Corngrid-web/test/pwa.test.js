@@ -62,7 +62,7 @@ test('service worker never intercepts API responses, private uploads or mutation
   const handlers = {};
   const context = { self: { location: { origin: 'https://corngrid.com' }, addEventListener: (name, fn) => handlers[name] = fn }, URL, Set };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../sw.js'), 'utf8'), context);
-  for(const [method, route] of [['GET','/api/public/portfolios'],['GET','/api/me'],['GET','/api'],['GET','/uploads/private.png'],['POST','/api/login']]) {
+  for(const [method, route] of [['GET','/api/public/portfolios'],['GET','/api/me'],['GET','/api'],['GET','/uploads/private.png'],['POST','/api/login'],['PATCH','/api/admin/sandbox/nodes/4/capacity'],['PUT','/api/admin/settings'],['DELETE','/api/admin/resources']]) {
     let intercepted = false;
     handlers.fetch({ request: { method, url: 'https://corngrid.com'+route }, respondWith() { intercepted = true; } });
     assert.equal(intercepted,false,route);

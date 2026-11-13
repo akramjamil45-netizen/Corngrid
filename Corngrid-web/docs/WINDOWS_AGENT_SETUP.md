@@ -1,140 +1,148 @@
 # Windows Sandbox Agent Setup
 
-The CornGrid Sandbox Agent runs on each Windows server that hosts MT5 sandboxes. It connects **outbound only** to the CornGrid backend — no inbound firewall rules or port forwarding are required.
+Reviewed against the repository on **13 November 2026**. For the complete Malay
+VPS installation walkthrough, see [VPS_NODE_INSTALLATION.md](VPS_NODE_INSTALLATION.md).
+This guide replaces the old unconditional SYSTEM/NSSM startup recommendation.
 
-## Prerequisites
+## Requirements and package
 
-- Windows Server 2019+ / Windows 10+ (64-bit)
-- Node.js ≥ 20.17.0 (LTS) — https://nodejs.org
-- The MetaTrader 5 program files placed manually at `C:\CornGrid\Sandbox\MT5\`
-  (copy the installed `terminal64.exe` folder contents; include `metaeditor64.exe` on test nodes for EA compilation)
-- Outbound HTTPS (443) access to the CornGrid backend
-- 64-bit Python 3 and its MetaTrader5 package for broker login/symbol verification:
+- Windows x64 VPS with Desktop Experience/RDP and an English MT5 program base.
+  The broker discovery helper controls MT5 windows; Linux/Wine and Server Core
+  are not validated by this project.
+- Use a supported Node.js LTS. Node.js 24 LTS is the documented baseline; the
+  package minimum >=20.17.0 is not an instruction to install EOL Node.js 20.
+- Python 3.13 x64 and the MetaTrader5 Python package are required for broker
+  login/symbol preflight. Node Online does not prove these tools are installed.
+- Outbound HTTPS/WSS to the public CornGrid origin and connectivity to brokers.
+  No inbound agent port, copied database, IIS or backend secrets are required.
 
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File .\agent\setup-broker-tools.ps1 -PythonPath C:\Python313\python.exe
-  ```
+Build the current bundle from the Website repository root:
 
-  Set `mt5PythonPath` in `agent-config.json` to that interpreter. Use an English MT5 base terminal. The agent drives MT5's own broker directory in the same Windows account/session as the terminal; it does not create a trading account.
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\Corngrid-web\scripts\build-node-agent.ps1'
 
-## Broker discovery and symbol mapping
+The allowlisted ZIP contains 23 agent files, five guides and a per-file SHA-256
+manifest. It excludes live config, node_modules, Python dependencies, logs and
+customer runtime data. Do not copy an old node's identity to a new VPS.
 
-Before starting an EA on a new deployment, the agent launches an isolated terminal with algorithmic trading disabled, searches MT5's broker directory, verifies the requested account/server with the saved trading password, and reads that account's symbols. A failed login, an investor-only password, a different account/server, or an ambiguous symbol stops deployment with an error. There is no automatic switch to another account or numbered server.
+## Fresh VPS installation
 
-The actual server spelling returned by MT5 seeds both startup and CornGrid dashboard credentials. `XAUUSD` can resolve to a unique broker variant such as `XAUUSD.c`, `XAUUSDm`, or `GOLD`; the same suffix matching applies to EURUSD, GBPUSD and USDJPY. Exact symbols take priority. Disabled, close-only, one-direction and custom instruments are excluded. Multiple eligible variants require an explicit mapping:
+1. Extract CornGrid-Node-Agent.zip under C:\CornGrid. Create separate directories
+   Sandbox\MT5, Sandbox\Users, Sandbox\AgentData and Sandbox\BrokerCaches.
+2. Copy the complete clean MT5 program directory into Sandbox\MT5; use English
+   UI for the broker discovery helper. Test nodes also need metaeditor64.exe.
+3. Register a new node in Admin > Sandbox Management; retain its one-time token
+   and activate it. A hosting node must not be marked as a test node.
+4. In C:\CornGrid\agent, install dependencies and create local config:
 
-```json
-{
-  "mt5PythonPath": "C:\\Python313\\python.exe",
-  "brokerCacheDir": "C:\\CornGrid\\Sandbox\\BrokerCaches",
-  "brokerSymbolMaps": {
-    "Broker-Demo": { "XAUUSD": "XAUUSDm", "EURUSD": "EURUSDm" }
-  },
-  "brokerAccountSymbolMaps": {
-    "Broker-Demo": { "12345678": { "XAUUSD": "XAUUSD.c" } }
-  }
-}
-```
+       npm.cmd ci --omit=dev
+       Copy-Item .\agent-config.example.json .\agent-config.json
+       powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-broker-tools.ps1 -PythonPath 'C:\Python313\python.exe'
 
-Account mappings override server mappings and must exist in the account's live symbol list. The shared cache contains only `config/servers.dat`, never account databases, passwords or dashboard keys. Missing caches trigger discovery again. `config/broker-resolution.json` records the verified server/symbol for each sandbox without credentials. Existing running terminals are adopted during an agent upgrade; idle legacy terminals are verified on their next start. Keep Python tools and the MT5 base updated when broker builds change.
+5. Set backendUrl to the public HTTPS origin, the new nodeUid/nodeToken, absolute
+   local MT5/work paths and mt5PythonPath to that exact Python x64 interpreter.
+   Do not use localhost for another VPS. Environment CORNGRID_* values override
+   JSON; remove stale overrides if applicable. Restrict config access to the
+   actual task account and authorized administrators/SYSTEM.
+6. Prepare EA WebRequest settings on this VPS under the same Windows account.
+   CornGrid EA uses https://corngrid.com, https://control.corngrid.com and
+   https://nfs.faireconomy.media. Use MT5's actual Open Data Folder path for
+   webRequestSettingsSource. Protected settings copied from another account or
+   computer must not be assumed valid.
+7. Optional brokerServerDataDirs profiles seed config/servers.dat only. The
+   agent still verifies account/server and live symbols via Python. Exact symbols
+   or unique variants resolve automatically; ambiguous variants require
+   brokerSymbolMaps, with brokerAccountSymbolMaps taking precedence per account.
 
-Official API references: [initialize](https://www.mql5.com/en/docs/python_metatrader5/mt5initialize_py), [symbols_get](https://www.mql5.com/en/docs/python_metatrader5/mt5symbolsget_py).
+## Diagnostics and manual acceptance
 
-## Directory layout
+    node .\check-installation.js --online
+    node .\agent-launcher.js --trust-update-key
+    node .\agent-launcher.js
 
-```
-C:\CornGrid\Sandbox\
-  MT5\            <- base terminal files (you place these manually)
-  Users\          <- per-user isolated instances (agent-managed)
-  AgentData\      <- downloaded EAs, test workspaces, logs
-```
+Run the trust command once, after configuring the central signed-release
+publisher. Preserve an existing pin and skip that command on subsequent starts.
+Keep a new node Pending until runtime/resource checks pass. Online proves agent
+connectivity; enable hosting only for the controlled demo acceptance below when
+the machine has enough memory and disk. A capacity setting does not reserve RAM.
 
-## Install
+Resolve FAIL results before starting. Add --test-node to check MetaEditor.
+Diagnostics import Python/MetaTrader5 without initializing a terminal and check
+HTTPS health plus read-only node authentication. They do not send heartbeats,
+consume commands, attach a live node WebSocket or start trading. They do not prove
+ACLs, WSS, broker login, protected WebRequest settings or EA runtime behavior.
 
-1. Copy the `agent/` folder to the server, e.g. `C:\CornGrid\agent\`.
+The actual agent should validate the MT5 base and authenticate over WSS. HTTPS
+polling is the fallback. Admin should show Active and Online with fresh metrics;
+heartbeats normally arrive every 15 seconds and become offline after ~90 seconds.
+Proxy/WAF challenges must not block authenticated agent API or WebSocket paths.
 
-2. Install dependencies:
+Deploy one demo sandbox and verify Assigned node, broker identity, chart symbol,
+loaded EA/preset, Journal/Experts and account telemetry. Marketplace publication
+does not add CornGrid telemetry support to a partner EA. Existing subscriptions
+and shared activation/node capacity limits still apply. Adding a node does not
+move existing terminals.
 
-   ```powershell
-   cd C:\CornGrid\agent
-   npm install --omit=dev
-   ```
+## Startup task
 
-3. Create `agent-config.json` (copy `agent-config.example.json`):
+Agent 1.2 tasks start `agent-launcher.js`. Pin the central update public key once
+with `node .\agent-launcher.js --trust-update-key` before task installation. For
+legacy task handover, central release publication and rollback, see
+[NODE_AUTO_UPDATES.md](NODE_AUTO_UPDATES.md). A raw `node agent.js` run remains a
+manual diagnostic mode and does not automatically activate releases.
 
-   ```json
-   {
-     "backendUrl": "https://corngrid.com",
-     "nodeUid": "node_xxxxxxxxxxxxxxxxxx",
-     "nodeToken": "cgn_xxxxxxxx...",
-     "mt5BaseDir": "C:\\CornGrid\\Sandbox\\MT5",
-     "sandboxUsersDir": "C:\\CornGrid\\Sandbox\\Users",
-     "agentDataDir": "C:\\CornGrid\\Sandbox\\AgentData",
-     "heartbeatIntervalMs": 15000
-   }
-   ```
+Stop the manual agent first. From elevated PowerShell under the same Windows
+account used for MT5 setup:
 
-   The `nodeUid`/`nodeToken` come from the admin panel (Sandbox Management → Add node). The token is shown **once**.
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-service.ps1 -Mode Interactive
+    Get-ScheduledTask -TaskName CornGridSandboxAgent
+    Get-ScheduledTaskInfo -TaskName CornGridSandboxAgent
 
-4. Restrict the config file (it contains the node token):
+The current VPS walkthrough uses `-TaskName CornGridSandboxManagedAgent` to make
+the managed task explicit. The installer default above remains
+`CornGridSandboxAgent`; use your actual task name for diagnostics and maintenance.
+The process-scoped ExecutionPolicy argument avoids changing machine policy.
 
-   ```powershell
-   icacls C:\CornGrid\agent\agent-config.json /inheritance:r /grant:r "SYSTEM:F" "Administrators:F"
-   ```
+Interactive is now the default. It uses an AtLogOn trigger, the selected user,
+Interactive logon, automatic restart, no execution time limit and IgnoreNew.
+A second trigger retries every minute indefinitely when the task has exited;
+IgnoreNew prevents a second task instance while the agent is running. This also
+recovers application exits that Windows treats as completed tasks rather than
+task failures. Disable the task before an intentional maintenance stop.
+Use -UserId 'VPSNAME\CornGridAgent' to choose a different prepared user. That user
+must be logged on. After reboot, log in; disconnecting RDP differs from signing
+out. Check provider/RDP session policies and test actual reboot recovery.
 
-5. Register the agent to start at boot (elevated PowerShell):
+- -WhatIf previews registration without registering or starting a task.
+- -NoStart skips the immediate start; enabled scheduled triggers still apply.
+- Existing registrations are rejected unless -Replace is explicitly supplied.
+- A Running existing task is always rejected; the installer does not stop it.
 
-   ```powershell
-   cd C:\CornGrid\agent
-   npm run install:task
-   ```
+SYSTEM at boot is an explicit advanced option: -Mode System. Existing installed
+tasks are not changed by copying these files. SYSTEM/NSSM uses another session;
+Online alone cannot validate broker window automation or protected WebRequest.
+Test under that exact context before hosting users. Installing NSSM does not
+resolve desktop/session dependencies by itself.
 
-   This registers a Scheduled Task (`CornGridSandboxAgent`) running as SYSTEM with automatic restart on failure.
+## Updates, recovery and removal
 
-   **Production alternative — NSSM (recommended):**
+Back up local config. Plan maintenance before stopping tasks or switching users;
+forced task termination may affect child processes. Replace package code while
+preserving local identity and Sandbox\Users. Reinstall locked dependencies if
+the lockfile changed. Run diagnostics, restart the agent and verify each terminal.
 
-   ```powershell
-   nssm install CornGridSandboxAgent "C:\Program Files\nodejs\node.exe" "C:\CornGrid\agent\agent.js"
-   nssm set CornGridSandboxAgent AppDirectory C:\CornGrid\agent
-   nssm set CornGridSandboxAgent AppRestartDelay 5000
-   nssm start CornGridSandboxAgent
-   ```
+The agent reconciles surviving processes and requests assigned running/starting
+instances for recovery. Recovery still depends on valid local instance files,
+account permissions and broker connectivity. Stopped/suspended/deleted instances
+must not be auto-started. Test reboot behavior rather than assuming recovery.
 
-6. Verify: in the admin panel the node should show **online** within ~15 seconds, with CPU/RAM/disk metrics.
+uninstall-service.ps1 removes the default scheduled task. Before deleting folders
+or a backend node, explicitly migrate/retire its sandboxes; uninstalling the task
+is not authorization to delete user terminal data.
 
-## Running under a restricted account
+## References
 
-For strongest isolation, run the agent (and therefore the MT5 terminals) under a dedicated low-privilege Windows account instead of SYSTEM:
-
-1. Create `CornGridAgent` user, grant it full control only over `C:\CornGrid\Sandbox\` and `C:\CornGrid\agent\`.
-2. Deny that account access to other users' profile directories.
-3. Register the task/service under that account.
-
-## Updating the agent
-
-1. Stop the task/service.
-2. Replace the `agent/` files.
-3. `npm install --omit=dev`
-4. Start the task/service. Running terminals are adopted automatically (the agent reconciles by scanning `sandboxUsersDir`).
-
-## Uninstall
-
-```powershell
-npm run uninstall:task   # removes the scheduled task
-```
-
-Then delete the directories. Deleting a node in the admin panel requires its sandboxes to be reassigned or deleted first.
-
-## Troubleshooting
-
-- **Node shows offline:** check outbound connectivity to the backend, and that the token in `agent-config.json` matches (rotate it in the admin panel if unsure).
-- **"MT5 terminal not found":** place the MT5 program files in `mt5BaseDir` and restart the agent.
-- **Deploy fails immediately:** check the admin Deployment Logs tab — the agent uploads its log buffer with every heartbeat.
-
-## Required EA chart and dashboard sync startup
-
-Users choose XAUUSD, EURUSD, GBPUSD or USDJPY when activating a sandbox; XAUUSD is the default. The validated pair is saved in the deployment payload and used for the EA chart. Older deployment payloads can use `startupSymbol` in `agent-config.json` (or `CORNGRID_STARTUP_SYMBOL`), otherwise they default to XAUUSD. Deployment generates `config/sandbox-startup.ini` and launches MT5 with `/portable /config:<path>`. Its `[StartUp]` section attaches the published EA and loads `MQL5/Presets/corngrid-sandbox.set`, which enables dashboard sync. The installation credential is provisioned in the EA's existing `CGDash_*.key` format; the accompanying settings fingerprint matches the EA's credential-reset checks. Credentials must never be logged.
-
-A running terminal process alone does not confirm broker login or EA telemetry. Confirm broker authorization and EA loading in the terminal journals, then verify the account heartbeat in the dashboard. The API origin must also be allowed in the terminal's WebRequest settings.
-
-Older instances need their startup configuration generated from their original deployment payload before restarting; restarting the agent alone does not retrofit a chart or preset. Keep the existing account, strategy binary and installation credential when repairing an instance.
+- [Node release status](https://nodejs.org/en/about/previous-releases)
+- [Microsoft task principal](https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtaskprincipal)
+- [MetaTrader5 Python](https://www.mql5.com/en/docs/python_metatrader5)
+- [MT5 portable startup](https://www.metatrader5.com/en/terminal/help/start_advanced/start)
+- [EA publication](PARTNER_PUBLICATION.md)

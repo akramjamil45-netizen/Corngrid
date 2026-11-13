@@ -13,15 +13,17 @@ const { createSandboxApi } = require('./sandbox-api');
 const { createSandboxAdminApi } = require('./sandbox-admin-api');
 const { createSandboxNodeApi } = require('./sandbox-node-api');
 const { createSandboxRealtime } = require('./sandbox-realtime');
+const { createNodeUpdates } = require('./node-updates');
 
-function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret }) {
+function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret, strategyStorageDir }) {
   const crypto = createSandboxCrypto();
   const events = createSandboxEvents({ db });
   const nodes = createSandboxNodes({ db, events });
-  const manager = createSandboxManager({ db, nodes, events, crypto, subscriptions: subscriptionApi });
-  const api = createSandboxApi({ db, manager, rateLimit });
-  const adminApi = createSandboxAdminApi({ db, nodes, events, manager, subscriptions: subscriptionApi, crypto });
-  const nodeApi = createSandboxNodeApi({ db, nodes, events, manager, rateLimit });
+  const updates = createNodeUpdates();
+  const manager = createSandboxManager({ db, nodes, events, crypto, subscriptions: subscriptionApi, strategyStorageDir });
+  const api = createSandboxApi({ db, manager, rateLimit, strategyStorageDir });
+  const adminApi = createSandboxAdminApi({ db, nodes, events, manager, subscriptions: subscriptionApi, crypto, updates });
+  const nodeApi = createSandboxNodeApi({ db, nodes, events, manager, rateLimit, strategyStorageDir, updates });
   const realtime = createSandboxRealtime({ db, nodes, events, adminAuth });
 
   // SQLite: self-apply the schema (idempotent). PostgreSQL: migrations are
@@ -36,6 +38,10 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
         console.error('Sandbox tables are missing. Apply migrations/postgres/0005_sandbox.sql before using the sandbox system.');
         return;
       }
+      const index = await new Promise((resolve, reject) => db.get(
+        "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_sandbox_instances_active_account'", [],
+        (error, row) => error ? reject(error) : resolve(row)));
+      if (!index) throw new Error('Apply migrations/postgres/0014_multiple_sandboxes.sql before starting the sandbox system.');
       await seedDefaultStrategy(db);
     } else {
       await ensureSchema(db);
@@ -47,7 +53,7 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
   adminApi.registerRoutes(app, adminAuth.verifyToken);
   nodeApi.registerRoutes(app);
 
-  return { ready, crypto, events, nodes, manager, realtime, nodeApi };
+  return { ready, crypto, events, nodes, manager, realtime, nodeApi, updates };
 }
 
 module.exports = { createSandboxSystem };

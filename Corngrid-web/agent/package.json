@@ -1,10 +1,10 @@
 {
   "name": "corngrid-sandbox-agent",
-  "version": "1.1.0",
+  "version": "1.2.2",
   "description": "CornGrid Windows Sandbox Agent - manages isolated MT5 instances on a sandbox node",
   "main": "agent.js",
   "scripts": {
-    "start": "node agent.js",
+    "start": "node agent-launcher.js",
     "install:task": "powershell -ExecutionPolicy Bypass -File install-service.ps1",
     "uninstall:task": "powershell -ExecutionPolicy Bypass -File uninstall-service.ps1"
   },

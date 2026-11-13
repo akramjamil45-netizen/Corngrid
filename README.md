@@ -1,5 +1,8 @@
 # CornGrid Website
 
+For a separate Windows MT5 hosting VPS, use [VPS node installation](Corngrid-web/docs/VPS_NODE_INSTALLATION.md).
+Build the credential-free `CornGrid-Node-Agent.zip` with `Corngrid-web/scripts/build-node-agent.ps1`.
+
 CornGrid is a multi-page website with a static marketing site at the repository root and an Express 5 application in `Corngrid-web`. The app serves the existing SQLite-backed user dashboard, public portfolios, administrator view, and authentication routes. The PWA reuses those pages and APIs; it does not introduce a separate account system or database.
 
 ## Run and test

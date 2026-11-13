@@ -9,5 +9,7 @@
   "mt5PythonPath": "C:\\Python313\\python.exe",
   "brokerSymbolMaps": {},
   "brokerAccountSymbolMaps": {},
-  "heartbeatIntervalMs": 15000
+  "heartbeatIntervalMs": 15000,
+  "autoUpdateEnabled": true,
+  "autoUpdateIntervalMs": 300000
 }

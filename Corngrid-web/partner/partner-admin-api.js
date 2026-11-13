@@ -5,11 +5,12 @@
 // Every mutation is written to the subscription audit log.
 
 const crypto = require('crypto');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { exclusive } = require('../db-write');
 
-function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionService, storageDir, now = () => Date.now() } = {}) {
+function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionService, storageDir, publication, rateLimit, now = () => Date.now() } = {}) {
   const SUBMISSIONS_DIR = storageDir || path.join(__dirname, '..', 'storage', 'ea-submissions');
 
   function run(sql, params = []) {
@@ -164,7 +165,7 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
         try {
           files = fs.readdirSync(dir).map(name => ({ name, size: fs.statSync(path.join(dir, name)).size }));
         } catch { /* directory missing */ }
-        res.json({ submission: publicSubmissionAdmin(row),
+        res.json({ submission: publicSubmissionAdmin(row), publication: await publication.inspect(id),
           presets: await all('SELECT symbol,file_name AS name,content_text AS text FROM ea_submission_presets WHERE submission_id=?',[id]), versions, testReports: reports, files });
       } catch (error) {
         console.error('Failed to load submission detail:', error.message);
@@ -204,7 +205,8 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
       const timestamp = now();
       const updates = { status: to, updated_at: timestamp, ...buildUpdates(row) };
       const assignments = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-      await run(`UPDATE ea_submissions SET ${assignments} WHERE id = ?`, [...Object.values(updates), id]);
+      const changed=await run(`UPDATE ea_submissions SET ${assignments} WHERE id = ? AND status = ? AND deleted_at IS NULL`, [...Object.values(updates), id, row.status]);
+      if(!changed.changes)return res.status(409).json({error:'The submission changed. Refresh the review.'});
       await subscriptions.logAudit(null, 'admin', auditAction, 'ea_submission', id,
         { submissionUid: row.submission_uid, from: row.status, to, ...extra }, extra.reason || null, req.ip);
       if (eventType) {
@@ -218,7 +220,7 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
       if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
       try {
         await transition(req, res, {
-          id, from: ['pending_review'], to: 'under_review',
+          id, from: ['pending_review', 'testing_failed'], to: 'under_review',
           auditAction: 'ea_review_started',
           buildUpdates: () => ({ reviewed_by: null, reviewed_at: now() })
         });
@@ -228,70 +230,30 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
       }
     });
 
-    app.post('/api/admin/ea-submissions/:id/approve', verifyAdminToken, async (req, res) => {
-      const id = Number.parseInt(req.params.id, 10);
-      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
-      try {
-        await transition(req, res, {
-          id, from: ['testing_passed', 'under_review'], to: 'approved',
-          auditAction: 'ea_approved', eventType: 'EA_APPROVED',
-          buildUpdates: () => ({ reviewed_at: now(), rejection_reason: null })
-        });
-      } catch (error) {
-        console.error('Failed to approve submission:', error.message);
-        res.status(500).json({ error: 'Unable to approve the submission.' });
-      }
+    const publicationError = (res,error) => {
+      if(error.status)return res.status(error.status).json({error:error.message,code:error.code});
+      console.error('EA publication failed:',error.code||error.name);
+      res.status(500).json({error:'Unable to publish the reviewed EA release. Please retry.'});
+    };
+    app.post('/api/admin/ea-submissions/:id/approve',verifyAdminToken,async(req,res)=>{
+      try { res.json(await publication.approve(Number(req.params.id),{actor:{role:'admin',id:req.admin?.id||'admin'},reviewDigest:req.body?.reviewDigest})); }
+      catch(error){publicationError(res,error);}
     });
-
-    app.post('/api/admin/ea-submissions/:id/reject', verifyAdminToken, async (req, res) => {
-      const id = Number.parseInt(req.params.id, 10);
-      const reason = typeof (req.body && req.body.reason) === 'string' ? req.body.reason.trim().slice(0, 1000) : '';
-      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
-      if (reason.length < 5) return res.status(400).json({ error: 'A rejection reason of at least 5 characters is required.' });
-      try {
-        await transition(req, res, {
-          id, from: ['pending_review', 'under_review', 'testing', 'testing_failed', 'testing_passed'], to: 'rejected',
-          auditAction: 'ea_rejected', eventType: 'EA_REJECTED', extra: { reason },
-          buildUpdates: () => ({ reviewed_at: now(), rejection_reason: reason })
-        });
-      } catch (error) {
-        console.error('Failed to reject submission:', error.message);
-        res.status(500).json({ error: 'Unable to reject the submission.' });
-      }
+    app.post('/api/admin/ea-submissions/:id/publish',verifyAdminToken,async(req,res)=>{
+      try { res.json(await publication.approve(Number(req.params.id),{actor:{role:'admin',id:req.admin?.id||'admin'},reviewDigest:req.body?.reviewDigest})); }
+      catch(error){publicationError(res,error);}
     });
-
-    // Publish: create the trading_strategies row so the EA appears in the
-    // user strategy selection. Only approved submissions can be published.
-    app.post('/api/admin/ea-submissions/:id/publish', verifyAdminToken, async (req, res) => {
-      const id = Number.parseInt(req.params.id, 10);
-      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid submission.' });
-      try {
-        const row = await get('SELECT * FROM ea_submissions WHERE id = ? AND deleted_at IS NULL', [id]);
-        if (!row) return res.status(404).json({ error: 'Submission not found.' });
-        if (row.status !== 'approved') {
-          return res.status(409).json({ error: 'Only approved submissions can be published.' });
-        }
-        const timestamp = now();
-        const presetCount = await get('SELECT COUNT(*) AS count FROM ea_submission_presets WHERE submission_id=?', [id]);
-        if (!Number(presetCount.count)) return res.status(400).json({ error: 'At least one reviewed .set preset is required before publishing this EA.' });
-        const code = `partner-${row.submission_uid.replace(/^sub_/, '')}`;
-        const inserted = await run(
-          `INSERT INTO trading_strategies (code, name, description, version, is_active, is_published, submission_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, TRUE, TRUE, ?, ?, ?)`,
-          [code, row.name, row.description, row.version, row.id, timestamp, timestamp]
-        );
-        await run(
-          `UPDATE ea_submissions SET status = 'published', published_at = ?, strategy_id = ?, updated_at = ? WHERE id = ?`,
-          [timestamp, inserted.lastID, timestamp, id]
-        );
-        await subscriptions.logAudit(null, 'admin', 'ea_published', 'ea_submission', id,
-          { submissionUid: row.submission_uid, strategyCode: code }, null, req.ip);
-        await events.emit('EA_PUBLISHED', { actorType: 'admin', payload: { submissionUid: row.submission_uid, name: row.name, strategyCode: code } });
-        res.json({ message: 'EA published. It is now available in the user strategy selection.', strategyCode: code });
-      } catch (error) {
-        console.error('Failed to publish submission:', error.message);
-        res.status(500).json({ error: 'Unable to publish the submission.' });
-      }
+    app.post('/api/admin/ea-submissions/:id/reject',verifyAdminToken,async(req,res)=>{
+      try {await publication.reject(Number(req.params.id),{actor:{role:'admin',id:req.admin?.id||'admin'},reason:req.body?.reason});res.json({message:'EA release rejected.'});}
+      catch(error){publicationError(res,error);}
+    });
+    app.get('/api/admin/ea-submissions/:id/artifact',verifyAdminToken,async(req,res)=>{
+      try {const a=await publication.artifactFile(Number(req.params.id));res.set('Content-Type','application/octet-stream');res.set('Content-Disposition','attachment; filename="reviewed.ex5"');res.send(await fs.promises.readFile(a.path));}
+      catch(error){publicationError(res,error);}
+    });
+    app.post('/api/admin/ea-submissions/:id/artifact',verifyAdminToken,rateLimit({limit:20,windowMs:3600000}),express.raw({type:'application/octet-stream',limit:'10mb'}),async(req,res)=>{
+      try {res.status(201).json(await publication.attachArtifact(Number(req.params.id),req.body,{origin:'admin',actor:{role:'admin',id:req.admin?.id||'admin'}}));}
+      catch(error){publicationError(res,error);}
     });
 
     // -----------------------------------------------------------------------
@@ -320,42 +282,26 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
           return res.status(503).json({ error: 'No online test node is available. Register and activate a test node first.', code: 'NO_TEST_NODE' });
         }
 
-        const version = await get('SELECT * FROM ea_versions WHERE submission_id = ? ORDER BY id DESC LIMIT 1', [id]);
-        if (!version) return res.status(409).json({ error: 'This submission has no uploaded source files.' });
-
-        const timestamp = now();
-        const report = await run(
-          `INSERT INTO ea_test_reports (submission_id, version_id, node_id, kind, status, started_at, created_at)
-           VALUES (?, ?, ?, 'runtime', 'running', ?, ?)`,
-          [id, version.id, testNode.id, timestamp, timestamp]
-        );
-        await run(`UPDATE ea_submissions SET status = 'testing', updated_at = ? WHERE id = ?`, [timestamp, id]);
-
-        // The test instance uid uses the eatest_ prefix; the agent compiles
-        // (metaeditor) and runs the EA against a demo account with resource
-        // limits, then posts the report back.
-        const testInstanceUid = `eatest_${crypto.randomBytes(9).toString('hex')}`;
-        await nodes.queueCommand(testNode.id, 'test_ea', {
-          payload: {
-            testInstanceUid,
-            submissionId: row.id,
-            submissionUid: row.submission_uid,
-            versionId: version.id,
-            reportId: report.lastID,
-            demoAccount: {
-              brokerServer: process.env.EA_TEST_BROKER_SERVER || '',
-              accountNumber: process.env.EA_TEST_ACCOUNT_NUMBER || '',
-              password: process.env.EA_TEST_ACCOUNT_PASSWORD || ''
-            }
-          }
+        let report,command;
+        await withTransaction(async()=>{
+          const current=await get('SELECT * FROM ea_submissions WHERE id=?'+(typeof db.transaction==='function'?' FOR UPDATE':''),[id]);
+          if(!current||!['under_review','testing_failed','testing_passed'].includes(current.status))throw Object.assign(Error('The submission is no longer available for compilation.'),{status:409});
+          const release=await publication.inspect(id);
+          if(!release?.current||!release.entryFile||!/\.mq5$/i.test(release.entryFile))throw Object.assign(Error('Compile requires the current MQ5 source submission. Review uploaded EX5 files directly.'),{status:409});
+          const timestamp=now();
+          report=await run(`INSERT INTO ea_test_reports(submission_id,version_id,node_id,kind,status,started_at,created_at) VALUES(?,?,?,'compile','running',?,?)`,[id,release.versionId,testNode.id,timestamp,timestamp]);
+          await run(`UPDATE ea_submissions SET status='testing',updated_at=? WHERE id=?`,[timestamp,id]);
+          command=await nodes.queueCommand(testNode.id,'test_ea',{deferDelivery:true,payload:{testInstanceUid:'eatest_'+crypto.randomBytes(9).toString('hex'),submissionId:id,submissionUid:row.submission_uid,versionId:release.versionId,reportId:report.lastID}});
         });
+        await nodes.dispatchCommand(command);
 
         await subscriptions.logAudit(null, 'admin', 'ea_test_started', 'ea_submission', id,
           { submissionUid: row.submission_uid, nodeId: testNode.id, reportId: report.lastID }, null, req.ip);
         await events.emit('EA_TEST_STARTED', { actorType: 'admin', nodeId: testNode.id, payload: { submissionUid: row.submission_uid, reportId: report.lastID } });
-        res.json({ message: `Test started on node ${testNode.name}.`, reportId: report.lastID });
+        res.json({ message: `Source compilation started on test node ${testNode.name}.`, reportId: report.lastID });
       } catch (error) {
-        console.error('Failed to start EA test:', error.message);
+        if(error.status)return res.status(error.status).json({error:error.message});
+        console.error('Failed to start EA test:', error.code||error.name);
         res.status(500).json({ error: 'Unable to start the test.' });
       }
     });
@@ -388,7 +334,7 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
           }
           // Send a manifest + each file; the agent downloads individually.
           const files = fs.readdirSync(dir).map(name => ({ name, size: fs.statSync(path.join(dir, name)).size }));
-          res.json({ submissionUid: row.submission_uid, files });
+          res.json({ submissionUid: row.submission_uid, files, publication:await publication.inspect(id) });
         } catch (error) {
           console.error('Failed to list test source:', error.message);
           res.status(500).json({ error: 'Unable to list source files.' });
@@ -415,6 +361,14 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
         }
       });
 
+      app.post('/api/admin/ea-testing/reports/:reportId/artifact',authenticateNodeRequest,requireTestNode,express.raw({type:'application/octet-stream',limit:'10mb'}),async(req,res)=>{
+        try {
+          const report=await get('SELECT * FROM ea_test_reports WHERE id=? AND node_id=?',[Number(req.params.reportId),req.node.id]);
+          if(!report)return res.status(404).json({error:'Test report not found.'});
+          res.status(201).json(await publication.attachArtifact(report.submission_id,req.body,{origin:'test_node',reportId:report.id,actor:{role:'test_node',id:req.node.id}}));
+        }catch(error){publicationError(res,error);}
+      });
+
       // Test report callback from the test node agent.
       app.post('/api/admin/ea-testing/reports/:reportId/complete', authenticateNodeRequest, requireTestNode, async (req, res) => {
         const reportId = Number.parseInt(req.params.reportId, 10);
@@ -426,6 +380,9 @@ function createPartnerAdminApi({ db, nodes, events, subscriptions, commissionSer
           if (report.status !== 'running') return res.status(409).json({ error: 'This report is already finished.' });
 
           const success = body.success === true;
+          const publicationInfo=await publication.inspect(report.submission_id);
+          if(publicationInfo&&(!publicationInfo.current||publicationInfo.versionId!==report.version_id))return res.status(409).json({error:'The compile assignment was superseded.'});
+          if(success&&publicationInfo&&!publicationInfo.artifactReady)return res.status(409).json({error:'A successful compile report requires the exact uploaded EX5 artifact.'});
           const timestamp = now();
           const completed = await withTransaction(async () => {
             const updated = await run(

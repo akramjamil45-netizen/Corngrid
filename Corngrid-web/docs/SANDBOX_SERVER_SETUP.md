@@ -2,6 +2,10 @@
 
 How to configure the CornGrid main backend to run the sandbox system.
 
+This document is for the **existing backend host**, not another MT5 VPS. For an
+additional node use [VPS_NODE_INSTALLATION.md](VPS_NODE_INSTALLATION.md). Do not
+copy the backend `.env`, PostgreSQL data, encryption key or payment keys to nodes.
+
 ## 1. Environment variables
 
 Add these to `Corngrid-web/.env`:
@@ -14,10 +18,8 @@ SANDBOX_ENCRYPTION_KEY=<64-hex-chars>
 # Public base URL of the backend, sent to agents so EAs can phone home.
 APP_BASE_URL=https://corngrid.com
 
-# Demo account used by isolated EA testing on test nodes (optional but recommended).
-EA_TEST_BROKER_SERVER=YourBroker-Demo
-EA_TEST_ACCOUNT_NUMBER=12345678
-EA_TEST_ACCOUNT_PASSWORD=<demo-password>
+# Source compile review uses an assigned test node and needs no demo credentials.
+# Real runtime/demo testing remains a separate administrative review step.
 ```
 
 The encryption key must live in the environment (or a secrets manager), **never** in the database or source control. In development, an ephemeral per-process key is generated with a warning; sandbox credentials encrypted with it become unreadable after a restart.
@@ -32,15 +34,20 @@ The encryption key must live in the environment (or a secrets manager), **never*
 npm run migrate:postgres:schema
 ```
 
-This applies `migrations/postgres/0005_sandbox.sql` (idempotent).
+The script applies all sorted PostgreSQL migrations, not only 0005. Inspect and
+back up the deployment first. Current sandbox/publication code also requires
+0014 (multiple sandboxes), 0015 (Marketplace) and 0016 (reviewed EA publication).
+Adding an ordinary node to an already migrated backend does not require a new
+database or a migration on that VPS.
 
 ## 3. Install dependencies
 
 ```powershell
-npm install
+npm.cmd ci --omit=dev
 ```
 
-This adds `ws` (WebSocket) used by the realtime hub.
+Use the existing lockfile. Node agents install their own small dependency set;
+do not install the backend dependency tree on a hosting node.
 
 ## 4. Start the server
 
@@ -77,7 +84,9 @@ Admin panel → **Sandbox Management** → **Sandbox Nodes** → **+ Add node**.
 The WebSocket endpoints (`/ws/sandbox/node`, `/ws/admin/sandbox`) must be proxied with upgrade support:
 
 - **IIS/ARR:** enable WebSocket Protocol (Windows feature), ensure the reverse proxy rule forwards `/ws/*`.
-- **Cloudflare:** WebSockets are supported on all plans; no extra config.
+- **Cloudflare:** verify WebSockets, TLS and WAF/challenge rules for the actual
+  deployment. Agent paths need token authentication, not an interactive browser
+  challenge. Do not disable authentication or weaken rules across unrelated routes.
 - **nginx:** `proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";`
 
 If WebSocket is blocked, agents automatically fall back to HTTPS heartbeat/polling — commands are delivered on the next poll instead of instantly.

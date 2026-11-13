@@ -529,6 +529,46 @@
 
   // ---- Community announcements (Live Feed) ----
   let editingAnnouncementId = null;
+  let announcementImagePath = null;
+  let announcementImageFile = null;
+  let announcementImagePreviewUrl = null;
+  let announcementBusy = false;
+
+  function setAnnouncementImage(imagePath, file = null) {
+    if (announcementImagePreviewUrl) URL.revokeObjectURL(announcementImagePreviewUrl);
+    announcementImagePreviewUrl = file ? URL.createObjectURL(file) : null;
+    announcementImagePath = imagePath || null;
+    announcementImageFile = file;
+    const source = announcementImagePreviewUrl || announcementImagePath;
+    const preview = $('#admin-ann-image-preview');
+    preview.hidden = !source;
+    if (source) $('#admin-ann-image-preview-img').src = source;
+    else $('#admin-ann-image-preview-img').removeAttribute('src');
+    $('#admin-ann-image-name').textContent = file ? file.name : source ? 'Current announcement image' : '';
+    $('#admin-ann-image-pick-label').textContent = source ? 'Replace image' : 'Add image';
+    $('#admin-ann-image-file').value = '';
+    $('#admin-ann-image-status').textContent = file ? 'Image selected. It will upload when you publish or save.' : '';
+  }
+
+  $('#admin-ann-image-pick').addEventListener('click', () => {
+    if (!announcementBusy) $('#admin-ann-image-file').click();
+  });
+  $('#admin-ann-image-file').addEventListener('change', event => {
+    const file = event.target.files[0];
+    if (!file || announcementBusy) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
+      $('#admin-ann-image-status').textContent = 'Choose a JPEG, PNG or WebP image up to 5 MB.';
+      event.target.value = '';
+      return;
+    }
+    setAnnouncementImage(null, file);
+  });
+  $('#admin-ann-image-remove').addEventListener('click', () => {
+    if (announcementBusy) return;
+    setAnnouncementImage(null);
+    $('#admin-ann-image-status').textContent = 'Image removed from this draft. Save changes to update a published announcement.';
+    $('#admin-ann-image-pick').focus();
+  });
 
   async function loadAnnouncements() {
     const list = $('#admin-ann-list');
@@ -546,6 +586,7 @@
             <span class="muted small">${item.isPinned ? '📌 Pinned · ' : ''}${escapeHtml(formatDateTime(item.createdAt))}${item.updatedAt ? ' · edited' : ''}</span>
           </div>
           <p class="admin-ann-body">${escapeHtml(item.content)}</p>
+          ${item.imagePath ? `<a class="admin-ann-published-image" href="${escapeHtml(item.imagePath)}" target="_blank" rel="noopener" aria-label="Open announcement image"><img src="${escapeHtml(item.imagePath)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async"></a>` : ''}
           <div class="admin-ann-actions">
             <button class="button button-secondary button-small" type="button" data-ann-edit="${escapeHtml(item.id)}">Edit</button>
             <button class="button button-secondary button-small" type="button" data-ann-pin="${escapeHtml(item.id)}" data-pinned="${item.isPinned ? '1' : '0'}">${item.isPinned ? 'Unpin' : 'Pin'}</button>
@@ -559,6 +600,7 @@
 
   function resetAnnouncementForm() {
     editingAnnouncementId = null;
+    setAnnouncementImage(null);
     $('#admin-ann-form').reset();
     $('#admin-ann-form-title').textContent = 'New announcement';
     $('#admin-ann-submit').textContent = 'Publish announcement';
@@ -567,16 +609,26 @@
 
   $('#admin-ann-form').addEventListener('submit', async event => {
     event.preventDefault();
+    if (announcementBusy) return;
     const title = $('#admin-ann-title').value.trim();
     const content = $('#admin-ann-content').value.trim();
     if (!title || !content) return toast('Title and message are both required.', 'error');
     const submit = $('#admin-ann-submit');
     if (submit.disabled) return;
-    submit.disabled = true;
-    const original = submit.textContent;
+    announcementBusy = true;
+    const controls = Array.from($('#admin-ann-form').querySelectorAll('input, textarea, button'));
+    controls.forEach(control => { control.disabled = true; });
     submit.textContent = editingAnnouncementId ? 'Saving…' : 'Publishing…';
     try {
-      const body = JSON.stringify({ title, content, isPinned: $('#admin-ann-pin').checked });
+      if (announcementImageFile) {
+        $('#admin-ann-image-status').textContent = 'Uploading image…';
+        const upload = await api('/api/feed/announcements/uploads', {
+          method: 'POST', headers: { 'Content-Type': announcementImageFile.type }, body: announcementImageFile,
+          signal: AbortSignal.timeout(60000)
+        });
+        setAnnouncementImage(upload.url);
+      }
+      const body = JSON.stringify({ title, content, imagePath: announcementImagePath, isPinned: $('#admin-ann-pin').checked });
       if (editingAnnouncementId != null) {
         await api(`/api/feed/announcements/${encodeURIComponent(editingAnnouncementId)}`, { method: 'PATCH', body });
         toast('Announcement updated.', 'success');
@@ -587,10 +639,12 @@
       resetAnnouncementForm();
       loadAnnouncements();
     } catch (error) {
+      $('#admin-ann-image-status').textContent = error.message;
       toast(error.message, 'error');
     } finally {
-      submit.disabled = false;
-      submit.textContent = original;
+      announcementBusy = false;
+      controls.forEach(control => { control.disabled = false; });
+      submit.textContent = editingAnnouncementId != null ? 'Save changes' : 'Publish announcement';
     }
   });
 
@@ -598,6 +652,7 @@
   $('#admin-ann-refresh').addEventListener('click', loadAnnouncements);
 
   $('#admin-ann-list').addEventListener('click', async event => {
+    if (announcementBusy) return;
     const editButton = event.target.closest('[data-ann-edit]');
     const pinButton = event.target.closest('[data-ann-pin]');
     const deleteButton = event.target.closest('[data-ann-delete]');
@@ -610,6 +665,7 @@
         $('#admin-ann-title').value = item.title;
         $('#admin-ann-content').value = item.content;
         $('#admin-ann-pin').checked = item.isPinned;
+        setAnnouncementImage(item.imagePath);
         $('#admin-ann-form-title').textContent = 'Edit announcement';
         $('#admin-ann-submit').textContent = 'Save changes';
         $('#admin-ann-cancel').hidden = false;
@@ -1388,7 +1444,7 @@
           <td data-label="Plan">${escapeHtml(payment.plan_name || '—')}</td>
           <td data-label="Amount" class="cell-key">${formatMoney(payment.amount, payment.currency)}</td>
           <td data-label="Reference" class="cell-extra">${escapeHtml(payment.payment_reference || '—')}${payment.hasProof ? ` · <a href="/api/admin/subscription-payments/${escapeHtml(String(payment.id))}/proof" target="_blank" rel="noopener">Proof</a>` : ''}</td>
-          <td data-label="Status">${subStatusBadge(payment.status)}<div class="muted small">${payment.payment_method === 'stripe' ? 'Stripe · ' + escapeHtml(stripeOrders.get(Number(payment.id))?.status || 'pending') : 'DuitNow · manual review'}</div><div class="muted small">${stripeOrders.get(Number(payment.id))?.activated_at ? 'Activated' : escapeHtml(payment.subscription_status || '')}${stripeOrders.get(Number(payment.id))?.review_status ? ' · Review: ' + escapeHtml(stripeOrders.get(Number(payment.id)).review_status) : ''}</div></td>
+          <td data-label="Status" class="payment-status-cell"><div class="admin-payment-status">${subStatusBadge(payment.status)}<span class="admin-payment-meta">${payment.payment_method === 'stripe' ? 'Stripe · ' + escapeHtml(String(stripeOrders.get(Number(payment.id))?.status || 'pending').replace(/_/g, ' ')) : 'DuitNow · manual review'}</span><span class="admin-payment-meta">${stripeOrders.get(Number(payment.id))?.activated_at ? 'Activated' : escapeHtml(String(payment.subscription_status || '').replace(/_/g, ' '))}${stripeOrders.get(Number(payment.id))?.review_status ? ' · Review: ' + escapeHtml(String(stripeOrders.get(Number(payment.id)).review_status).replace(/_/g, ' ')) : ''}</span></div></td>
           <td class="cell-actions" data-label="Actions">
             ${payment.status === 'pending_approval' ? `
               <button class="button button-small" type="button" data-sub-action="approve-payment" data-id="${escapeHtml(String(payment.id))}">Approve</button>
@@ -1610,7 +1666,7 @@
       path = `/api/admin/subscriptions/${id}/revoke`;
       body = { reason };
     } else if (subAction === 'delete-payment') {
-      if (!window.confirm('Delete this cancelled/rejected payment request? This cannot be undone.')) return;
+      if (!window.confirm('Remove this cancelled/rejected request? Any unpaid Stripe checkout will be closed first. Payment history is retained for reconciliation.')) return;
       path = `/api/admin/subscription-payments/${id}`;
       method = 'DELETE';
     } else if (subAction === 'delete-subscription') {
@@ -1861,7 +1917,7 @@
     try{const data=await api('/api/admin/partner-agreements');body.innerHTML=data.agreements.map(row=>`<tr><td>${escapeHtml(row.username||row.user_id)}<div class="muted small">${escapeHtml(row.email||'')}</div></td><td>${escapeHtml(row.signer_name)}</td><td>${escapeHtml(row.terms_version)}</td><td>${escapeHtml(row.language.toUpperCase())}</td><td>${escapeHtml(formatDateTime(row.accepted_at))}</td><td><a class="button button-secondary button-small" href="/api/admin/partner-agreements/${encodeURIComponent(row.id)}/file">Download JSON</a></td></tr>`).join('')||'<tr><td colspan="6" class="table-empty">No digital agreements recorded. Existing accounts have not been marked as accepted.</td></tr>';}catch(error){body.innerHTML='<tr><td colspan="6" class="table-empty">'+escapeHtml(error.message)+'</td></tr>';}
   }
   function showAdminPage(name) {
-    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements'];
+    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements', 'account-requests', 'marketplace'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -1874,8 +1930,10 @@
       if (link.dataset.adminPage === active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const labels = { overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
-    $('#admin-breadcrumb-page').textContent = active === 'user-agreements' ? 'User Agreements' : active === 'downloads' ? 'Downloads' : labels[active];
+    const labels = { 'account-requests': 'Account requests', overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
+    $('#admin-breadcrumb-page').textContent = active === 'marketplace' ? 'Marketplace' : active === 'user-agreements' ? 'User Agreements' : active === 'downloads' ? 'Downloads' : labels[active];
+    if (active === 'marketplace') window.CornGridAdminMarketplace?.open();
+    if(active==='account-requests')window.CornGridAccountRequests?.openAdmin();
     if(active==='user-agreements')loadUserAgreements();
     if (active === 'downloads') loadDownloadsDirectory();
     if (active === 'subscriptions') loadAdminSubscriptionsPage();
@@ -1893,6 +1951,9 @@
   }
 
   $('#admin-refresh').addEventListener('click', () => {
+    if (!$('#sandbox').hidden) { window.CornGridAdminSandbox?.openSandbox(); return; }
+    if(!$('#account-requests').hidden){window.CornGridAccountRequests?.openAdmin();return;}
+    if(!$('#marketplace').hidden){window.CornGridAdminMarketplace?.open();return;}
     if(!$('#user-agreements').hidden){loadUserAgreements();return;}
     if (!$('#downloads').hidden) { loadDownloadsDirectory(); return; }
     if (!$('#subscriptions').hidden) loadAdminSubscriptionsPage();
@@ -2092,7 +2153,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'downloads', 'user-agreements'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'downloads', 'user-agreements', 'account-requests', 'marketplace'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -2111,7 +2172,10 @@
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
-  if (location.hash === '#user-agreements') showAdminPage('user-agreements');
+  if (location.hash === '#account-requests') showAdminPage('account-requests');
+  else if (location.hash === '#sandbox') showAdminPage('sandbox');
+  else if (location.hash === '#marketplace') showAdminPage('marketplace');
+  else if (location.hash === '#user-agreements') showAdminPage('user-agreements');
   else if (location.hash === '#downloads') showAdminPage('downloads');
   else if (location.hash === '#subscriptions') showAdminPage('subscriptions');
   else if (location.hash === '#support') showAdminPage('support');

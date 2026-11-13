@@ -10,7 +10,7 @@ const { exclusive } = require('../db-write');
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, crypto: sandboxCrypto, now = () => Date.now() } = {}) {
+function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, crypto: sandboxCrypto, updates, now = () => Date.now() } = {}) {
   function run(sql, params = []) {
     return new Promise((resolve, reject) => {
       db.run(sql, params, function (error) {
@@ -64,6 +64,19 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
   }
 
   function registerRoutes(app, verifyAdminToken) {
+    app.get('/api/admin/sandbox/updates', verifyAdminToken, (_req, res) => {
+      res.set('Cache-Control', 'private, no-store');
+      res.json(updates?.status() || { configured: false, enabled: false, release: null });
+    });
+    app.patch('/api/admin/sandbox/updates', verifyAdminToken, async (req, res) => {
+      if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'Specify enabled as a boolean.' });
+      if (!updates?.status().configured) return res.status(503).json({ error: 'Agent updates are not configured.' });
+      try {
+        const state = updates.setEnabled(req.body.enabled);
+        await subscriptions.logAudit(null, 'admin', 'sandbox_agent_updates_' + (req.body.enabled ? 'enabled' : 'paused'), 'sandbox_node_update', null, { enabled: state.enabled, releaseId: state.release?.id || null }, null, req.ip);
+        res.json(state);
+      } catch { res.status(500).json({ error: 'Unable to update agent release settings.' }); }
+    });
     // -----------------------------------------------------------------------
     // Overview statistics
     // -----------------------------------------------------------------------
@@ -160,20 +173,32 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
     app.patch('/api/admin/sandbox/nodes/:id/capacity', verifyAdminToken, async (req, res) => {
       const nodeId = Number(req.params.id);
       const maxInstances = req.body?.maxInstances;
+      const expectedMaxInstances = req.body?.expectedMaxInstances;
       if (!Number.isSafeInteger(nodeId) || nodeId < 1) return res.status(400).json({ error: 'Invalid node.' });
       if (!Number.isInteger(maxInstances) || maxInstances < 1 || maxInstances > 200) {
         return res.status(400).json({ error: 'Capacity must be a whole number from 1 to 200.' });
+      }
+      if (expectedMaxInstances !== undefined && (!Number.isInteger(expectedMaxInstances) || expectedMaxInstances < 1 || expectedMaxInstances > 200)) {
+        return res.status(400).json({ error: 'Invalid previous capacity. Refresh the node list.' });
       }
       try {
         const outcome = await exclusive(db, async () => {
           const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?' +
             (typeof db.transaction === 'function' ? ' FOR UPDATE' : ''), [nodeId]);
           if (!node) return { http: 404, body: { error: 'Node not found.' } };
+          if (expectedMaxInstances !== undefined && node.max_instances !== expectedMaxInstances && node.max_instances !== maxInstances) {
+            return { http: 409, body: { error: 'Capacity was changed by another administrator. Close this dialog, refresh the node list and try again.' } };
+          }
           const used = await get(`SELECT COUNT(*) AS count FROM sandbox_instances
             WHERE node_id = ? AND deleted_at IS NULL AND status IN ('deploying','starting','running','stopping')`, [nodeId]);
           const usedSlots = Number(used.count) || 0;
           if (maxInstances < usedSlots) {
             return { http: 409, body: { error: `This node is using ${usedSlots} slots. Capacity cannot be lower than this.`, usedSlots } };
+          }
+          // An absolute capacity already saved by an earlier attempt is a
+          // success. A lost response must not produce duplicate audit entries.
+          if (node.max_instances === maxInstances) {
+            return { http: 200, body: { message: 'Node capacity confirmed.', node: publicNode({ ...node, allocated_instances: usedSlots }) } };
           }
           const updated = await run(`UPDATE sandbox_nodes SET max_instances = ?, updated_at = ? WHERE id = ?
             AND ? >= (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = sandbox_nodes.id
@@ -187,7 +212,11 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
         return res.status(outcome.http).json(outcome.body);
       } catch (error) {
         console.error('Failed to update node capacity:', error.message);
-        res.status(500).json({ error: 'Unable to update node capacity.' });
+        const busy = ['55P03', '57014', 'ETIMEOUT'].includes(error.code) || error.statusCode === 503;
+        if (busy) res.set('Retry-After', '5');
+        res.status(busy ? 503 : 500).json({ error: busy
+          ? 'The server is busy. Refresh the node list to check the saved capacity, then try again.'
+          : 'Unable to update node capacity.' });
       }
     });
 
@@ -333,7 +362,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
         } else if (action === 'unsuspend') {
           await run(`UPDATE sandbox_instances SET status = 'stopped', updated_at = ? WHERE id = ? AND status = 'suspended'`, [now(), instanceId]);
         } else {
-          const result = await manager.controlSandbox(instance.user_id, action);
+          const result = await manager.controlSandbox(instance.user_id, action, instance.instance_uid);
           if (result.http !== 200) return res.status(result.http).json(result.body);
         }
         await subscriptions.logAudit(null, 'admin', `sandbox_instance_${action}`, 'sandbox_instance', instanceId,
@@ -405,7 +434,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       try {
         const instance = await get('SELECT * FROM sandbox_instances WHERE id = ? AND deleted_at IS NULL', [instanceId]);
         if (!instance) return res.status(404).json({ error: 'Sandbox not found.' });
-        const result = await manager.deleteSandbox(instance.user_id, { actorType: 'admin', actorId: null });
+        const result = await manager.deleteSandbox(instance.user_id, { instanceUid: instance.instance_uid, actorType: 'admin', actorId: null });
         await subscriptions.logAudit(null, 'admin', 'sandbox_instance_deleted', 'sandbox_instance', instanceId,
           { instanceUid: instance.instance_uid, userId: instance.user_id }, null, req.ip);
         res.status(result.http).json(result.body);

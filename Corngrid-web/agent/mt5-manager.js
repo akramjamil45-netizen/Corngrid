@@ -164,7 +164,9 @@ function createMt5Manager({ config, logger, downloadFile }) {
     const startupPath = ensureStartup(dir, config);
     const child = spawn(terminal, ['/portable', '/config:' + startupPath], {
       cwd: dir,
-      detached: false,
+      // A Windows attached child belongs to the agent's libuv process job and
+      // dies when the agent exits. Detached terminals survive agent updates.
+      detached: true,
       stdio: 'ignore',
       windowsHide: true
     });
@@ -199,6 +201,8 @@ function createMt5Manager({ config, logger, downloadFile }) {
       logger.error(instanceUid, `Terminal exited unexpectedly (code ${code}, signal ${signal}).`);
       scheduleRestart(instanceUid, current);
     });
+
+    child.unref?.();
 
     logger.info(instanceUid, `Terminal launched (pid ${child.pid}).`);
     return child;

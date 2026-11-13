@@ -3,6 +3,7 @@ const express=require('express'),sqlite=require('sqlite3'),Stripe=require('strip
 const {dbGet,dbRun}=require('../db-async');
 test('Stripe signed webhooks fulfill existing subscriptions exactly once; failures, ownership and DuitNow remain safe',async t=>{
  const db=new sqlite.Database(':memory:');
+ await new Promise((resolve,reject)=>db.exec('PRAGMA foreign_keys=ON',error=>error?reject(error):resolve()));
  await new Promise((r,j)=>db.exec('CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,email TEXT); INSERT INTO users VALUES(1,\'Alice\',\'a@example.test\'),(2,\'Bob\',\'b@example.test\');',e=>e?j(e):r()));
  const app=express();let gateway;app.post('/api/stripe/webhook',express.raw({type:'application/json'}),(q,r)=>gateway.webhook(q,r));app.use(express.json());
  const auth=(q,r,n)=>{if(!q.get('X-User'))return r.sendStatus(401);q.user={id:Number(q.get('X-User'))};n();};
@@ -10,7 +11,7 @@ test('Stripe signed webhooks fulfill existing subscriptions exactly once; failur
  const router=express.Router();app.use(router);
  const sub=require('../subscriptions/subscription-api')(app,db,auth,admin,auth);await sub.ready();
  const sdk=new Stripe('sk_test_placeholder'),secret='whsec_test_only';let session,creates=0;
- const fake={webhooks:sdk.webhooks,checkout:{sessions:{create:async(input,opt)=>{creates++;assert.ok(opt.idempotencyKey);assert.equal(Object.hasOwn(input, 'payment_method_types'), false, 'current Stripe API uses Dashboard payment methods');session={id:'cs_test_'+creates,url:'https://checkout.stripe.com/test',status:'open',payment_status:'unpaid',amount_total:input.line_items[0].price_data.unit_amount,currency:input.line_items[0].price_data.currency,metadata:input.metadata,client_reference_id:input.client_reference_id,mode:'payment',payment_intent:'pi_test_'+creates};return session;},retrieve:async()=>session,expire:async()=>({...session,status:'expired'})}}};
+ const fake={webhooks:sdk.webhooks,checkout:{sessions:{create:async(input,opt)=>{creates++;assert.ok(opt.idempotencyKey);assert.equal(Object.hasOwn(input, 'payment_method_types'), false, 'current Stripe API uses Dashboard payment methods');session={id:'cs_test_'+creates,url:'https://checkout.stripe.com/test',status:'open',payment_status:'unpaid',amount_total:input.line_items[0].price_data.unit_amount,currency:input.line_items[0].price_data.currency,metadata:input.metadata,client_reference_id:input.client_reference_id,mode:'payment',livemode:false,payment_intent:'pi_test_'+creates};return session;},retrieve:async()=>session,expire:async()=>({...session,status:'expired'})}}};
  gateway=require('../subscriptions/stripe-payments')(router,db,auth,admin,sub,{stripe:fake,env:{STRIPE_SECRET_KEY:'sk_test_placeholder',STRIPE_WEBHOOK_SECRET:secret,APP_BASE_URL:'http://localhost:3000'}});gateway.mountProtection();await gateway.ready();
  const server=app.listen(0);await new Promise(r=>server.once('listening',r));t.after(async()=>{await new Promise(r=>server.close(r));db.close();});const base='http://127.0.0.1:'+server.address().port;
  const req=(url,body,user=1)=>fetch(base+url,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-User':String(user)},body:body?JSON.stringify(body):undefined});
@@ -42,6 +43,16 @@ test('Stripe signed webhooks fulfill existing subscriptions exactly once; failur
  p=await purchase();await req('/api/subscription/stripe/checkout',{paymentId:p.paymentId});await webhook('evt_unpaid');await webhook('evt_failed','checkout.session.async_payment_failed');session.status='expired';await webhook('evt_expired','checkout.session.expired');assert.equal((await dbGet(db,'SELECT status FROM user_subscriptions WHERE id=?',[p.subscriptionId])).status,'pending_payment');
  await req('/api/subscription/stripe/orders/'+session.metadata.order_id+'/duitnow',{});assert.equal((await dbGet(db,'SELECT payment_method FROM subscription_payments WHERE id=?',[p.paymentId])).payment_method,'duitnow');
  const cancel=await req('/api/subscription/cancel',{paymentId:p.paymentId});assert.equal(cancel.status,200);
+ // Regression: a switched/cancelled request still has a Stripe foreign key.
+ const removedId=p.paymentId,removedOrder=session.metadata.order_id;
+ const remove=()=>fetch(base+'/api/admin/subscription-payments/'+removedId,{method:'DELETE'});
+ assert.ok((await Promise.all([remove(),remove()])).every(response=>response.status===200));
+ assert.ok(!(await (await req('/api/admin/subscription-payments')).json()).payments.some(payment=>payment.id===removedId));
+ assert.ok(await dbGet(db,'SELECT id FROM subscription_payments WHERE id=?',[removedId]));
+ assert.equal((await dbGet(db,'SELECT payment_id FROM stripe_orders WHERE id=?',[removedOrder])).payment_id,removedId);
+ assert.equal((await dbGet(db,"SELECT COUNT(*) AS n FROM subscription_audit_logs WHERE action='payment_deleted' AND affected_id=?",[removedId])).n,1);
+ assert.equal((await webhook('evt_expired_after_removal','checkout.session.expired')).status,200);
+ assert.equal((await dbGet(db,'SELECT status FROM user_subscriptions WHERE id=?',[p.subscriptionId])).status,'cancelled');
  // DuitNow purchase and manual approval still use the same activation function.
  p=await purchase();await dbRun(db,"UPDATE subscription_payments SET status='pending_approval' WHERE id=?",[p.paymentId]);await dbRun(db,"UPDATE user_subscriptions SET status='pending_approval' WHERE id=?",[p.subscriptionId]);
  assert.equal((await req('/api/admin/subscription-payments/'+p.paymentId+'/approve',{})).status,200);

@@ -134,3 +134,88 @@ It reads the test key from `.env` into the child environment, masks the CLI sign
 secret and saves it only in ignored local storage. Restart the isolated server
 after the CLI is ready; the runner reads that local secret without changing `.env`.
 `storage/stripe-test/local-test-login.json` contains the generated local-only login.
+
+Closed payment requests: apply `0012_payment_request_archives.sql` before deploying
+the updated subscription API on PostgreSQL (SQLite creates the additive table on
+startup). Admin Delete removes cancelled/rejected requests from Payment Requests
+using an archive marker, preserving the original payment, proof, Stripe order and
+event records for reconciliation. For an unresolved order with a saved session,
+Delete checks Stripe metadata, amount, currency, mode and PaymentIntent state.
+An open, unpaid Checkout is expired using an idempotency key, then retrieved
+again. Only a verified expired, unpaid session can clear the local pending state.
+Paid, activated, processing or mismatched orders remain protected. No charge is
+created, refunded or cancelled by this operation.
+
+Stripe requests run outside database locks. The final transaction locks the user
+and payment, rechecks payment/order state and the reconciliation proof, then
+stores the expired order, archive marker and audit together. Repeated or concurrent
+Delete requests cannot duplicate removal. A remote expiration followed by a local
+write failure is safe to retry. Delayed webhooks still resolve the retained order.
+Missing session IDs and provider failures remain blocked rather than assuming
+no payment exists. No existing record is archived by deployment itself.
+
+References: [Expire Checkout](https://docs.stripe.com/api/checkout/sessions/expire)
+and [Checkout PaymentIntent cancellation rules](https://docs.stripe.com/api/payment_intents/cancel).
+Tests: `test/stripe-removal.test.js`, `test/payment-request-removal.test.js` and
+`test/stripe-payments.test.js`. `marketing/verify-payment-removal-postgres.cjs`
+checks concurrent removal with a mocked Stripe API in an isolated PostgreSQL
+schema. Live inspection is read-only; no live checkout is expired by the tests.
+
+## Recovery when webhook delivery is delayed or missed
+
+Apply the additive `0013_stripe_reconciliation.sql` migration before deploying
+the updated backend. SQLite applies its equivalent during Stripe initialization.
+No existing order, payment, subscription or expiry is rewritten by migration.
+
+Webhooks remain the primary fulfillment path. The server also starts a recovery
+scan five seconds after startup, then every minute after each scan finishes.
+Each batch checks at most 20 pending orders, with at most two Stripe requests in
+flight. It only selects Stripe purchases that are still pending locally, have a
+saved Checkout Session and have not been archived or removed. It runs even when
+the customer never returns to CornGrid after paying.
+
+The worker retrieves the existing Session with `payment_intent.latest_charge`
+expanded. Fulfillment requires `complete` + `paid`, a succeeded PaymentIntent,
+a matching paid Charge, matching owner/order/payment metadata, amount, currency
+and live/test mode. The verified Charge creation timestamp supplies the payment
+time. Refunded/disputed payments are retained for review, not automatically granted
+or revoked. Restricted keys need read access to Sessions, PaymentIntents and
+Charges; missing permissions produce a retriable verification error.
+
+Webhook fulfillment and API recovery use the same transaction, user/payment locks,
+subscription activation function and order activation marker. No synthetic Stripe
+event is created by recovery. A successful recovery creates a
+`stripe_payment_reconciled` audit record. A late or duplicate webhook cannot extend
+the subscription twice. Existing duration, renewal and MT5 activation limits apply.
+
+`stripe_reconciliation` stores the next check, attempt count, last error and a
+two-minute lease with a unique token. Leases prevent simultaneous workers from
+checking the same order; expired leases recover after a crash. Pending/provider
+failures back off from one minute to a maximum of 15 minutes. State survives service
+restart. A provider outage can still delay activation; the request stays pending
+and is retried rather than being marked paid without proof.
+
+Authenticated owners may POST
+`/api/subscription/stripe/orders/:id/reconcile`. Ownership is checked before Stripe
+is contacted. Origin validation, a 30-request/minute per-user limit, shared leases
+and a 10-second check cooldown bound polling. The success/cancel page uses this
+endpoint, and reopening a pending Stripe purchase triggers one quiet check.
+Opening a URL by itself never grants access. The user must still have a real,
+verified successful Stripe payment. Polling stops after 12 attempts; manual retry
+and server recovery remain available. The subscription overview includes the
+payment provider so reopening the page preserves the correct payment method.
+
+Admin `/api/admin/stripe-orders` includes `last_checked_at`, `last_error_code` and
+`next_check_at` for diagnosis. Secrets and complete provider payloads are not logged.
+There is no auto-renewal, charge creation or refund action in the recovery worker.
+
+Validation: `test/stripe-reconciliation.test.js` covers lost webhooks, owner isolation,
+unpaid/processing/mismatched proofs, rollback, retries, restart, abandoned leases,
+renewals, scheduler startup and concurrent webhook/API recovery.
+`marketing/verify-stripe-recovery-postgres.cjs` runs two recovery processes and a
+signed webhook against a temporary schema with a mocked Stripe API.
+`marketing/preview-stripe-recovery.cjs` provides an isolated browser fixture.
+
+The implementation follows Stripe's [server-side fulfillment guidance](https://docs.stripe.com/checkout/fulfillment):
+verify the Session through Stripe and make the shared fulfillment function safe
+for repeated and concurrent calls, including from the landing page.

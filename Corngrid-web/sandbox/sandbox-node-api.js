@@ -15,7 +15,7 @@ const MAX_LOG_BATCH = 100;
 const MAX_LOG_MESSAGE = 2000;
 const MAX_INSTANCE_REPORTS = 200;
 
-function createSandboxNodeApi({ db, nodes, events, manager, rateLimit } = {}) {
+function createSandboxNodeApi({ db, nodes, events, manager, rateLimit, strategyStorageDir, updates } = {}) {
   function run(sql, params = []) {
     return new Promise((resolve, reject) => {
       db.run(sql, params, function (error) {
@@ -66,6 +66,24 @@ function createSandboxNodeApi({ db, nodes, events, manager, rateLimit } = {}) {
 
   function registerRoutes(app) {
     const nodeRateLimit = rateLimit({ limit: 240, windowMs: 60 * 1000 });
+
+    app.get('/api/sandbox/node/update', nodeRateLimit, authenticateNodeRequest, (_req, res) => {
+      res.set('Cache-Control', 'private, no-store');
+      const state = updates?.status() || { configured: false, enabled: false, release: null };
+      res.json({ ...state, release: state.release ? { ...state.release, url: '/api/sandbox/node/updates/' + state.release.id } : null });
+    });
+    app.get('/api/sandbox/node/update-key', nodeRateLimit, authenticateNodeRequest, (_req, res) => {
+      res.set('Cache-Control', 'private, no-store');
+      try { const publicKey = updates?.publicKey(); if (!publicKey) return res.status(503).json({ error: 'Agent update signing is not configured.' }); res.json({ publicKey }); }
+      catch { res.status(503).json({ error: 'Agent update signing is not configured.' }); }
+    });
+    app.get('/api/sandbox/node/updates/:releaseId', nodeRateLimit, authenticateNodeRequest, (req, res) => {
+      res.set('Cache-Control', 'private, no-store');
+      if (!updates?.status().enabled) return res.status(403).json({ error: 'Agent updates are paused.' });
+      const file = updates.releaseFile(req.params.releaseId);
+      if (!file) return res.status(404).json({ error: 'Agent release not found.' });
+      res.type('application/json'); res.sendFile(file);
+    });
 
     // Recover only assigned terminals that should be running, never stopped,
     // suspended or deleted instances. Local startup files retain credentials.
@@ -168,9 +186,10 @@ function createSandboxNodeApi({ db, nodes, events, manager, rateLimit } = {}) {
         if (!strategy || !strategy.ea_file_path) {
           return res.status(404).json({ error: 'No EA binary is published for this strategy.' });
         }
-        const baseDir = path.resolve(path.join(__dirname, '..', 'storage'));
+        const baseDir = path.resolve(strategyStorageDir||path.join(__dirname, '..', 'storage'));
         const absolute = path.resolve(baseDir, strategy.ea_file_path);
-        if (!absolute.startsWith(baseDir) || !fs.existsSync(absolute)) {
+        const relative = path.relative(baseDir,absolute);
+        if (!relative || relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(absolute)) {
           return res.status(404).json({ error: 'EA binary is not available.' });
         }
         res.set('Content-Type', 'application/octet-stream');

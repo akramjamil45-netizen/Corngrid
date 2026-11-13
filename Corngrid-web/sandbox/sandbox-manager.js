@@ -5,7 +5,7 @@
 // Activation flow (all inside one exclusive write block where state changes):
 //   1. validate input + active subscription (reuses subscription-api helpers)
 //   2. allocate a node (load balanced, or admin-pinned)
-//   3. create the sandbox_instances row (partial unique index makes repeated
+//   3. create the sandbox_instances row (per-account index makes repeated
 //      Activate clicks idempotent) and AES-256-GCM-encrypted credentials
 //   4. create/reuse the mt5_accounts row, an installation secret, and an
 //      ea_license_activations row — the license is integrated automatically,
@@ -22,7 +22,7 @@ const { maskAccountNumber } = require('./sandbox-crypto');
 const ACCOUNT_NUMBER_PATTERN = /^[0-9]{1,32}$/;
 const MAX_PASSWORD_LENGTH = 128;
 
-function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscriptions, now = () => Date.now() } = {}) {
+function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscriptions, strategyStorageDir, now = () => Date.now() } = {}) {
   const isPostgres = typeof db.transaction === 'function';
 
   function run(sql, params = []) {
@@ -94,16 +94,54 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     };
   }
 
-  async function getUserInstance(userId) {
-    return get(
+  async function getUserInstances(userId) {
+    return all(
       `SELECT i.*, s.code AS strategy_code, s.name AS strategy_name, n.node_uid, n.name AS node_name
        FROM sandbox_instances i
        LEFT JOIN trading_strategies s ON s.id = i.strategy_id
        LEFT JOIN sandbox_nodes n ON n.id = i.node_id
        WHERE i.user_id = ? AND i.deleted_at IS NULL
-       ORDER BY i.id DESC LIMIT 1`,
+       ORDER BY i.id ASC`,
       [userId]
     );
+  }
+
+  async function getUserInstance(userId, instanceUid) {
+    const instances = await getUserInstances(userId);
+    if (instanceUid !== undefined) return instances.find(row => row.instance_uid === instanceUid) || null;
+    // Legacy clients remain safe for single-instance users. Never silently
+    // operate on a different instance once the user has several.
+    if (instances.length > 1) {
+      const error = new Error('Select the sandbox to manage.');
+      error.statusCode = 409;
+      error.code = 'INSTANCE_REQUIRED';
+      throw error;
+    }
+    return instances[0] || null;
+  }
+
+  async function lockUser(userId) {
+    if (isPostgres) await get('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+  }
+
+  function reject(http, message, code) {
+    const error = new Error(message);
+    error.statusCode = http;
+    error.code = code;
+    throw error;
+  }
+
+  async function eligible(userId) {
+    const subscription = await subscriptions.eligibleSubscription(userId);
+    if (!subscription) reject(403, 'An active CornGrid subscription is required.', 'SUBSCRIPTION_REQUIRED');
+    if (isPostgres) await get('SELECT id FROM user_subscriptions WHERE id = ? FOR UPDATE', [subscription.id]);
+    return subscription;
+  }
+
+  function failure(error) {
+    if (error.statusCode) return { http: error.statusCode, body: { error: error.message, code: error.code } };
+    console.error('Sandbox operation failed:', error.code || error.name);
+    return { http: 500, body: { error: 'Unable to update the sandbox. Please try again.' } };
   }
 
   // -------------------------------------------------------------------------
@@ -141,46 +179,40 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     if (!strategy) {
       return { http: 400, body: { error: 'The selected trading strategy is not available.' } };
     }
+    if(strategy.submission_id&&!await require('./strategy-artifact').artifactReady(strategy,strategyStorageDir)){
+      return {http:409,body:{error:'The approved EA executable is not available for deployment.',code:'ARTIFACT_REQUIRED'}};
+    }
 
     const preset = await loadStrategyPreset(db, strategy, symbol);
     if (!preset) return { http: 400, body: { error: 'This EA has no approved preset for the selected pair. Ask the developer to submit one for review.', code: 'PRESET_UNAVAILABLE' } };
-    // --- Subscription gate --------------------------------------------------
-    const subscription = await subscriptions.eligibleSubscription(userId);
-    if (!subscription) {
-      const fallback = (await subscriptions.currentSubscription(userId))
-        || (await subscriptions.latestSubscription(userId));
-      const status = fallback ? subscriptions.effectiveStatus(fallback) : 'none';
-      return {
-        http: 403,
-        body: {
-          error: 'An active CornGrid subscription is required to activate a sandbox.',
-          code: 'SUBSCRIPTION_REQUIRED',
-          subscriptionStatus: status
-        }
-      };
-    }
-
-    // --- Existing sandbox? (idempotency for repeated Activate clicks) -------
-    const existing = await getUserInstance(userId);
-    if (existing) {
-      return { http: 200, body: { message: 'Sandbox already exists.', sandbox: publicInstance(existing), alreadyExists: true } };
-    }
-
-    // --- Allocate a node ------------------------------------------------------
-    const node = await nodes.allocateNode({ preferredNodeId });
-    if (!node) {
-      return { http: 503, body: { error: 'No sandbox server capacity is available right now. Please try again shortly.', code: 'NO_CAPACITY' } };
-    }
-
     const timestamp = now();
     const instanceUid = `sbx_${crypto.randomBytes(9).toString('hex')}`;
     const installationSecret = crypto.randomBytes(32).toString('hex');
     const installationSecretHash = crypto.createHash('sha256').update(installationSecret).digest('hex');
     const activationIdentifier = crypto.randomBytes(24).toString('hex');
 
-    let instanceId;
+    let instanceId, node, subscription, command;
     try {
-      await withTransaction(async () => {
+      const duplicate = await withTransaction(async () => {
+          await lockUser(userId);
+          subscription = await eligible(userId);
+          const instances = await getUserInstances(userId);
+          const existing = instances.find(row => row.broker_server === brokerServer.trim() && row.mt5_account_number === String(accountNumber).trim());
+          if (existing) return existing;
+          const limit = Number(subscriptions.maxActivationsFor(subscription));
+          if (instances.length >= limit) reject(403, 'Your sandbox allowance is full. Remove an unused sandbox or upgrade your plan.', 'SANDBOX_LIMIT_REACHED');
+          const activation = await get(
+            'SELECT * FROM ea_license_activations WHERE user_id = ? AND mt5_account_number = ? AND broker_server = ?',
+            [userId, String(accountNumber).trim(), brokerServer.trim()]
+          );
+          if (activation && ['revoked', 'suspended'].includes(activation.license_status)) {
+            reject(403, 'This MT5 activation has been revoked or suspended. Contact support.', 'ACTIVATION_BLOCKED');
+          }
+          if (activation?.license_status !== 'active' && await subscriptions.activeActivationCount(userId) >= limit) {
+            reject(403, 'Your EA activation limit is reached. Use an already licensed MT5 account or upgrade your plan.', 'ACTIVATION_LIMIT_REACHED');
+          }
+          node = await nodes.allocateNode({ preferredNodeId });
+          if (!node) reject(503, 'No sandbox server capacity is available right now. Please try again shortly.', 'NO_CAPACITY');
           const inserted = await run(
             `INSERT INTO sandbox_instances
                (instance_uid, user_id, node_id, strategy_id, status, broker_server, mt5_account_number, account_masked, created_at, updated_at)
@@ -228,7 +260,10 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
             'SELECT * FROM ea_license_activations WHERE user_id = ? AND mt5_account_number = ? AND broker_server = ?',
             [userId, String(accountNumber).trim(), brokerServer.trim()]
           );
-          if (existingActivation) {
+          if (existingActivation?.license_status === 'active') {
+            await run('UPDATE ea_license_activations SET subscription_id = ?, account_id = ?, last_verified_at = ?, updated_at = ? WHERE id = ?',
+              [subscription.id, account.id, timestamp, timestamp, existingActivation.id]);
+          } else if (existingActivation) {
             await run(
               `UPDATE ea_license_activations
                SET subscription_id = ?, account_id = ?, activation_identifier = ?, license_status = 'active',
@@ -248,40 +283,23 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
           }
 
           await run('UPDATE sandbox_instances SET status = ?, updated_at = ? WHERE id = ?', ['deploying', timestamp, instanceId]);
+          // Persist the command atomically with the slot, credentials and
+          // license. Delivery starts only after COMMIT.
+          command = await nodes.queueCommand(node.id, 'deploy', { instanceId, deferDelivery: true, payload: {
+            preset, instanceUid, symbol, brokerServer: brokerServer.trim(), accountNumber: String(accountNumber).trim(),
+            password, installationSecret,
+            strategy: { code: strategy.code, name: strategy.name, version: strategy.version, eaFileName: strategy.ea_file_name },
+            apiBaseUrl: process.env.APP_BASE_URL || null
+          } });
+          return null;
       });
+      if (duplicate) return { http: 200, body: { message: 'Sandbox already exists for this MT5 account.', sandbox: publicInstance(duplicate), alreadyExists: true } };
     } catch (error) {
-      if (error && error.statusCode === 409) {
-        return { http: 409, body: { error: error.message } };
-      }
-      if (error && /UNIQUE constraint failed|duplicate key/i.test(error.message || '')) {
-        // Concurrent activation won the race — return the existing sandbox.
-        const winner = await getUserInstance(userId);
-        if (winner) {
-          return { http: 200, body: { message: 'Sandbox already exists.', sandbox: publicInstance(winner), alreadyExists: true } };
-        }
-      }
-      console.error('Sandbox activation failed:', error.message);
-      return { http: 500, body: { error: 'Unable to activate the sandbox. Please try again.' } };
+      return failure(error);
     }
 
     // --- Dispatch the deploy command -----------------------------------------
-    const deployPayload = {
-      preset,
-      instanceUid,
-      symbol,
-      brokerServer: brokerServer.trim(),
-      accountNumber: String(accountNumber).trim(),
-      password,
-      installationSecret,
-      strategy: {
-        code: strategy.code,
-        name: strategy.name,
-        version: strategy.version,
-        eaFileName: strategy.ea_file_name
-      },
-      apiBaseUrl: process.env.APP_BASE_URL || null
-    };
-    const command = await nodes.queueCommand(node.id, 'deploy', { instanceId, payload: deployPayload });
+    await nodes.dispatchCommand(command);
 
     await events.emit('SANDBOX_REQUESTED', { actorType, actorId, instanceId, nodeId: node.id, payload: { instanceUid, strategy: strategy.code } });
     await events.emit('SANDBOX_ALLOCATED', { instanceId, nodeId: node.id, payload: { instanceUid, nodeUid: node.node_uid } });
@@ -312,73 +330,102 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     reconnect: { command: 'reconnect', from: ['running', 'failed'], to: null, event: null }
   };
 
-  async function controlSandbox(userId, action) {
+  async function controlSandbox(userId, action, instanceUid) {
     const spec = CONTROL_COMMANDS[action];
     if (!spec) {
       return { http: 400, body: { error: 'Unknown sandbox action.' } };
     }
-    const instance = await getUserInstance(userId);
-    if (!instance) {
-      return { http: 404, body: { error: 'No sandbox exists for this account.' } };
-    }
-    if (instance.status === 'suspended') {
-      return { http: 403, body: { error: 'This sandbox is suspended. Contact CornGrid support.' } };
-    }
-    if (!spec.from.includes(instance.status)) {
-      return { http: 409, body: { error: `Cannot ${action} a sandbox that is ${instance.status}.`, status: instance.status } };
-    }
-    if (!instance.node_id) {
-      return { http: 409, body: { error: 'This sandbox is not assigned to a node yet.' } };
-    }
+    let instance, command;
+    try {
+      await withTransaction(async () => {
+        await lockUser(userId);
+        instance = await getUserInstance(userId, instanceUid);
+        if (!instance) {
+          reject(404, 'Sandbox not found.');
+        }
+        if (instance.status === 'suspended') {
+          reject(403, 'This sandbox is suspended. Contact CornGrid support.');
+        }
+        if (!spec.from.includes(instance.status)) {
+          reject(409, `Cannot ${action} a sandbox that is ${instance.status}.`);
+        }
+        if (!instance.node_id) {
+          reject(409, 'This sandbox is not assigned to a node yet.');
+        }
 
-    const timestamp = now();
-    if (action === 'pause') {
-      await run('UPDATE sandbox_instances SET trading_paused = TRUE, updated_at = ? WHERE id = ?', [timestamp, instance.id]);
-    } else if (action === 'resume') {
-      await run('UPDATE sandbox_instances SET trading_paused = FALSE, updated_at = ? WHERE id = ?', [timestamp, instance.id]);
-    } else if (spec.to) {
-      await run('UPDATE sandbox_instances SET status = ?, last_error = NULL, updated_at = ? WHERE id = ?', [spec.to, timestamp, instance.id]);
-    }
+        if (['start', 'restart', 'resume', 'reconnect'].includes(action)) {
+          await eligible(userId);
+          const activation = await get(`SELECT id FROM ea_license_activations
+            WHERE user_id = ? AND mt5_account_number = ? AND broker_server = ? AND license_status = 'active'`,
+            [userId, instance.mt5_account_number, instance.broker_server]);
+          if (!activation) reject(403, 'This MT5 account needs an active EA license.', 'ACTIVATION_REQUIRED');
+        }
+        if (['start', 'restart'].includes(action)) {
+          if (!await nodes.allocateNode({ preferredNodeId: instance.node_id, excludeInstanceId: instance.id })) {
+            reject(503, 'The assigned node is offline or has no available capacity.', 'NO_CAPACITY');
+          }
+        }
 
-    const command = await nodes.queueCommand(instance.node_id, spec.command, {
-      instanceId: instance.id,
-      payload: { instanceUid: instance.instance_uid }
-    });
+        const timestamp = now();
+        if (action === 'pause') {
+          await run('UPDATE sandbox_instances SET trading_paused = TRUE, updated_at = ? WHERE id = ?', [timestamp, instance.id]);
+        } else if (action === 'resume') {
+          await run('UPDATE sandbox_instances SET trading_paused = FALSE, updated_at = ? WHERE id = ?', [timestamp, instance.id]);
+        } else if (spec.to) {
+          await run('UPDATE sandbox_instances SET status = ?, last_error = NULL, updated_at = ? WHERE id = ?', [spec.to, timestamp, instance.id]);
+        }
+
+        command = await nodes.queueCommand(instance.node_id, spec.command, {
+          instanceId: instance.id,
+          deferDelivery: true,
+          payload: { instanceUid: instance.instance_uid }
+        });
+      });
+    } catch (error) { return failure(error); }
+    await nodes.dispatchCommand(command);
     if (spec.event) {
       await events.emit(spec.event, { actorType: 'user', actorId: userId, instanceId: instance.id, nodeId: instance.node_id, payload: { action } });
     }
     await log(instance.id, instance.node_id, 'info', 'backend', `User requested ${action}; command ${command.commandUid} queued.`);
 
-    const updated = await getUserInstance(userId);
+    const updated = await getUserInstance(userId, instance.instance_uid);
     return { http: 200, body: { message: `Sandbox ${action} requested.`, sandbox: publicInstance(updated) } };
   }
 
-  async function deleteSandbox(userId, { actorType = 'user', actorId = userId } = {}) {
-    const instance = await getUserInstance(userId);
-    if (!instance) {
-      return { http: 404, body: { error: 'No sandbox exists for this account.' } };
-    }
-    const timestamp = now();
+  async function deleteSandbox(userId, { instanceUid, actorType = 'user', actorId = userId } = {}) {
+    let instance, command;
+    try {
+      await withTransaction(async () => {
+        await lockUser(userId);
+        instance = await getUserInstance(userId, instanceUid);
+        if (!instance) {
+          reject(404, 'Sandbox not found.');
+        }
+        const timestamp = now();
 
-    // Tell the agent to tear down the environment first (best effort — the
-    // node may be offline; a janitor pass on the agent reconciles later).
-    if (instance.node_id) {
-      await nodes.queueCommand(instance.node_id, 'destroy', {
-        instanceId: instance.id,
-        payload: { instanceUid: instance.instance_uid, sandboxPath: instance.sandbox_path }
+        // Tell the agent to tear down the environment first (best effort — the
+        // node may be offline; a janitor pass on the agent reconciles later).
+        if (instance.node_id) {
+          command = await nodes.queueCommand(instance.node_id, 'destroy', {
+            instanceId: instance.id,
+            deferDelivery: true,
+            payload: { instanceUid: instance.instance_uid, sandboxPath: instance.sandbox_path }
+          });
+        }
+
+        await run('UPDATE sandbox_instances SET deleted_at = ?, status = ?, process_id = NULL, updated_at = ? WHERE id = ?',
+          [timestamp, 'stopped', timestamp, instance.id]);
+        await run('DELETE FROM sandbox_credentials WHERE instance_id = ?', [instance.id]);
+        // Revoke the sandbox installation secrets so a leaked secret dies with the sandbox.
+        await run(
+          `UPDATE mt5_installations SET revoked_at = ?
+           WHERE account_id IN (SELECT id FROM mt5_accounts WHERE account_number = ? AND broker_server = ?)
+             AND revoked_at IS NULL`,
+          [timestamp, instance.mt5_account_number || '', instance.broker_server || '']
+        );
       });
-    }
-
-    await run('UPDATE sandbox_instances SET deleted_at = ?, status = ?, process_id = NULL, updated_at = ? WHERE id = ?',
-      [timestamp, 'stopped', timestamp, instance.id]);
-    await run('DELETE FROM sandbox_credentials WHERE instance_id = ?', [instance.id]);
-    // Revoke the sandbox installation secrets so a leaked secret dies with the sandbox.
-    await run(
-      `UPDATE mt5_installations SET revoked_at = ?
-       WHERE account_id IN (SELECT id FROM mt5_accounts WHERE account_number = ? AND broker_server = ?)
-         AND revoked_at IS NULL`,
-      [timestamp, instance.mt5_account_number || '', instance.broker_server || '']
-    );
+    } catch (error) { return failure(error); }
+    if (command) await nodes.dispatchCommand(command);
 
     await events.emit('SANDBOX_DELETED', { actorType, actorId, instanceId: instance.id, nodeId: instance.node_id, payload: { instanceUid: instance.instance_uid } });
     await log(instance.id, instance.node_id, 'info', 'backend', `Sandbox ${instance.instance_uid} deleted.`);
@@ -389,27 +436,33 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
   // Status
   // -------------------------------------------------------------------------
 
-  async function sandboxStatus(userId) {
-    const instance = await getUserInstance(userId);
-    if (!instance) {
-      return { sandbox: null };
-    }
-    const subscription = await subscriptions.currentSubscription(userId);
+  async function sandboxStatus(userId, instanceUid) {
+    const instances = await getUserInstances(userId);
+    const instance = instanceUid === undefined ? instances[0] : instances.find(row => row.instance_uid === instanceUid);
+    if (instanceUid !== undefined && !instance) return null;
+    const subscription = await subscriptions.eligibleSubscription(userId) || await subscriptions.currentSubscription(userId) || await subscriptions.latestSubscription(userId);
     const subscriptionStatus = subscription ? subscriptions.effectiveStatus(subscription) : 'none';
-    const node = instance.node_id
+    const node = instance?.node_id
       ? await get('SELECT node_uid, name, last_heartbeat_at FROM sandbox_nodes WHERE id = ?', [instance.node_id])
       : null;
     const nodeOnline = Boolean(node && node.last_heartbeat_at && (now() - node.last_heartbeat_at) < nodes.NODE_OFFLINE_AFTER_MS);
 
     return {
       sandbox: publicInstance(instance),
+      sandboxes: instances.map(publicInstance),
+      capacity: {
+        maxSandboxes: subscriptionStatus === 'active' ? Number(subscriptions.maxActivationsFor(subscription)) : 0,
+        sandboxCount: instances.length,
+        activeActivations: await subscriptions.activeActivationCount(userId),
+        canAdd: subscriptionStatus === 'active' && instances.length < Number(subscriptions.maxActivationsFor(subscription))
+      },
       subscription: {
         status: subscriptionStatus,
         expiresAt: subscription ? subscription.expires_at : null,
         planName: subscription ? subscription.plan_name : null
       },
       node: node ? { nodeUid: node.node_uid, name: node.name, online: nodeOnline } : null,
-      mt5Connection: instance.status === 'running' ? 'connected' : (instance.status === 'starting' || instance.status === 'deploying' ? 'connecting' : 'disconnected')
+      mt5Connection: instance?.status === 'running' ? 'connected' : (['starting', 'deploying'].includes(instance?.status) ? 'connecting' : 'disconnected')
     };
   }
 
@@ -419,6 +472,7 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     deleteSandbox,
     sandboxStatus,
     getUserInstance,
+    getUserInstances,
     publicInstance,
     log
   };

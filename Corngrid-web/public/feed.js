@@ -4,6 +4,7 @@
   const API = '/api';
   const MAX_POST_LENGTH = 4000;
   const MAX_COMMENT_LENGTH = 2000;
+  const MAX_IMAGES = 5;
 
   const state = {
     filter: 'latest',
@@ -12,7 +13,9 @@
     loading: false,
     loaded: false,
     editingPostId: null,
-    composerImage: null,
+    composerImages: [],
+    uploading: false,
+    submitting: false,
     profile: null,
     profilePosts: [],
     profileActivity: [],
@@ -123,9 +126,7 @@
       ? '<span class="feed-badge feed-badge-official">Official Announcement</span>'
       : (post.isPinned ? '<span class="feed-badge feed-badge-pinned">Pinned</span>' : '');
     const edited = post.edited ? '<span class="feed-edited" title="' + escapeHtml(exactTime(post.updatedAt)) + '">· edited</span>' : '';
-    const image = post.imagePath
-      ? `<button type="button" class="feed-image-button" data-feed-image="${escapeHtml(post.imagePath)}" aria-label="Open post image"><img class="feed-image" src="${escapeHtml(post.imagePath)}" alt="Post image" loading="lazy"></button>`
-      : '';
+    const image = renderImages(postImages(post));
     const menu = canManage
       ? `<div class="feed-card-menu">
            <button type="button" class="button button-secondary button-small" data-feed-edit="${escapeHtml(post.id)}">Edit</button>
@@ -180,6 +181,7 @@
         isAnnouncement: post.kind === 'announcement'
       }));
       if (append) {
+        state.posts.push(...data.posts);
         list.insertAdjacentHTML('beforeend', cards.join(''));
       } else {
         state.posts = data.posts;
@@ -206,24 +208,42 @@
 
 
   // ---- Composer: create and edit posts ----
+  function renderComposerImages() {
+    const host=$('feed-composer-images');
+    host.hidden=!state.composerImages.length;
+    host.innerHTML=state.composerImages.map((src,index)=>`<div class="feed-composer-thumb"><img src="${escapeHtml(src)}" alt="Selected image ${index+1}"><button type="button" data-feed-remove-image="${index}" aria-label="Remove image ${index+1}" ${state.uploading||state.submitting?'disabled':''}>${arrowIcon('close')}</button></div>`).join('');
+    $('feed-image-count').textContent=state.composerImages.length?`${state.composerImages.length} / ${MAX_IMAGES}`:'';
+    $('feed-upload-status').textContent=state.uploading?'Uploading images…':'';
+    $('feed-composer-submit').disabled=state.uploading||state.submitting;
+    $('feed-composer-cancel').disabled=state.uploading||state.submitting;
+    $('feed-composer-input').disabled=state.submitting;
+    const picker=$('feed-composer-file'),disabled=state.uploading||state.submitting||state.composerImages.length>=MAX_IMAGES;
+    picker.disabled=disabled;
+    const label=document.querySelector('label[for="feed-composer-file"]');
+    label.setAttribute('aria-disabled',String(disabled));label.tabIndex=disabled?-1:0;
+  }
+
   function resetComposer() {
+    if(state.uploading)return;
     const input = $('feed-composer-input');
     input.value = '';
     $('feed-char-count').textContent = `0 / ${MAX_POST_LENGTH}`;
     state.editingPostId = null;
-    state.composerImage = null;
-    $('feed-composer-image').hidden = true;
-    $('feed-composer-image-preview').removeAttribute('src');
+    state.composerImages = [];
+    renderComposerImages();
     $('feed-composer-cancel').hidden = true;
     $('feed-composer-submit').textContent = 'Publish post';
     $('feed-composer-file').value = '';
   }
 
   function startEditPost(postId) {
+    if(state.uploading||state.submitting)return;
     const post = state.posts.find(item => String(item.id) === String(postId))
       || state.profilePosts.find(item => String(item.id) === String(postId));
     if (!post) return;
     state.editingPostId = post.id;
+    state.composerImages = postImages(post).slice();
+    renderComposerImages();
     const input = $('feed-composer-input');
     input.value = post.title ? `${post.title}\n${post.content}` : post.content;
     $('feed-char-count').textContent = `${input.value.length} / ${MAX_POST_LENGTH}`;
@@ -242,21 +262,22 @@
     if (!raw) return toast('Write something before publishing.', 'error');
     if (raw.length > MAX_POST_LENGTH) return toast(`Posts are limited to ${MAX_POST_LENGTH} characters.`, 'error');
     const button = $('feed-composer-submit');
-    if (button.disabled) return; // guard against double-submit
-    button.disabled = true;
+    if (button.disabled||state.uploading||state.submitting) return;
+    state.submitting=true;
+    renderComposerImages();
     const originalLabel = button.textContent;
     button.textContent = originalLabel === 'Publish post' ? 'Publishing…' : 'Saving…';
     try {
       if (state.editingPostId != null) {
         await request(`/feed/posts/${encodeURIComponent(state.editingPostId)}`, {
           method: 'PATCH',
-          body: JSON.stringify({ content: raw })
+          body: JSON.stringify({ content: raw, imagePaths: state.composerImages })
         });
         toast('Post updated.', 'success');
       } else {
         await request('/feed/posts', {
           method: 'POST',
-          body: JSON.stringify({ content: raw, imagePath: state.composerImage })
+          body: JSON.stringify({ content: raw, imagePaths: state.composerImages })
         });
         toast('Post published.', 'success');
       }
@@ -269,17 +290,24 @@
       // to "Publish post" after a successful save.
       button.textContent = originalLabel;
     } finally {
-      button.disabled = false;
+      state.submitting=false;
+      renderComposerImages();
     }
   }
 
-  async function uploadComposerImage(file) {
-    if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+  async function uploadComposerImages(files) {
+    files=Array.from(files||[]);
+    $('feed-composer-file').value='';
+    if (!files.length||state.uploading||state.submitting) return;
+    if(files.length+state.composerImages.length>MAX_IMAGES)return toast('You can attach up to 5 images per post.','error');
+    if (files.some(file=>!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))) {
       return toast('Only JPEG, PNG, or WebP images are supported.', 'error');
     }
-    if (file.size > 5 * 1024 * 1024) return toast('Image must be 5 MB or smaller.', 'error');
+    if (files.some(file=>file.size>5*1024*1024)) return toast('Each image must be 5 MB or smaller.', 'error');
+    state.uploading=true;
+    renderComposerImages();
     try {
+      for(const file of files){
       const response = await fetch(`${API}/feed/uploads`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -290,13 +318,13 @@
       const data = await response.json().catch(() => ({}));
       if (response.status === 401 || response.status === 403) throw new Error('Your session has expired. Please sign in again.');
       if (!response.ok) throw new Error(data.error || 'The image could not be uploaded.');
-      state.composerImage = data.url;
-      const preview = $('feed-composer-image-preview');
-      preview.src = `${data.url}?v=${Date.now()}`;
-      $('feed-composer-image').hidden = false;
+      if(!/^\/uploads\/feed\/[a-f0-9]{32}\.(jpg|png|webp)$/.test(data.url))throw Error('The server returned an invalid image reference.');
+      state.composerImages.push(data.url);
+      renderComposerImages();
+      }
     } catch (error) {
       toast(error.message, 'error');
-    }
+    } finally {state.uploading=false;renderComposerImages();}
   }
 
 
@@ -455,8 +483,46 @@
     }
   }
 
+  // Native scroll-snap keeps swiping local to the gallery, leaving vertical page scrolling intact.
+  function arrowIcon(direction){
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${direction==='left'?'m15 18-6-6 6-6':direction==='close'?'m6 6 12 12M18 6 6 18':'m9 6 6 6-6 6'}"/></svg>`;
+  }
+  function postImages(post){
+    const images=Array.isArray(post.imagePaths)?post.imagePaths:post.imagePath?[post.imagePath]:[];
+    return images.filter(src=>typeof src==='string'&&/^\/uploads\/feed\/[a-f0-9]{32}\.(jpg|png|webp)$/.test(src)).slice(0,MAX_IMAGES);
+  }
+  function renderImages(images){
+    if(!images.length)return '';
+    const slides=images.map((src,index)=>`<button type="button" class="feed-image-button" data-feed-image="${escapeHtml(src)}" aria-haspopup="dialog" aria-label="Open image ${index+1} of ${images.length}" ${index?'tabindex="-1"':''}><img class="feed-image" src="${escapeHtml(src)}" alt="Post image ${index+1} of ${images.length}" loading="lazy" decoding="async"></button>`).join('');
+    if(images.length===1)return slides;
+    return `<div class="feed-gallery" role="region" aria-roledescription="carousel" aria-label="Post images"><div class="feed-gallery-track" tabindex="0" aria-label="Images. Use left and right arrow keys.">${slides}</div><div class="feed-gallery-controls"><button type="button" data-feed-slide="-1" aria-label="Previous image" disabled>${arrowIcon('left')}</button><span class="feed-gallery-count" aria-live="polite" aria-atomic="true">1 / ${images.length}</span><button type="button" data-feed-slide="1" aria-label="Next image">${arrowIcon('right')}</button></div></div>`;
+  }
+  function galleryIndex(track){return Math.max(0,Math.min(track.children.length-1,Math.round(track.scrollLeft/(track.clientWidth||1))));}
+  function syncGallery(track){
+    const gallery=track.closest('.feed-gallery'),index=galleryIndex(track),total=track.children.length;
+    gallery.querySelector('.feed-gallery-count').textContent=`${index+1} / ${total}`;
+    gallery.querySelector('[data-feed-slide="-1"]').disabled=index===0;
+    gallery.querySelector('[data-feed-slide="1"]').disabled=index===total-1;
+    Array.from(track.children).forEach((slide,i)=>slide.tabIndex=i===index?0:-1);
+  }
+  function moveGallery(track,step){
+    const index=Math.max(0,Math.min(track.children.length-1,galleryIndex(track)+step));
+    track.scrollTo({left:index*track.clientWidth,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  }
+
   // ---- Post image lightbox ----
   let lightboxTrigger = null;
+  let lightboxImages=[],lightboxIndex=0;
+  function showLightboxImage(index){
+    lightboxIndex=Math.max(0,Math.min(lightboxImages.length-1,index));
+    const src=lightboxImages[lightboxIndex],image=$('feed-lightbox-image'),download=$('feed-lightbox-download');
+    image.src=src;image.alt=`Post image ${lightboxIndex+1} of ${lightboxImages.length}`;
+    download.href=src;download.setAttribute('download',imageDownloadName(src));
+    $('feed-lightbox-counter').textContent=`${lightboxIndex+1} / ${lightboxImages.length}`;
+    $('feed-lightbox-navigation').hidden=lightboxImages.length<2;
+    $('feed-lightbox-prev').disabled=lightboxIndex===0;
+    $('feed-lightbox-next').disabled=lightboxIndex===lightboxImages.length-1;
+  }
 
   function safeImageUrl(value) {
     if (!value) return null;
@@ -484,11 +550,9 @@
     const image = $('feed-lightbox-image');
     const download = $('feed-lightbox-download');
     if (!safeSrc || !lightbox || !image || !download) return;
-    image.src = safeSrc;
-    const triggerImage = trigger && trigger.querySelector('img');
-    image.alt = triggerImage ? triggerImage.alt : 'Expanded post image';
-    download.href = safeSrc;
-    download.setAttribute('download', imageDownloadName(safeSrc));
+    const card=trigger?.closest('.feed-card');
+    lightboxImages=card?Array.from(card.querySelectorAll('[data-feed-image]')).map(button=>safeImageUrl(button.dataset.feedImage)).filter(Boolean):[safeSrc];
+    showLightboxImage(Math.max(0,lightboxImages.indexOf(safeSrc)));
     lightboxTrigger = trigger || null;
     lightbox.hidden = false;
     document.body.classList.add('feed-lightbox-open');
@@ -510,6 +574,7 @@
     }
     if (lightboxTrigger && document.contains(lightboxTrigger)) lightboxTrigger.focus();
     lightboxTrigger = null;
+    lightboxImages=[];
   }
 
   function trapLightboxFocus(event) {
@@ -641,12 +706,26 @@
     });
     $('feed-composer-submit').addEventListener('click', submitComposer);
     $('feed-composer-cancel').addEventListener('click', resetComposer);
-    $('feed-composer-file').addEventListener('change', event => uploadComposerImage(event.target.files[0]));
-    $('feed-composer-image-remove').addEventListener('click', () => {
-      state.composerImage = null;
-      $('feed-composer-image').hidden = true;
-      $('feed-composer-file').value = '';
+    $('feed-composer-file').addEventListener('change', event => uploadComposerImages(event.target.files));
+    $('feed-composer-images').addEventListener('click', event => {
+      const button=event.target.closest('[data-feed-remove-image]');
+      if(!button||state.uploading||state.submitting)return;
+      const index=Number(button.dataset.feedRemoveImage);
+      state.composerImages.splice(index,1);renderComposerImages();
+      const next=$('feed-composer-images').querySelectorAll('button');
+      (next[Math.min(index,next.length-1)]||document.querySelector('label[for="feed-composer-file"]')).focus();
     });
+    const pickerLabel=document.querySelector('label[for="feed-composer-file"]');
+    pickerLabel.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();if(!$('feed-composer-file').disabled)$('feed-composer-file').click();}});
+    document.addEventListener('scroll',event=>{if(event.target.classList?.contains('feed-gallery-track'))syncGallery(event.target);},true);
+    document.addEventListener('keydown',event=>{const track=event.target.closest?.('.feed-gallery-track');if(track&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();moveGallery(track,event.key==='Home'?-MAX_IMAGES:event.key==='End'?MAX_IMAGES:event.key==='ArrowRight'?1:-1);}});
+    $('feed-lightbox-prev').addEventListener('click',()=>showLightboxImage(lightboxIndex-1));
+    $('feed-lightbox-next').addEventListener('click',()=>showLightboxImage(lightboxIndex+1));
+    let swipeStart=null;
+    $('feed-lightbox-image').addEventListener('touchstart',event=>{swipeStart=event.touches.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY}:null;},{passive:true});
+    $('feed-lightbox-image').addEventListener('touchend',event=>{if(!swipeStart||event.touches.length)return;const dx=event.changedTouches[0].clientX-swipeStart.x,dy=event.changedTouches[0].clientY-swipeStart.y;swipeStart=null;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.5)showLightboxImage(lightboxIndex+(dx<0?1:-1));},{passive:true});
+    $('feed-lightbox-image').addEventListener('touchcancel',()=>{swipeStart=null;},{passive:true});
+    renderComposerImages();
 
     // Filters
     $('feed-filters').addEventListener('click', event => {
@@ -662,6 +741,8 @@
 
     // Delegated clicks across feed cards, comments, and profile list
     document.addEventListener('click', event => {
+      const slide=event.target.closest('[data-feed-slide]');
+      if(slide)return moveGallery(slide.closest('.feed-gallery').querySelector('.feed-gallery-track'),Number(slide.dataset.feedSlide));
       const closeLightbox = event.target.closest('[data-feed-lightbox-close]');
       if (closeLightbox) return closeImageLightbox();
       const image = event.target.closest('[data-feed-image]');
@@ -710,6 +791,8 @@
         closeImageLightbox();
       } else if (event.key === 'Tab') {
         trapLightboxFocus(event);
+      } else if(['ArrowLeft','ArrowRight'].includes(event.key)){
+        event.preventDefault();showLightboxImage(lightboxIndex+(event.key==='ArrowRight'?1:-1));
       }
     });
 

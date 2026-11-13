@@ -1,5 +1,9 @@
 # CornGrid Dashboard
 
+Adding a hosting/test VPS: [Windows node installation](docs/VPS_NODE_INSTALLATION.md)
+and [English agent setup](docs/WINDOWS_AGENT_SETUP.md). A node needs the agent,
+MT5 and Python tooling; it does not need this backend, its database or `.env`.
+
 The dashboard extends the existing Express, SQLite, and JWT application. It keeps the existing login and password-recovery routes. Dashboard API requests use the existing bearer token; no second authentication system is introduced.
 
 ## Current implementation

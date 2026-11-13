@@ -14,8 +14,9 @@ const { createMt5Manager } = require('./mt5-manager');
 const { createEaTester } = require('./ea-tester');
 const { createTransport } = require('./transport');
 const systemMonitor = require('./system-monitor');
+const { createAutoUpdater } = require('./auto-update');
 
-const AGENT_VERSION = '1.1.0';
+const AGENT_VERSION = require('./package.json').version;
 const LOG_BUFFER_MAX = 200;
 
 const config = loadConfig();
@@ -48,11 +49,20 @@ let transport;
 let tester;
 let recoveryInProgress = false;
 let lastRecovery = 0;
+let activeCommands = 0;
+let updateDraining = false;
+let updater;
+let healthSent = false;
+let heartbeatTimer;
+function reportHealthy() {
+  if (!healthSent && process.send) { healthSent = true; process.send({ type: 'agent_healthy' }); }
+}
 async function recoverInstances() {
-  if (!mt5 || recoveryInProgress) return;
+  if (!mt5 || recoveryInProgress || updateDraining) return;
   recoveryInProgress = true;
   try {
     const state = await transport.httpRequest('GET', '/api/sandbox/node/instances');
+    reportHealthy();
     for (const instance of state.instances || []) {
       try { await mt5.start(instance); }
       catch (error) { logger.warn(instance.instanceUid, `Recovery failed: ${error.message}`); }
@@ -82,6 +92,7 @@ const COMMAND_HANDLERS = {
 
 async function handleCommand(message, channel) {
   const { commandUid, command, payload } = message;
+  if (updateDraining) { await transport.sendCommandResult(commandUid, { success: false, error: 'Agent update in progress; retry this control.' }); return; }
   const handler = COMMAND_HANDLERS[command];
   if (!handler) {
     logger.warn(null, `Unknown command "${command}" ignored.`);
@@ -89,19 +100,21 @@ async function handleCommand(message, channel) {
     return;
   }
   logger.info(payload && payload.instanceUid, `Executing command "${command}" (${commandUid}) via ${channel}.`);
+  activeCommands++;
   try {
     const result = await handler(payload || {});
     await transport.sendCommandResult(commandUid, { success: true, result: result || {} });
   } catch (error) {
     logger.error(payload && payload.instanceUid, `Command "${command}" failed: ${error.message}`);
     await transport.sendCommandResult(commandUid, { success: false, error: error.message });
-  }
+  } finally { activeCommands--; }
 }
 
 // ---------------------------------------------------------------------------
 // Heartbeat loop
 // ---------------------------------------------------------------------------
 async function heartbeat() {
+  if (updateDraining) return;
   if (Date.now() - lastRecovery >= 60000) await recoverInstances();
   const cpuPercent = systemMonitor.sampleCpuPercent();
   const memory = systemMonitor.memoryMb();
@@ -119,7 +132,7 @@ async function heartbeat() {
 
   try {
     await transport.sendHeartbeat({
-      agentVersion: AGENT_VERSION,
+      agentVersion: AGENT_VERSION + (process.env.CORNGRID_AGENT_RELEASE_ID ? '+' + process.env.CORNGRID_AGENT_RELEASE_ID.slice(0,12) : ''),
       machineName: os.hostname(),
       osVersion: `${os.type()} ${os.release()}`,
       cpuCount: os.cpus().length,
@@ -187,15 +200,28 @@ async function main() {
 
   transport.start();
 
-  const heartbeatTimer = setInterval(heartbeat, config.heartbeatIntervalMs);
+  heartbeatTimer = setInterval(heartbeat, config.heartbeatIntervalMs);
   heartbeatTimer.unref();
   // First heartbeat immediately so the node shows online without delay.
   heartbeat();
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+  if (process.send) {
+    updater = createAutoUpdater({ config, logger, isBusy: () => activeCommands > 0 || recoveryInProgress || updateDraining });
+    updater.start();
+    process.on('message', message => {
+      if (!message || !['prepare_update','shutdown'].includes(message.type)) return;
+      if (message.type === 'prepare_update' && (activeCommands > 0 || recoveryInProgress || updateDraining)) { process.send({ type: 'update_busy' }); return; }
+      if (message.type === 'prepare_update') process.send({ type: 'update_ready', id: message.id });
+      shutdown('supervisor');
+    });
+  }
 
   function shutdown(signal) {
+    if (updateDraining) return;
+    updateDraining = true;
+    updater?.stop();
     logger.info(null, `Received ${signal}; agent shutting down (terminals keep running).`);
     clearInterval(heartbeatTimer);
     transport.stop();

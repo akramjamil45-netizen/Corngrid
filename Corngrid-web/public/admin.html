@@ -99,10 +99,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261105-support2">
-<link rel="stylesheet" href="admin.css?v=20261111-payout1">
+<link rel="stylesheet" href="admin.css?v=20261113-announcement-image1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout2">
+  <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
+  <link rel="stylesheet" href="marketplace.css?v=20261112-partner-release1">
+  <script src="marketplace-ui.js?v=20261112-partner-release1" defer></script>
+  <script src="admin-marketplace.js?v=20261112-partner-release1" defer></script>
 <script src="table-cards.js?v=20261029-2" defer></script>
-<script src="admin.js?v=20261111-download-compact1" defer></script>
+<script src="account-requests.js?v=20261113-account-requests1" defer></script>
+<script src="admin.js?v=20261113-sandbox-refresh2" defer></script>
 </head>
 <body class="cg-admin-workspace">
   <div class="app-shell">
@@ -123,6 +128,8 @@
         <a class="nav-item admin-nav-link" href="#commissions" data-admin-page="commissions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>Commissions</a>
         <a class="nav-item admin-nav-link" href="#announcements" data-admin-page="announcements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg></span>Announcements</a>
         <a class="nav-item admin-nav-link" href="#downloads" data-admin-page="downloads"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Downloads</a>
+        <a class="nav-item admin-nav-link" href="#marketplace" data-admin-page="marketplace"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h16l-2-5H6L4 9Zm1 0v11h14V9M9 20v-6h6v6"/></svg></span>Marketplace</a>
+        <a class="nav-item admin-nav-link" href="#account-requests" data-admin-page="account-requests"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="m19 7 2 2-2 2"/></svg></span>Account requests<span id="account-requests-badge" class="account-request-badge" hidden></span></a>
         <a class="nav-item admin-nav-link" href="#user-agreements" data-admin-page="user-agreements"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m8 15 3 3 5-6"/></svg></span>User Agreements</a>
       </nav>
       <div class="sidebar-bottom">
@@ -140,6 +147,7 @@
       </header>
 
       <div class="page-wrap">
+        <section class="page" id="marketplace" hidden><div class="mp" id="admin-marketplace-root"></div></section>
         <section class="page" id="downloads" hidden>
           <div class="page-heading"><div><p class="eyebrow">USER RESOURCES</p><h1>Downloads directory</h1><p class="muted">Update the strategy presets and setup guide available on the user Downloads page.</p></div></div>
           <div class="notice"><span>MT5 presets: .set, up to 128 KB. Setup guide: PDF, up to 10 MB. Updates replace the selected download immediately.</span></div>
@@ -173,6 +181,7 @@
           </section>
         </section>
 
+        <section class="page" id="account-requests" hidden><div class="page-heading"><div><p class="eyebrow">ACCOUNT ACCESS</p><h1>Account deletion requests</h1><p class="muted">Review user requests. Approval archives the account and blocks sign-in while preserving records and published EAs.</p></div><button type="button" class="button button-secondary button-small" id="account-requests-refresh">Refresh</button></div><section class="panel"><div class="account-request-toolbar"><label>Status<select class="select-control" id="account-requests-filter"><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option><option value="all">All requests</option></select></label><span class="muted small" id="account-requests-summary"></span></div><p class="account-request-status" id="account-requests-feedback" role="status" aria-live="polite"></p><div class="account-request-list" id="account-requests-list" aria-live="polite"><p class="table-empty">Loading account requests…</p></div><div class="account-request-pagination"><button class="button button-secondary button-small" id="account-requests-prev" type="button" disabled>Previous</button><span id="account-requests-page"></span><button class="button button-secondary button-small" id="account-requests-next" type="button" disabled>Next</button></div></section></section>
         <section class="page" id="support" hidden>
           <div class="page-heading"><div><p class="eyebrow">CUSTOMER CARE</p><h1>Support inbox</h1><p class="muted">Reply to users who contact CornGrid support from Terminal Chat.</p></div><div class="admin-support-head-actions"><span class="admin-support-unread-summary" id="admin-support-unread-summary" hidden>0 unread</span><button class="button button-secondary" id="admin-support-refresh" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Refresh inbox</button></div></div>
           <div class="admin-support-layout">
@@ -278,6 +287,13 @@
               <form id="admin-ann-form" class="settings-form">
                 <label>Title<input class="input-control" id="admin-ann-title" type="text" maxlength="140" placeholder="e.g. CornGrid EA v2.70 released" required></label>
                 <label>Message<textarea class="input-control" id="admin-ann-content" maxlength="8000" rows="6" placeholder="Write the announcement body…" required></textarea></label>
+                <div class="admin-ann-media">
+                  <span class="admin-ann-media-label">Image <span class="muted">(optional)</span></span>
+                  <input id="admin-ann-image-file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose announcement image" aria-describedby="admin-ann-image-help" hidden>
+                  <div class="admin-ann-media-toolbar"><button class="button button-secondary button-small" id="admin-ann-image-pick" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m21 16-6-6L4 21"/></svg><span id="admin-ann-image-pick-label">Add image</span></button><small class="muted" id="admin-ann-image-help">JPEG, PNG or WebP · up to 5 MB</small></div>
+                  <figure class="admin-ann-image-preview" id="admin-ann-image-preview" hidden><img id="admin-ann-image-preview-img" alt="Selected announcement image"><figcaption><span id="admin-ann-image-name"></span><button class="button button-secondary button-small" id="admin-ann-image-remove" type="button">Remove image</button></figcaption></figure>
+                  <p class="admin-ann-image-status muted small" id="admin-ann-image-status" role="status" aria-live="polite"></p>
+                </div>
                 <label class="admin-ann-pin"><input type="checkbox" id="admin-ann-pin"> Pin to top of feed</label>
                 <div class="admin-ann-actions">
                   <button class="button button-secondary" type="button" id="admin-ann-cancel" hidden>Cancel edit</button>
@@ -601,7 +617,7 @@
         <label class="admin-field" for="sb-capacity-max">Maximum sandboxes<input class="input-control" id="sb-capacity-max" type="number" inputmode="numeric" min="1" max="200" step="1" required aria-describedby="sb-capacity-hint sb-capacity-error"></label>
         <div class="sb-capacity-increments" role="group" aria-label="Increase capacity"><button class="button button-small" type="button" data-capacity-add="1">+1 slot</button><button class="button button-small" type="button" data-capacity-add="5">+5 slots</button><button class="button button-small" type="button" data-capacity-add="10">+10 slots</button></div>
         <p class="muted small" id="sb-capacity-hint">1–200 slots. The limit cannot be lower than the slots in use.</p>
-        <p class="sb-capacity-error" id="sb-capacity-error" role="alert" hidden></p>
+        <p class="sb-capacity-error" id="sb-capacity-error" role="alert" tabindex="-1" hidden></p>
         <div class="admin-dialog-actions"><button class="button button-secondary" id="sb-capacity-cancel" type="button" data-close-dialog="sb-capacity-dialog">Cancel</button><button class="button button-primary" id="sb-capacity-save" type="submit">Save capacity</button></div>
       </div>
     </form>
@@ -663,6 +679,6 @@
       </div>
     </form>
   </dialog>
-  <script src="admin-sandbox.js?v=20261111-payout1" defer></script>
+  <script src="admin-sandbox.js?v=20261113-capacity-recovery3" defer></script>
 </body>
 </html>

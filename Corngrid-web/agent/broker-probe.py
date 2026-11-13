@@ -2,13 +2,14 @@
 import configparser
 import json
 import sys
+import os
 import time
 from pathlib import Path
 
 
 def probe(root, request_id):
     result = {'ok': False, 'requestId': request_id}
-    sys.path.insert(0, str(Path(__file__).parent / 'broker-python'))
+    sys.path.insert(0, str(Path(os.environ.get('CORNGRID_AGENT_HOME', Path(__file__).parent)) / 'broker-python'))
     try:
         import MetaTrader5 as mt5
     except ImportError:
@@ -44,7 +45,7 @@ def probe(root, request_id):
 
 if __name__ == '__main__':
     if len(sys.argv) == 2 and sys.argv[1] == '--check':
-        sys.path.insert(0, str(Path(__file__).parent / 'broker-python'))
+        sys.path.insert(0, str(Path(os.environ.get('CORNGRID_AGENT_HOME', Path(__file__).parent)) / 'broker-python'))
         import MetaTrader5 as mt5
         print(json.dumps({'ready': callable(mt5.initialize), 'version': mt5.__version__}))
         sys.exit(0)

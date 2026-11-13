@@ -20,6 +20,11 @@
     pollTimer: null,
     status: null,
     strategies: [],
+    selectedUid: null,
+    adding: false,
+    statusRequest: 0,
+    setupStrategy: null,
+    setupSymbol: null,
     busy: false
   };
 
@@ -101,7 +106,11 @@
     });
     let data = {};
     try { data = await response.json(); } catch { if (response.ok) throw new Error('The server returned an invalid response.'); }
-    if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
+    if (!response.ok) {
+      const error = new Error(data.error || 'The request could not be completed.');
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
 
@@ -128,10 +137,28 @@
     const { status } = state;
     const sandbox = status && status.sandbox;
     const errorBox = $('sandbox-error');
+    const instances = status?.sandboxes || [];
+    const capacity = status?.capacity;
+    const select = $('sandbox-instance-select');
+    select.disabled = state.busy;
+    const signature = JSON.stringify(instances.map(row => [row.instanceUid, row.mt5AccountNumber, row.brokerServer, row.status]));
+    if (select.dataset.signature !== signature) {
+      select.replaceChildren(...instances.map(row => new Option(`${row.mt5AccountNumber} · ${row.brokerServer} · ${STATUS_LABELS[row.status] || row.status}`, row.instanceUid)));
+      select.dataset.signature = signature;
+    }
+    select.value = sandbox?.instanceUid || '';
+    $('sandbox-picker-row').hidden = !instances.length;
+    $('sandbox-quota').textContent = capacity ? `${capacity.sandboxCount} / ${capacity.maxSandboxes}` : 'Loading…';
+    $('sandbox-license-summary').textContent = !capacity ? 'Loading your license allowance…'
+      : status.subscription?.status !== 'active' ? 'An active subscription is required to add a sandbox.'
+      : `${capacity.activeActivations} / ${capacity.maxSandboxes} EA activations used. One sandbox per MT5 account.${!capacity.canAdd ? ' Sandbox allowance is full.' : capacity.activeActivations >= capacity.maxSandboxes ? ' Use an already licensed MT5 account.' : ''}`;
+    $('sandbox-add-btn').disabled = state.busy || !capacity?.canAdd;
+    $('sandbox-activate-btn').disabled = state.busy || !capacity?.canAdd;
+    $('sandbox-cancel-add-btn').hidden = !instances.length;
+    $('sandbox-activation-section').hidden = !!sandbox && !state.adding;
+    $('sandbox-live-section').hidden = !sandbox || state.adding;
 
     if (!sandbox) {
-      $('sandbox-activation-section').hidden = false;
-      $('sandbox-live-section').hidden = true;
       setPill($('sandbox-status-pill'), 'No sandbox', 'pill-offline');
       if (status && status.subscription && status.subscription.status !== 'active') {
         errorBox.hidden = false;
@@ -142,8 +169,6 @@
       return;
     }
 
-    $('sandbox-activation-section').hidden = true;
-    $('sandbox-live-section').hidden = false;
     errorBox.hidden = !sandbox.lastError;
     if (sandbox.lastError) errorBox.textContent = `Last error: ${sandbox.lastError}`;
 
@@ -178,11 +203,24 @@
     $('sandbox-resume-btn').hidden = !sandbox.tradingPaused;
     $('sandbox-resume-btn').disabled = s !== 'running';
     $('sandbox-reconnect-btn').disabled = !['running', 'failed'].includes(s);
+    for (const button of document.querySelectorAll('.sandbox-controls button')) {
+      button.disabled ||= state.busy;
+    }
   }
 
   async function loadStatus() {
+    const sequence = ++state.statusRequest;
     try {
-      state.status = await request('/sandbox/status');
+      const query = state.selectedUid ? `?instanceUid=${encodeURIComponent(state.selectedUid)}` : '';
+      let data;
+      try { data = await request(`/sandbox/status${query}`); }
+      catch (error) {
+        if (error.status !== 404 || !state.selectedUid) throw error;
+        data = await request('/sandbox/status');
+      }
+      if (sequence !== state.statusRequest) return;
+      state.status = data;
+      state.selectedUid = data.sandbox?.instanceUid || null;
       render();
     } catch (error) {
       if (state.pageOpen) toast(error.message, 'error');
@@ -209,7 +247,11 @@
       for (const strategy of state.strategies) {
         select.add(new Option(`${strategy.name}${strategy.version ? ` v${strategy.version}` : ''}`, strategy.code));
       }
+      if (state.setupStrategy && state.strategies.some(s => s.code === state.setupStrategy)) select.value = state.setupStrategy;
       syncSupportedPairs();
+      if (state.setupSymbol && [...$('sandbox-symbol').options].some(o => o.value === state.setupSymbol && !o.disabled)) $('sandbox-symbol').value = state.setupSymbol;
+      state.setupStrategy = null;
+      state.setupSymbol = null;
     } catch (_error) {
       select.replaceChildren();
       select.add(new Option('Unable to load strategies', ''));
@@ -236,33 +278,40 @@
       });
       toast(result.message || 'Sandbox activation started.', 'success');
       $('sandbox-password').value = '';
+      state.selectedUid = result.sandbox?.instanceUid || null;
+      state.adding = false;
       await loadStatus();
     } catch (error) {
       toast(error.message, 'error');
     } finally {
       state.busy = false;
-      button.disabled = false;
       button.textContent = 'Activate Sandbox';
+      render();
     }
   }
 
   async function control(action, { confirmDelete = false } = {}) {
     if (state.busy) return;
+    const instanceUid = state.status?.sandbox?.instanceUid;
+    if (!instanceUid || instanceUid !== state.selectedUid) return;
     if (confirmDelete) {
       const confirmed = window.confirm('Delete this sandbox? The MT5 environment on the server will be removed. Your subscription and trading account are unaffected. This cannot be undone.');
       if (!confirmed) return;
     }
     state.busy = true;
+    render();
     try {
       const options = { method: action === 'delete' ? 'DELETE' : 'POST' };
-      if (action === 'delete') options.body = JSON.stringify({ confirm: true });
+      options.body = JSON.stringify({ instanceUid, ...(action === 'delete' ? { confirm: true } : {}) });
       const result = await request(action === 'delete' ? '/sandbox' : `/sandbox/${action}`, options);
       toast(result.message || `Sandbox ${action} requested.`, 'success');
+      if (action === 'delete') state.selectedUid = null;
       await loadStatus();
     } catch (error) {
       toast(error.message, 'error');
     } finally {
       state.busy = false;
+      render();
     }
   }
 
@@ -277,6 +326,23 @@
   }
 
   function bind() {
+    $('sandbox-instance-select').addEventListener('change', async event => {
+      if (state.busy) return;
+      state.selectedUid = event.target.value;
+      state.adding = false;
+      $('sandbox-live-section').hidden = true;
+      await loadStatus();
+    });
+    $('sandbox-add-btn').addEventListener('click', () => {
+      state.adding = true;
+      render();
+      $('sandbox-strategy').focus();
+    });
+    $('sandbox-cancel-add-btn').addEventListener('click', () => {
+      state.adding = false;
+      $('sandbox-password').value = '';
+      render();
+    });
     $('sandbox-broker').addEventListener('change', changeBroker);
     $('sandbox-server-search').addEventListener('input', filterServers);
     $('sandbox-server-select').addEventListener('change', syncServerMode);
@@ -293,6 +359,11 @@
   }
 
   window.CornGridSandbox = {
+    prepareSetup(strategyCode, symbol) {
+      state.setupStrategy = strategyCode;
+      state.setupSymbol = symbol;
+      state.adding = true;
+    },
     onOpen() {
       state.pageOpen = true;
       loadStrategies();
