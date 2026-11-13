@@ -160,7 +160,7 @@
 .infra-faq summary>span:last-child { color: #b6a557; font-size: 19px; font-weight: 400; }
 .infra-faq details[open] summary>span:last-child { transform: rotate(45deg); }
 .infra-faq details p { font-size: 11px; padding-bottom: 24px; animation: infra-enter .25s ease; }
-#support { padding-top: 0; }
+.infra-page #support { padding-block: clamp(32px,5vw,64px); }
 .infra-final { text-align: center; border: 1px solid #4e4221; border-radius: 16px; padding: 65px 35px; background: radial-gradient(ellipse at 50% 0,#ffd40010,transparent 65%),#151515; }
 .infra-final h2 { max-width: 700px; margin: auto; }
 .infra-final p { margin: 20px auto 27px; font-size: 12px; }

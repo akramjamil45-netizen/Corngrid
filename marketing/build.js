@@ -149,6 +149,7 @@ fs.writeFileSync('corngrid-ea.html',ea);
 // New asset URLs also invalidate browser/CDN caches before an existing worker updates.
 for(const file of ['index.html','en/index.html','corngrid-ea.html',appsFile,'Corngrid-web/public/public-portfolios.html','Corngrid-web/public/public-portfolio.html']) {
  const html=fs.readFileSync(file,'utf8').replace(/(href="\/infrastructure\.css|src="\/site\.js)(?:\?[^"\s]*)?"/g,'$1?v=20261105-visual4"');
- fs.writeFileSync(file,html.replace(/[ \t]+$/gm,'').trimEnd()+'\n');
+ const versioned=['index.html','en/index.html'].includes(file)?html.replace(/(href="\/infrastructure\.css)\?[^"\s]*"/g,'$1?v=20261114-support-padding1"'):html;
+ fs.writeFileSync(file,versioned.replace(/[ \t]+$/gm,'').trimEnd()+'\n');
 }
 console.log('Built BM/EN infrastructure pages, locale dictionaries and preserved EA navigation.');
