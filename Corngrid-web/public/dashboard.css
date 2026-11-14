@@ -36,6 +36,7 @@ button { color: inherit; }
 .workspace-label, .eyebrow { margin: 0; color: var(--subtle); font-size: 10px; font-weight: 700; letter-spacing: 1.35px; }
 .workspace-label { padding: 0 12px 10px; }
 .main-nav { display: grid; gap: 4px; flex: 0 0 auto; }
+.nav-section-label { margin: 0; padding: 14px 12px 4px; color: var(--subtle); font-size: 10px; font-weight: 700; line-height: 1.5; letter-spacing: .08em; text-transform: uppercase; }
 .nav-item { display: flex; width: 100%; min-height: 48px; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); text-align: left; cursor: pointer; transition: .16s ease; }
 .nav-item:hover { background: var(--surface-raised); color: var(--text); }
 .nav-item.is-active { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
