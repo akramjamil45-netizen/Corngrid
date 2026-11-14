@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { avatarUrl, AVATAR_SCHEMA } = require('./avatar-api');
 const { exclusive } = require('./db-write');
+const { normalizeMt5Currency, normalizeCurrencyRow, mt5CurrencySql } = require('./mt5-currency');
 
 const configuredHeartbeatTimeout = process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS === undefined
   ? 180
@@ -184,13 +185,13 @@ function run(db, sql, params = []) {
 
 function get(db, sql, params = []) {
   return new Promise((resolve, reject) => {
-    db.get(sql, params, (error, row) => error ? reject(error) : resolve(row));
+    db.get(sql, params, (error, row) => error ? reject(error) : resolve(normalizeCurrencyRow(row)));
   });
 }
 
 function all(db, sql, params = []) {
   return new Promise((resolve, reject) => {
-    db.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
+    db.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows.map(normalizeCurrencyRow)));
   });
 }
 
@@ -548,12 +549,12 @@ function registerMt5Api(app, db, verifyToken) {
     const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
     const accountNumber = typeof body.accountNumber === 'string' ? body.accountNumber.trim() : '';
     const brokerServer = typeof body.brokerServer === 'string' ? body.brokerServer.trim() : '';
-    const currency = typeof body.currency === 'string' ? body.currency.trim().toUpperCase() : '';
+    const currency = normalizeMt5Currency(body.currency);
     const eaVersion = body.eaVersion === undefined ? null : body.eaVersion;
     if (!/^[A-F0-9]{8}$/.test(code)) return res.status(400).json({ error: 'A valid 8-character pairing code is required.' });
     if (!/^[0-9]{1,32}$/.test(accountNumber)) return res.status(400).json({ error: 'A valid MT5 account identifier is required.' });
     if (!validText(brokerServer, 100)) return res.status(400).json({ error: 'A valid broker/server name is required.' });
-    if (!/^[A-Z]{3,8}$/.test(currency)) return res.status(400).json({ error: 'A valid account currency is required.' });
+    if (!currency) return res.status(400).json({ error: 'A valid account currency is required.' });
     if (eaVersion !== null && !validText(eaVersion, 40)) return res.status(400).json({ error: 'EA version must be between 1 and 40 characters.' });
 
     const now = Date.now();
@@ -627,6 +628,8 @@ function registerMt5Api(app, db, verifyToken) {
     const capturedAt = timestamp(body.timestamp);
     const eaName = body.eaName === undefined ? null : body.eaName;
     const eaVersion = body.eaVersion === undefined ? null : body.eaVersion;
+    const currency = body.currency === undefined ? null : normalizeMt5Currency(body.currency);
+    if (body.currency !== undefined && !currency) return res.status(400).json({ error: 'A valid account currency is required.' });
     if (![balance, equity, floatingProfit].every(value => validNumber(value))) return res.status(400).json({ error: 'Balance, equity, and floating profit must be finite numeric values.' });
     if (margin !== null && !validNumber(margin, { min: 0 })) return res.status(400).json({ error: 'Margin must be a non-negative number.' });
     if (freeMargin !== null && !validNumber(freeMargin, { min: -1e15 })) return res.status(400).json({ error: 'Free margin must be a valid number.' });
@@ -670,9 +673,10 @@ function registerMt5Api(app, db, verifyToken) {
           UPDATE mt5_accounts
           SET balance = ?, equity = ?, margin = ?, free_margin = ?, floating_profit = ?,
               ea_name = COALESCE(?, ea_name), ea_version = COALESCE(?, ea_version),
+              currency = COALESCE(?, currency),
               last_heartbeat = ?, last_sync = ?, auth_error_at = NULL
           WHERE id = ? AND (last_heartbeat IS NULL OR last_heartbeat <= ?)
-        `, [balance, equity, margin, freeMargin, floatingProfit, eaName, eaVersion, capturedAt, now, req.installation.account_id, capturedAt]);
+        `, [balance, equity, margin, freeMargin, floatingProfit, eaName, eaVersion, currency, capturedAt, now, req.installation.account_id, capturedAt]);
         if (accountUpdate.changes !== 1) return true;
         const accountId = req.installation.account_id;
         // Balance history is throttled: at one heartbeat every 30s for a large
@@ -941,8 +945,8 @@ function registerMt5Api(app, db, verifyToken) {
       const rows = await all(db, `
         SELECT p.share_id, u.username,
                COUNT(a.id) AS account_count,
-               COUNT(DISTINCT a.currency) AS currency_count,
-               MIN(a.currency) AS currency,
+               COUNT(DISTINCT ${mt5CurrencySql('a.currency')}) AS currency_count,
+               MIN(${mt5CurrencySql('a.currency')}) AS currency,
                SUM(CASE WHEN a.balance IS NULL OR a.equity IS NULL OR a.floating_profit IS NULL THEN 1 ELSE 0 END) AS incomplete_count,
                SUM(a.balance) AS balance,
                SUM(a.equity) AS equity,
@@ -1078,7 +1082,7 @@ function registerMt5Api(app, db, verifyToken) {
       if (scope.error) return res.status(scope.error.status).json({ error: scope.error.message });
       const accountFilter = scope.account ? 'AND id = ?' : '';
       const accountParams = scope.account ? [scope.account.id] : [];
-      const currencies = await all(db, `SELECT DISTINCT currency FROM mt5_accounts WHERE user_id = ? ${accountFilter}`, [ownerId(req), ...accountParams]);
+      const currencies = await all(db, `SELECT DISTINCT ${mt5CurrencySql('currency')} AS currency FROM mt5_accounts WHERE user_id = ? ${accountFilter}`, [ownerId(req), ...accountParams]);
       const accountCount = await get(db, `SELECT COUNT(*) AS count FROM mt5_accounts WHERE user_id = ? ${accountFilter}`, [ownerId(req), ...accountParams]);
       const sameCurrency = currencies.length === 1;
       const singleAccount = scope.account ? true : accountCount.count === 1;
@@ -1224,7 +1228,7 @@ function registerMt5Api(app, db, verifyToken) {
     }[req.query.sort] || 'p.opened_at DESC';
     try {
       if (req.query.sort === 'profit-desc' || req.query.sort === 'profit-asc') {
-        const currencies = await get(db, `SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
+        const currencies = await get(db, `SELECT COUNT(DISTINCT ${mt5CurrencySql('currency')}) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
         if (currencies.count > 1) return res.status(400).json({ error: 'Profit sorting is unavailable across different account currencies.' });
       }
       const where = filters.join(' AND ');
@@ -1303,7 +1307,7 @@ function registerMt5Api(app, db, verifyToken) {
     }[req.query.sort] || 'd.closed_at DESC';
     try {
       if (req.query.sort === 'net-desc' || req.query.sort === 'net-asc') {
-        const currencies = await get(db, `SELECT COUNT(DISTINCT currency) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
+        const currencies = await get(db, `SELECT COUNT(DISTINCT ${mt5CurrencySql('currency')}) AS count FROM mt5_accounts WHERE user_id = ?${scopedAccountId ? ' AND id = ?' : ''}`, scopedAccountId ? [ownerId(req), scopedAccountId] : [ownerId(req)]);
         if (currencies.count > 1) return res.status(400).json({ error: 'Net profit sorting is unavailable across different account currencies.' });
       }
       const where = filters.join(' AND ');
