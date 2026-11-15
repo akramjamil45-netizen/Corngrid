@@ -1,0 +1,174 @@
+{
+  "mode": "sample",
+  "report_type": "weekly-saas",
+  "format": "html",
+  "size": "responsive",
+  "logo_sha256": "7506b1ae01aff0a3c7e25cfc2c9b06a08cb4d645e224217e32fa3e22c0dd93a0",
+  "input_sha256": "1cc27079ee19a272ae485c62fe676de99189149a498a39c04efde7d821ef3207",
+  "data": {
+    "mode": "sample",
+    "report_type": "weekly-saas",
+    "report_date": "2026-11-14",
+    "timezone": "Asia/Kuala_Lumpur",
+    "period": {
+      "start": "2026-11-07",
+      "end": "2026-11-13"
+    },
+    "comparison_period": {
+      "start": "2026-10-31",
+      "end": "2026-11-06"
+    },
+    "headline": "A clearer view of platform growth.",
+    "hero_metric": "users",
+    "secondary_metric": "registrations",
+    "context": "Synthetic demonstration only. Replace these values with a verified CornGrid export.",
+    "metrics": [
+      {
+        "id": "users",
+        "label": "Registered users",
+        "value": 240,
+        "previous": 200,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      },
+      {
+        "id": "registrations",
+        "label": "New registrations",
+        "value": 40,
+        "previous": 32,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      },
+      {
+        "id": "active",
+        "label": "Weekly active users",
+        "value": 96,
+        "previous": 80,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      },
+      {
+        "id": "mt5",
+        "label": "Active MT5 accounts",
+        "value": 64,
+        "previous": 50,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      },
+      {
+        "id": "sandboxes",
+        "label": "Active sandboxes",
+        "value": 48,
+        "previous": 40,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      },
+      {
+        "id": "subscribers",
+        "label": "Paying subscribers",
+        "value": 24,
+        "previous": 20,
+        "unit": "count",
+        "source": "demo",
+        "previous_source": "demo"
+      }
+    ],
+    "chart": {
+      "type": "bar",
+      "title": "Daily active users",
+      "unit": "count",
+      "cadence": "daily",
+      "points": [
+        {
+          "date": "2026-11-07",
+          "value": 18,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-08",
+          "value": 24,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-09",
+          "value": 21,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-10",
+          "value": 32,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-11",
+          "value": 28,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-12",
+          "value": 40,
+          "source": "demo"
+        },
+        {
+          "date": "2026-11-13",
+          "value": 48,
+          "source": "demo"
+        }
+      ]
+    },
+    "sources": [
+      {
+        "id": "demo",
+        "label": "Synthetic demonstration fixture",
+        "as_of": "2026-11-14T08:00:00+08:00"
+      }
+    ],
+    "executive_summary": [],
+    "product_update": "Sample layout · no production statistics represented.",
+    "product_update_source": "demo"
+  },
+  "calculations": [
+    {
+      "metric_id": "users",
+      "change": "20.0",
+      "change_unit": "percent",
+      "display": "+20% vs prior period"
+    },
+    {
+      "metric_id": "registrations",
+      "change": "25.00",
+      "change_unit": "percent",
+      "display": "+25% vs prior period"
+    },
+    {
+      "metric_id": "active",
+      "change": "20.0",
+      "change_unit": "percent",
+      "display": "+20% vs prior period"
+    },
+    {
+      "metric_id": "mt5",
+      "change": "28.00",
+      "change_unit": "percent",
+      "display": "+28% vs prior period"
+    },
+    {
+      "metric_id": "sandboxes",
+      "change": "20.0",
+      "change_unit": "percent",
+      "display": "+20% vs prior period"
+    },
+    {
+      "metric_id": "subscribers",
+      "change": "20.0",
+      "change_unit": "percent",
+      "display": "+20% vs prior period"
+    }
+  ],
+  "validation": "Structural, provenance-reference and arithmetic checks passed; originating facts and prose require agent verification."
+}

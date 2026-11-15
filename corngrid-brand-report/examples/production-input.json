@@ -1,0 +1,18 @@
+{
+  "mode": "production",
+  "report_type": "weekly-saas",
+  "report_date": "2026-11-14",
+  "period": {"start": "2026-11-07", "end": "2026-11-13"},
+  "timezone": "Asia/Kuala_Lumpur",
+  "headline": "CornGrid weekly platform update",
+  "context": "Awaiting verified reporting data.",
+  "hero_metric": "registered-users",
+  "metrics": [
+    {"id": "registered-users", "label": "Registered users", "value": null, "unit": "count"},
+    {"id": "active-sandboxes", "label": "Active sandboxes", "value": null, "unit": "count"}
+  ],
+  "chart": {"type": "bar", "title": "Daily activity", "unit": "count", "cadence": "daily", "points": []},
+  "sources": [],
+  "executive_summary": [],
+  "product_update": ""
+}

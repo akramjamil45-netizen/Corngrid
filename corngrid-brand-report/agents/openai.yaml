@@ -1,0 +1,6 @@
+interface:
+  display_name: "CornGrid Brand Report"
+  short_description: "Verified CornGrid reports and branded growth infographics"
+  default_prompt: "Use $corngrid-brand-report to create a CornGrid report from the supplied verified statistics."
+policy:
+  allow_implicit_invocation: true

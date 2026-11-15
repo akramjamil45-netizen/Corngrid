@@ -113,9 +113,9 @@ async function createFixture() {
       headers: finalHeaders,
       body: body ? JSON.stringify(body) : undefined
     });
-    let json = null;
-    try { json = await response.json(); } catch { /* empty */ }
-    return { status: response.status, body: json };
+    const text=await response.text();let json = null;
+    try { json = JSON.parse(text); } catch { /* non-JSON download */ }
+    return { status: response.status, body: json, text, headers:response.headers };
   };
 
   return { db, server, request, partnerToken, traderToken, adminToken, sandbox, partner, subscriptionApi };
@@ -149,6 +149,44 @@ test('partner agreements require explicit current consent and preserve private i
   await request('/api/admin/partner-applications/1/review',{token:adminToken,method:'POST',body:{status:'rejected',reviewNotes:'Update profile'}});
   const resubmit=await apply({...accepted,signerName:'Updated Signer'});assert.equal(resubmit.status,201);assert.notEqual(resubmit.body.agreementId,id);assert.equal(fs.readFileSync(file,'utf8'),original);
   assert.equal((await request('/api/partner/agreements',{token:partnerToken})).body.agreements.length,2);
+ }finally{f.server.close();await new Promise(resolve=>db.close(resolve));}
+});
+
+test('TXT agreement exports preserve saved bilingual terms, ownership and original receipt integrity',async()=>{
+ const f=await createFixture();const {request,partnerToken,traderToken,adminToken,db}=f;
+ try{
+  const terms=(await request('/api/partner/terms',{token:partnerToken})).body;
+  const applied=await request('/api/partner/register',{token:partnerToken,method:'POST',body:{displayName:'Text Export Partner',agreement:{accepted:true,authority:true,version:terms.document.version,termsHash:terms.termsHash,language:'ms',signerName:'Penguji Agreement'}}});
+  assert.equal(applied.status,201);const id=applied.body.agreementId;
+  const endpoint='/api/partner/agreements/'+id+'/file',admin='/api/admin/partner-agreements/'+id+'/file';
+  const original=(await request(endpoint,{token:partnerToken})).text;
+  const row=await get(db,'SELECT * FROM partner_agreements WHERE id=?',[id]);
+  const txt=await request(endpoint+'?format=txt',{token:partnerToken});
+  assert.equal(txt.status,200);assert.match(txt.headers.get('content-type'),/^text\/plain; charset=utf-8/);
+  assert.match(txt.headers.get('content-disposition'),/attachment;.*\.txt/);
+  assert.equal(txt.headers.get('cache-control'),'private, no-store');assert.equal(txt.headers.get('x-content-type-options'),'nosniff');
+  for(const value of [id,'Penguji Agreement','Bahasa Melayu (BM)',terms.document.version,row.receipt_hash,terms.termsHash])assert.ok(txt.text.includes(value));
+  assert.ok(txt.text.indexOf('BAHASA MELAYU')<txt.text.indexOf('\r\nENGLISH\r\n'));
+  for(const section of terms.document.sections)for(const lang of ['ms','en'])assert.ok(txt.text.includes(section.text[lang]));
+  assert.equal((await request(admin+'?format=txt',{token:adminToken})).text,txt.text);
+  assert.equal((await request('/api/admin/partner-applications/1/agreement?format=txt',{token:adminToken})).text,txt.text);
+  assert.equal((await request(endpoint+'?format=txt',{token:traderToken})).status,404);
+  assert.equal((await request(admin+'?format=txt',{token:partnerToken})).status,403);
+  assert.equal((await request(endpoint+'?format=txt')).status,401);
+  assert.equal((await request(endpoint+'?format=pdf',{token:partnerToken})).status,400);
+  assert.equal((await request(endpoint,{token:partnerToken})).text,original,'TXT export cannot rewrite original JSON');
+  assert.deepEqual(await get(db,'SELECT * FROM partner_agreements WHERE id=?',[id]),row,'TXT exports are read-only');
+  const receipt=JSON.parse(row.receipt_json);
+  receipt.terms.version=receipt.termsVersion='2020-saved-version';
+  receipt.terms.sections[0].text.en='Earlier saved agreement wording.';
+  receipt.termsHash=crypto.createHash('sha256').update(JSON.stringify(receipt.terms)).digest('hex');
+  const snapshot=JSON.stringify(receipt,null,2)+'\n';
+  await run(db,'UPDATE partner_agreements SET terms_version=?,terms_hash=?,receipt_json=?,receipt_hash=? WHERE id=?',[receipt.termsVersion,receipt.termsHash,snapshot,crypto.createHash('sha256').update(snapshot).digest('hex'),id]);
+  const historical=await request(admin+'?format=txt',{token:adminToken});
+  assert.equal(historical.status,200);assert.ok(historical.text.includes('Earlier saved agreement wording.'));assert.ok(historical.text.includes('2020-saved-version'));
+  assert.ok(!historical.text.includes(terms.document.sections[0].text.en),'current terms must not replace accepted historical terms');
+  await run(db,'UPDATE partner_agreements SET receipt_json=? WHERE id=?',[snapshot+'tampered',id]);
+  assert.equal((await request(admin+'?format=txt',{token:adminToken})).status,503,'tampered source must fail closed');
  }finally{f.server.close();await new Promise(resolve=>db.close(resolve));}
 });
 

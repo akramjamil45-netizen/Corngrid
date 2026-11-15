@@ -21,6 +21,7 @@
     profileActivity: [],
     profileTab: 'posts',
     openComments: new Map(), // postId -> { comments, loading }
+    expandedPosts: new Set(),
     abortController: null
   };
 
@@ -118,6 +119,42 @@
     return (text[0] || '?').toUpperCase();
   }
 
+  let contentSequence = 0;
+  function postExcerpt(content) {
+    const text = String(content ?? ''), characters = Array.from(text);
+    let end = Math.min(characters.length, 320), lines = 1;
+    for (let i = 0; i < end; i++) {
+      if (characters[i] === '\n' && ++lines > 5) { end = i; break; }
+    }
+    if (end >= characters.length) return null;
+    let preview = characters.slice(0, end).join('');
+    const boundary = preview.search(/\s+\S*$/);
+    if (boundary > preview.length - 60) preview = preview.slice(0, boundary);
+    // A truncated URL must never become a link to a different destination.
+    let plain = false;
+    for (const match of text.matchAll(/\bhttps?:\/\/[^\s<>"']+/gi)) {
+      if (match.index < preview.length && match.index + match[0].length > preview.length) {
+        if (match.index > 0) preview = text.slice(0, match.index);
+        else plain = true;
+        break;
+      }
+    }
+    return { text: preview.trimEnd(), plain };
+  }
+
+  function renderPostContent(post) {
+    const excerpt = postExcerpt(post.content);
+    const full = CornGridMessageTools.render(post.content);
+    if (!excerpt) return `<div class="feed-card-content">${full}</div>`;
+    const id = `feed-post-content-${++contentSequence}`, expanded = state.expandedPosts.has(String(post.id));
+    const preview = excerpt.plain ? escapeHtml(excerpt.text).replace(/\n/g, '<br>') : CornGridMessageTools.render(excerpt.text);
+    return `<div class="feed-post-text">
+      <div class="feed-card-content" data-feed-excerpt ${expanded ? 'hidden' : ''}>${preview}\u2026</div>
+      <div class="feed-card-content" id="${id}" data-feed-full ${expanded ? '' : 'hidden'}>${full}</div>
+      <button type="button" class="feed-read-more" data-feed-expand aria-expanded="${expanded}" aria-controls="${id}">${expanded ? 'Show less' : 'Read more\u2026'}</button>
+    </div>`;
+  }
+
   // ---- Post card rendering (all user content passes through escapeHtml) ----
   function renderPostCard(post, { canManage = false, isAnnouncement = false } = {}) {
     const authorName = isAnnouncement ? 'CornGrid Announcement' : (post.author.displayName || post.author.username || 'Unknown');
@@ -148,7 +185,7 @@
           ${badge}
         </div>
         ${post.title ? `<h3 class="feed-card-title">${escapeHtml(post.title)}</h3>` : ''}
-        <div class="feed-card-content">${CornGridMessageTools.render(post.content)}</div>
+        ${renderPostContent(post)}
         ${image}
         <div class="feed-card-actions">
           <button type="button" class="feed-action${post.likedByMe ? ' is-active' : ''}" data-feed-like="${escapeHtml(post.id)}" aria-pressed="${post.likedByMe ? 'true' : 'false'}" aria-label="Like this post"><svg class="feed-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> <span data-like-count="${escapeHtml(post.id)}">${escapeHtml(post.likeCount)}</span></button>
@@ -504,6 +541,12 @@
     gallery.querySelector('[data-feed-slide="-1"]').disabled=index===0;
     gallery.querySelector('[data-feed-slide="1"]').disabled=index===total-1;
     Array.from(track.children).forEach((slide,i)=>slide.tabIndex=i===index?0:-1);
+    // Mobile images use their full card width. Fit the track to the active
+    // image so portrait reports stay readable without blank space on other slides.
+    if(window.matchMedia('(max-width:767px), (hover:none) and (pointer:coarse)').matches){
+      const image=track.children[index]?.querySelector('.feed-image');
+      if(track.clientWidth>0&&image?.naturalWidth)track.style.height=Math.ceil(track.clientWidth*image.naturalHeight/image.naturalWidth)+'px';
+    }else track.style.removeProperty('height');
   }
   function moveGallery(track,step){
     const index=Math.max(0,Math.min(track.children.length-1,galleryIndex(track)+step));
@@ -718,6 +761,14 @@
     const pickerLabel=document.querySelector('label[for="feed-composer-file"]');
     pickerLabel.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();if(!$('feed-composer-file').disabled)$('feed-composer-file').click();}});
     document.addEventListener('scroll',event=>{if(event.target.classList?.contains('feed-gallery-track'))syncGallery(event.target);},true);
+    document.addEventListener('load',event=>{
+      if(event.target instanceof HTMLImageElement){const track=event.target.closest('.feed-gallery-track');if(track)syncGallery(track);}
+    },true);
+    let galleryResizeFrame;
+    window.addEventListener('resize',()=>{
+      cancelAnimationFrame(galleryResizeFrame);
+      galleryResizeFrame=requestAnimationFrame(()=>document.querySelectorAll('.feed-gallery-track').forEach(syncGallery));
+    });
     document.addEventListener('keydown',event=>{const track=event.target.closest?.('.feed-gallery-track');if(track&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();moveGallery(track,event.key==='Home'?-MAX_IMAGES:event.key==='End'?MAX_IMAGES:event.key==='ArrowRight'?1:-1);}});
     $('feed-lightbox-prev').addEventListener('click',()=>showLightboxImage(lightboxIndex-1));
     $('feed-lightbox-next').addEventListener('click',()=>showLightboxImage(lightboxIndex+1));
@@ -741,6 +792,21 @@
 
     // Delegated clicks across feed cards, comments, and profile list
     document.addEventListener('click', event => {
+      const expand = event.target.closest('[data-feed-expand]');
+      if (expand) {
+        const host = expand.closest('.feed-post-text'), expanded = expand.getAttribute('aria-expanded') !== 'true';
+        const postId = expand.closest('[data-post-id]').dataset.postId;
+        host.querySelector('[data-feed-excerpt]').hidden = expanded;
+        host.querySelector('[data-feed-full]').hidden = !expanded;
+        expand.setAttribute('aria-expanded', String(expanded));
+        expand.textContent = expanded ? 'Show less' : 'Read more\u2026';
+        if (expanded) state.expandedPosts.add(postId); else state.expandedPosts.delete(postId);
+        if (!expanded) {
+          const rect = expand.getBoundingClientRect();
+          if (rect.top < 0 || rect.bottom > window.innerHeight) expand.scrollIntoView({block:'center',behavior:'instant'});
+        }
+        return;
+      }
       const slide=event.target.closest('[data-feed-slide]');
       if(slide)return moveGallery(slide.closest('.feed-gallery').querySelector('.feed-gallery-track'),Number(slide.dataset.feedSlide));
       const closeLightbox = event.target.closest('[data-feed-lightbox-close]');

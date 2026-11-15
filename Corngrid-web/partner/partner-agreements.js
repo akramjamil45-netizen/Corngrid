@@ -2,6 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {dbGet,dbAll,dbRun,isPostgres}=require('../db-async');
 const terms=require('./partner-terms');
+const {agreementText}=require('./agreement-text');
 function createPartnerAgreements(app,db,verifyUser,verifyAdmin,options={}) {
  const directory=options.directory||path.join(__dirname,'../storage/user-agreements');
  const ready=(async()=>{
@@ -39,10 +40,18 @@ function createPartnerAgreements(app,db,verifyUser,verifyAdmin,options={}) {
  app.get('/api/admin/partner-agreements',verifyAdmin,async(req,res)=>{try{await ready;const user=String(req.query.userId||'');if(user&&!/^[1-9][0-9]*$/.test(user))return res.status(400).json({error:'Invalid user ID.'});const rows=await dbAll(db,'SELECT g.id,g.user_id,g.terms_version,g.language,g.signer_name,g.accepted_at,u.username,u.email FROM partner_agreements g LEFT JOIN users u ON u.id=g.user_id'+(user?' WHERE g.user_id=?':'')+' ORDER BY g.accepted_at DESC LIMIT 200',user?[Number(user)]:[]);res.set('Cache-Control','private, no-store').json({agreements:rows});}catch{res.status(503).json({error:'Agreement records unavailable.'});}});
  async function download(req,res,admin=false,latest=false){
   try{await ready;
+   const format=req.query.format||'json';
+   if(!['json','txt'].includes(format))return res.status(400).json({error:'Choose JSON or TXT agreement format.'});
    let row;
    if(latest)row=await dbGet(db,'SELECT g.* FROM partner_agreements g JOIN partner_applications a ON a.agreement_id=g.id WHERE a.user_id=?',[req.params.userId]);
    else row=await dbGet(db,'SELECT * FROM partner_agreements WHERE id=?'+(admin?'':' AND user_id=?'),admin?[req.params.id]:[req.params.id,req.user.id]);
    if(!row)return res.status(404).json({error:'No digital agreement recorded. Legacy applications are not treated as accepted.'});
+   if(format==='txt'){
+    const text=agreementText(row);
+    res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Type':'text/plain; charset=utf-8'});
+    res.attachment('CornGrid-Partner-Agreement-'+row.id+'.txt');
+    return res.send(text);
+   }
    const file=materialize(row);res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});res.download(file,'CornGrid-Partner-Agreement-'+row.id+'.json');
   }catch(error){console.error('Agreement export failed:',error.code||'integrity-or-storage');res.status(503).json({error:'Agreement copy is temporarily unavailable.'});}
  }

@@ -17,6 +17,22 @@
     }catch{document.querySelectorAll('[data-marketplace-nav],[data-marketplace-partner]').forEach(e=>e.hidden=true);return null;}
   }
   function navigate(id){window.location.hash=id?'marketplace/'+encodeURIComponent(id):'marketplace';}
+  function filters(categories){
+    const count=Number(state.provider!=='all')+Number(state.strategy!=='all');
+    return `<form class="mp-browse-search" data-marketplace-filter>
+      <div class="mp-search-row">
+        <label class="sr-only" for="mp-search">Search Expert Advisors</label>
+        <input id="mp-search" name="search" class="input-control" type="search" enterkeyhint="search" maxlength="100" placeholder="Search EAs" value="${UI.esc(state.search)}">
+        <button type="submit" class="button button-primary mp-search-submit" aria-label="Search Marketplace"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></button>
+        <button type="button" class="button button-secondary mp-filter-toggle" data-filter-toggle aria-expanded="false" aria-controls="mp-filter-panel">Filters${count?` (${count})`:''}</button>
+      </div>
+      <div id="mp-filter-panel" class="mp-filter-panel" hidden>
+        <label for="mp-provider">Provider<select id="mp-provider" class="select-control" name="provider">${[['all','All providers'],['official','CornGrid Official'],['partner','Partner EAs']].map(([v,t])=>`<option value="${v}" ${state.provider===v?'selected':''}>${t}</option>`).join('')}</select></label>
+        <label for="mp-strategy">Strategy<select id="mp-strategy" class="select-control" name="strategy"><option value="all">All strategies</option>${categories.map(v=>`<option value="${v}" ${state.strategy===v?'selected':''}>${UI.label(v)}</option>`).join('')}</select></label>
+        <div class="mp-inline"><button type="submit" class="button button-primary button-small">Apply filters</button><button type="button" class="button button-secondary button-small" data-reset-filters>Reset</button></div>
+      </div>
+    </form>`;
+  }
   async function list(){
     const seq=++state.request,box=root();box.innerHTML='<p class="mp-loading" role="status">Loading trading strategies…</p>';
     try{
@@ -24,8 +40,16 @@
       if(seq!==state.request||!state.open)return;
       const section=(title,items)=>items.length?`<section class="mp-section"><div class="mp-section-heading"><h2>${title}</h2><span class="mp-small">${items.length} ${items.length===1?'EA':'EAs'}</span></div><div class="mp-grid">${items.map(UI.card).join('')}</div></section>`:'';
       const promo=state.promotion;
-      box.innerHTML=`<div class="mp-heading"><div><p class="eyebrow">CORNGRID INFRASTRUCTURE</p><h1>CornGrid EA Marketplace</h1><p class="muted">Discover automated trading strategies available on CornGrid Infrastructure.</p></div></div>${promo?`<section class="mp-promotion">${promo.image?`<img src="${UI.esc(promo.image)}" alt="" loading="lazy" decoding="async">`:''}<div><p class="eyebrow">EXPLORE A STRATEGY</p><h2>${UI.esc(promo.title)}</h2><p>${UI.esc(promo.description)}</p><button type="button" class="button button-primary button-small" data-mp-detail="${UI.esc(promo.eaId)}">Explore EA →</button></div></section>`:''}<form class="mp-filters" data-marketplace-filter><label class="sr-only" for="mp-search">Search Expert Advisors</label><input id="mp-search" name="search" class="input-control" type="search" maxlength="100" placeholder="Search EAs or developers" value="${UI.esc(state.search)}"><label class="sr-only" for="mp-provider">Provider</label><select id="mp-provider" class="select-control" name="provider">${[['all','All providers'],['official','CornGrid Official'],['partner','Partner EAs']].map(([v,t])=>`<option value="${v}" ${state.provider===v?'selected':''}>${t}</option>`).join('')}</select><label class="sr-only" for="mp-strategy">Strategy</label><select id="mp-strategy" class="select-control" name="strategy"><option value="all">All strategies</option>${data.categories.map(v=>`<option value="${v}" ${state.strategy===v?'selected':''}>${UI.label(v)}</option>`).join('')}</select><button class="button button-primary button-small">Search</button></form><p class="mp-small" role="status">${data.total} ${data.total===1?'strategy':'strategies'} found</p>${section('Featured EAs',data.listings.filter(e=>e.featured))}${section('CornGrid Official',data.listings.filter(e=>e.provider_type==='official'))}${section('Partner EAs',data.listings.filter(e=>e.provider_type==='partner'))}${!data.listings.length?'<div class="mp-message"><h2>No strategies found</h2><p>Try another search or check back for newly approved EAs.</p></div>':''}<div class="mp-pagination"><button type="button" class="button button-secondary button-small" data-prev ${state.page<=1?'disabled':''}>← Previous</button><span>Page ${state.page} of ${Math.max(1,data.pages)}</span><button type="button" class="button button-secondary button-small" data-next ${state.page>=data.pages?'disabled':''}>Next →</button></div>`;
+      box.innerHTML=`<div class="mp-heading"><div><p class="eyebrow">CORNGRID INFRASTRUCTURE</p><h1>CornGrid EA Marketplace</h1><p class="muted">Discover automated trading strategies available on CornGrid Infrastructure.</p></div></div>${promo?`<section class="mp-promotion">${promo.image?`<img src="${UI.esc(promo.image)}" alt="" loading="lazy" decoding="async">`:''}<div><p class="eyebrow">EXPLORE A STRATEGY</p><h2>${UI.esc(promo.title)}</h2><p>${UI.esc(promo.description)}</p><button type="button" class="button button-primary button-small" data-mp-detail="${UI.esc(promo.eaId)}">Explore EA →</button></div></section>`:''}${filters(data.categories)}<p class="mp-small" role="status">${data.total} ${data.total===1?'strategy':'strategies'} found</p>${section('Featured EAs',data.listings.filter(e=>e.featured))}${section('CornGrid Official',data.listings.filter(e=>e.provider_type==='official'))}${section('Partner EAs',data.listings.filter(e=>e.provider_type==='partner'))}${!data.listings.length?'<div class="mp-message"><h2>No strategies found</h2><p>Try another search or check back for newly approved EAs.</p></div>':''}<div class="mp-pagination"><button type="button" class="button button-secondary button-small" data-prev ${state.page<=1?'disabled':''}>← Previous</button><span>Page ${state.page} of ${Math.max(1,data.pages)}</span><button type="button" class="button button-secondary button-small" data-next ${state.page>=data.pages?'disabled':''}>Next →</button></div>`;
       box.querySelector('[data-marketplace-filter]').onsubmit=event=>{event.preventDefault();const f=new FormData(event.target);state.search=f.get('search');state.provider=f.get('provider');state.strategy=f.get('strategy');state.page=1;list();};
+      box.querySelector('[data-filter-toggle]').onclick=event=>{
+        const panel=box.querySelector('#mp-filter-panel'),open=panel.hidden;
+        panel.hidden=!open;event.currentTarget.setAttribute('aria-expanded',String(open));
+      };
+      box.querySelector('[data-reset-filters]').onclick=()=>{
+        state.search=box.querySelector('#mp-search').value;
+        state.provider='all';state.strategy='all';state.page=1;list();
+      };
       box.querySelectorAll('[data-mp-detail]').forEach(b=>b.onclick=()=>navigate(b.dataset.mpDetail));
       box.querySelector('[data-prev]').onclick=()=>{state.page--;list();};box.querySelector('[data-next]').onclick=()=>{state.page++;list();};
     }catch(error){if(seq===state.request){UI.notice(box,error);box.querySelector('[data-mp-retry]').onclick=list;}}

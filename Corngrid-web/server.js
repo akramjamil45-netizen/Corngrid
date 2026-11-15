@@ -344,6 +344,7 @@ registerMarketApi(app, db, verifyToken, marketFeed);
 const economicCalendar = createEconomicCalendar({ db });
 economicCalendar.registerRoutes(app, { verifyToken });
 const feedApi=registerFeedApi(app, db, verifyToken, adminAuth.verifyToken);
+require('./reports/report-api')(app, db, { verifyToken, verifyAdminToken: adminAuth.verifyToken, rateLimit });
 const accountDeletion = require('./account-deletion')(app,db,{verifyToken,verifyAdminToken:adminAuth.verifyToken,rateLimit});
 registerAdminApi(
   app,

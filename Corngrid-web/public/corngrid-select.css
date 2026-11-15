@@ -1,0 +1,34 @@
+/* Shared CornGrid option menus: isolated from trading and form state. */
+body.cg-select-open { overflow:hidden; }
+.cg-select-popup { position:fixed;inset:auto;margin:0;width:320px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);padding:0;overflow:hidden;border:1px solid rgba(255,212,0,.4);border-radius:16px;background:var(--surface,#11151d);color:var(--text,#fff);box-shadow:0 24px 70px rgba(0,0,0,.4);font:14px/1.5 'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color-scheme:dark; }
+.cg-select-popup[open] { display:flex;flex-direction:column; }
+.cg-select-popup::backdrop { background:rgba(0,0,0,.48);backdrop-filter:blur(3px); }
+.cg-select-popup [hidden] { display:none!important; }
+.cg-select-header { display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;padding:14px 14px 12px 18px;border-bottom:1px solid var(--border,#29303c); }
+.cg-select-header>div { min-width:0; }
+.cg-select-brand { color:var(--accent-text,#ffd400);font-size:9px;font-weight:700;letter-spacing:.16em; }
+.cg-select-header h2 { margin:3px 0 0;font-size:15px;font-weight:600;line-height:1.4;overflow-wrap:anywhere; }
+.cg-select-close { display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;padding:0;border:1px solid var(--border,#29303c);border-radius:10px;background:transparent;color:var(--muted,#a0a6b4);cursor:pointer; }
+.cg-select-close:hover { color:var(--text,#fff);border-color:var(--accent,#ffd400); }
+.cg-select-search-wrap { flex:none;padding:12px 12px 4px; }
+.cg-select-search { display:block;box-sizing:border-box;width:100%;min-width:0;height:44px;padding:10px 12px;border:1px solid var(--border,#29303c);border-radius:10px;background:var(--bg,#080a0f);color:var(--text,#fff);font:inherit;font-size:16px; }
+.cg-select-search::placeholder { color:var(--muted,#a0a6b4);opacity:1; }
+.cg-select-options { flex:1 1 auto;min-height:0;max-height:360px;padding:8px;overflow-y:auto;overscroll-behavior:contain;scroll-padding:8px;scrollbar-width:thin;scrollbar-color:var(--border,#29303c) transparent;outline-offset:-3px; }
+.cg-select-options::-webkit-scrollbar { width:4px; }
+.cg-select-options::-webkit-scrollbar-thumb { background:var(--border,#29303c);border-radius:8px; }
+.cg-select-option { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:2px 0;padding:10px 12px;border:1px solid transparent;border-radius:10px;color:var(--text,#fff);font-size:13px;line-height:1.5;cursor:pointer; }
+.cg-select-option>span:first-child { min-width:0;overflow-wrap:anywhere; }
+.cg-select-option:hover:not([aria-disabled=true]),.cg-select-option.is-current { border-color:rgba(255,212,0,.42);background:var(--surface-raised,#171b24); }
+.cg-select-option.is-selected { background:var(--accent-soft,rgba(255,212,0,.12));color:var(--accent-text,#ffd400);font-weight:600; }
+.cg-select-option[aria-disabled=true] { opacity:.45;cursor:not-allowed; }
+.cg-select-check { visibility:hidden;flex:none;width:20px;color:var(--accent-text,#ffd400);text-align:center;font-weight:700; }
+.cg-select-option.is-selected .cg-select-check { visibility:visible; }
+.cg-select-group { padding:12px 12px 4px;color:var(--muted,#a0a6b4);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase; }
+.cg-select-empty { margin:0;padding:20px 18px;color:var(--muted,#a0a6b4);font-size:13px; }
+.cg-select-popup :is(button,input,[role=listbox]):focus-visible { outline:2px solid var(--accent,#ffd400);outline-offset:-3px; }
+.cg-select-popup .cg-select-options:focus-visible { outline:none; }
+.cg-select-options:focus-visible .cg-select-option.is-current { outline:2px solid var(--accent,#ffd400);outline-offset:-2px; }
+select.cg-select-active { border-color:var(--accent,#ffd400); }
+body.theme-light .cg-select-popup { color-scheme:light;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+.cg-select-mobile { left:50%;bottom:max(12px,env(safe-area-inset-bottom,0px));top:auto;transform:translateX(-50%);width:calc(100vw - 24px);max-width:440px;max-height:min(560px,75dvh);border-radius:20px; }
+@media(prefers-reduced-motion:no-preference) { .cg-select-popup[open] { animation:cg-select-appear .12s ease-out; } @keyframes cg-select-appear { from{opacity:0}to{opacity:1} } }

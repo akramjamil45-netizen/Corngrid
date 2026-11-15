@@ -3,10 +3,10 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const root=path.resolve(__dirname,'../Corngrid-web/public');
 const layouts={
  'dashboard.html':{attribute:'data-page',groups:[
-  ['', ['overview','sandbox','monitoring','positions','history','market','economic']],
+  ['Community',['feed','chat']],
+  ['Trading', ['overview','sandbox','monitoring','positions','history','market','economic']],
   ['Accounts & access',['accounts','subscription','downloads']],
-  ['Strategies & partners',['marketplace','partner','partner-marketplace']],
-  ['Community',['feed','chat']]
+  ['Strategies & partners',['marketplace','partner','partner-marketplace']]
  ]},
  'admin.html':{attribute:'data-admin-page',groups:[
   ['', ['overview','subscriptions','sandbox','account-requests']],
@@ -16,6 +16,7 @@ const layouts={
  ]}
 };
 for(const [name,layout] of Object.entries(layouts)){
+ if(process.argv.includes('--user-only')&&name!=='dashboard.html')continue;
  const file=path.join(root,name),html=fs.readFileSync(file,'utf8');
  const nav=html.match(/<nav class="main-nav"[^>]*>[\s\S]*?<\/nav>/);assert.ok(nav,name);
  const items=[...nav[0].matchAll(/<(button|a)\b[\s\S]*?<\/\1>/g)].map(m=>m[0]);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-static-v26';
+const CACHE_NAME = 'corngrid-static-v27';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
   '/pwa.js',
@@ -12,6 +12,11 @@ const NETWORK_FIRST_ASSETS = new Set([
   '/login.js',
   '/dashboard.css',
   '/dashboard.js',
+  '/corngrid-select.css',
+  '/corngrid-select.js',
+  '/report-studio.js',
+  '/report-renderer.js',
+  '/report-studio.css',
   '/marketplace.css',
   '/marketplace-ui.js',
   '/marketplace.js',
@@ -42,6 +47,8 @@ const CORE_ASSETS = [
   '/login.js',
   '/dashboard.css',
   '/dashboard.js',
+  '/corngrid-select.css',
+  '/corngrid-select.js',
   '/market.js',
   '/economic-news.js',
   '/feed.js',

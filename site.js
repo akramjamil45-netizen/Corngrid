@@ -60,8 +60,10 @@
       header?.querySelector('nav')?.setAttribute('aria-label',next==='ms'?'Navigasi utama':'Main navigation');
       if(document.body.dataset.publicPage==='infrastructure'){
         document.querySelector('meta[name="description"]').content=descriptions[next];
-        document.querySelector('meta[property="og:description"]').content=descriptions[next];
-        document.querySelector('meta[property="og:locale"]').content=next==='ms'?'ms_MY':'en_US';
+        const socialDescription=document.querySelector('meta[property="og:description"]');
+        const socialLocale=document.querySelector('meta[property="og:locale"]');
+        if(socialDescription&&!socialDescription.dataset.socialLanguage)socialDescription.content=descriptions[next];
+        if(socialLocale&&!socialLocale.dataset.socialLanguage)socialLocale.content=next==='ms'?'ms_MY':'en_US';
         document.querySelector('meta[property="og:url"]').content='https://corngrid.com'+home;
         document.querySelector('link[rel="canonical"]').href='https://corngrid.com'+home;
         history.replaceState(null,'',home+location.hash);

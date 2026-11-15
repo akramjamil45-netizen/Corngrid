@@ -60,6 +60,22 @@ Admin endpoints: `GET /api/admin/partner-agreements?userId=...`,
 Admin → User Agreements lists up to the latest 200 records; optional userId filter
 is available in the API. Downloads are private/no-store and require authentication.
 
+### Review and readable TXT copies
+
+Admin → User Agreements provides **Review** and **Download TXT**. Review displays
+the same text as the download in a scrollable dialog; **Original JSON** remains
+available inside the dialog. Both user-owned and admin receipt endpoints support
+`?format=txt` (including the linked-application admin endpoint). The default format
+remains the original JSON. TXT uses UTF-8, CRLF line endings and an attachment name
+`CornGrid-Partner-Agreement-<agreement-id>.txt`.
+
+The readable copy includes recorded signer/account details, acceptance time in UTC,
+consent flags, recorded technical evidence and the full saved bilingual terms, with
+the selected language first. It verifies the receipt and terms hashes before export
+and uses the accepted snapshot, never the current terms document. The source JSON,
+its hashes and database records are unchanged. Hashes printed in the text refer to
+the original JSON and terms, not the generated TXT bytes. No migration is needed.
+
 Deleting a rejected application does not delete its acceptance history. Agreement
 rows intentionally have no cascading user deletion: access/erasure/retention requests
 must be reviewed for contractual, claims and legal requirements rather than retaining

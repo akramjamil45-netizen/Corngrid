@@ -98,16 +98,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css?v=20261115-navigation1">
-<link rel="stylesheet" href="admin.css?v=20261113-announcement-image1">
+  <link rel="stylesheet" href="dashboard.css?v=20261115-mobile-images1">
+<link rel="stylesheet" href="admin.css?v=20261115-agreement-text1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout2">
   <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
-  <link rel="stylesheet" href="marketplace.css?v=20261112-partner-release1">
-  <script src="marketplace-ui.js?v=20261112-partner-release1" defer></script>
-  <script src="admin-marketplace.js?v=20261112-partner-release1" defer></script>
+  <link rel="stylesheet" href="marketplace.css?v=20261115-workspace-compact1">
+  <link rel="stylesheet" href="report-studio.css?v=20261114-5">
+  <script src="report-renderer.js?v=20261114-7" defer></script>
+  <script src="report-studio.js?v=20261114-7" defer></script>
+  <script src="marketplace-ui.js?v=20261115-sandbox-label1" defer></script>
+  <script src="admin-marketplace.js?v=20261115-compact-filters1" defer></script>
 <script src="table-cards.js?v=20261029-2" defer></script>
 <script src="account-requests.js?v=20261113-account-requests1" defer></script>
-<script src="admin.js?v=20261113-sandbox-refresh2" defer></script>
+<script src="admin.js?v=20261115-agreement-text1" defer></script>
+  <link rel="stylesheet" href="corngrid-select.css?v=20261115-menus1">
+  <script src="corngrid-select.js?v=20261115-menus1" defer></script>
 </head>
 <body class="cg-admin-workspace">
   <div class="app-shell">
@@ -172,6 +177,7 @@
 
           <div class="notice notice-info admin-privacy-note"><span class="notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><span>This overview shows profile and connection summaries only. Authorized administrators can open a user's separate trading overview for masked account identifiers, balances, positions, and recent trade history.</span></div>
 
+          <section data-report-role="admin" aria-label="Platform report generator"></section>
           <section class="panel table-panel admin-profile-panel">
             <div class="panel-header"><div><p class="eyebrow">USER DIRECTORY</p><h2>Profiles and portfolios</h2></div><span class="muted small" id="admin-result-count" aria-live="polite">Loading profiles…</span></div>
             <div class="table-toolbar admin-toolbar">

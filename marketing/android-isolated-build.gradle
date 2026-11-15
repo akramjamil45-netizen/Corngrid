@@ -1,0 +1,6 @@
+// Keep build outputs separate from old Windows files with incompatible ACLs.
+gradle.beforeProject { project ->
+    def outputRoot = System.getenv('CORNGRID_ANDROID_BUILD_ROOT')
+    if (!outputRoot) throw new GradleException('CORNGRID_ANDROID_BUILD_ROOT is required')
+    project.layout.buildDirectory.set(new File(outputRoot, project.name))
+}

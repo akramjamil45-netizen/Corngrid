@@ -1,4 +1,17 @@
 .admin-user-label { color: var(--muted); font-size: 11px; }
+.agreement-file-actions { display:flex;align-items:center;flex-wrap:wrap;gap:8px; }
+.agreement-file-actions .button { min-height:40px;white-space:nowrap; }
+.admin-dialog.admin-agreement-review { width:min(900px,calc(100vw - 24px));height:min(800px,calc(100dvh - 24px));max-height:calc(100dvh - 24px);padding:0;overflow:hidden;background:var(--surface); }
+.admin-agreement-review[open] { display:flex;flex-direction:column;gap:12px; }
+.admin-agreement-review [hidden] { display:none!important; }
+.agreement-review-header { display:flex;align-items:start;justify-content:space-between;gap:12px;padding:18px 18px 0;flex:none; }
+.agreement-review-header h2 { margin:4px 0 0;font-size:20px; }
+.agreement-review-header .button { flex:none;min-height:44px; }
+.agreement-review-status { margin:0;padding:0 18px; }
+.agreement-review-text { flex:1;min-height:0;margin:0 18px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font:12px/1.75 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;overscroll-behavior:contain; }
+.agreement-review-text:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
+.agreement-review-actions { display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding:0 18px 18px;flex:none; }
+.agreement-review-actions .button { min-height:44px; }
 .admin-stat-grid { margin-top: 0; }
 .admin-privacy-note { margin-bottom: 16px; }
 .admin-profile-panel { padding: 0; }

@@ -64,3 +64,6 @@ marketing/second-vps-*.txt
 marketing/second-vps-*.rdp
 marketing/remote-sandbox-*.txt
 marketing/remote-sandbox-desktop.png
+
+# Local Stripe verification output (environment-specific payment diagnostics)
+marketing/stripe-live-verification.json

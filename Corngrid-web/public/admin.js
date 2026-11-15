@@ -1914,8 +1914,69 @@
 
   async function loadUserAgreements(){
     const body=$('#admin-agreements-body');body.innerHTML='<tr><td colspan="6" class="table-empty">Loading agreement records…</td></tr>';
-    try{const data=await api('/api/admin/partner-agreements');body.innerHTML=data.agreements.map(row=>`<tr><td>${escapeHtml(row.username||row.user_id)}<div class="muted small">${escapeHtml(row.email||'')}</div></td><td>${escapeHtml(row.signer_name)}</td><td>${escapeHtml(row.terms_version)}</td><td>${escapeHtml(row.language.toUpperCase())}</td><td>${escapeHtml(formatDateTime(row.accepted_at))}</td><td><a class="button button-secondary button-small" href="/api/admin/partner-agreements/${encodeURIComponent(row.id)}/file">Download JSON</a></td></tr>`).join('')||'<tr><td colspan="6" class="table-empty">No digital agreements recorded. Existing accounts have not been marked as accepted.</td></tr>';}catch(error){body.innerHTML='<tr><td colspan="6" class="table-empty">'+escapeHtml(error.message)+'</td></tr>';}
+    try{
+      const data=await api('/api/admin/partner-agreements');
+      body.innerHTML=data.agreements.map(row=>`<tr>
+        <td class="cell-primary" data-label="User">${escapeHtml(row.username||row.user_id)}<div class="muted small">${escapeHtml(row.email||'')}</div></td>
+        <td data-label="Signer">${escapeHtml(row.signer_name)}</td>
+        <td data-label="Terms version">${escapeHtml(row.terms_version)}</td>
+        <td data-label="Language">${escapeHtml(row.language.toUpperCase())}</td>
+        <td data-label="Accepted">${escapeHtml(formatDateTime(row.accepted_at))}</td>
+        <td class="cell-actions" data-label="Agreement"><div class="agreement-file-actions">
+          <button type="button" class="button button-primary button-small" data-agreement-review="${escapeHtml(row.id)}">Review</button>
+          <a class="button button-secondary button-small" href="/api/admin/partner-agreements/${encodeURIComponent(row.id)}/file?format=txt" download>Download TXT</a>
+        </div></td>
+      </tr>`).join('')||'<tr><td colspan="6" class="table-empty">No digital agreements recorded. Existing accounts have not been marked as accepted.</td></tr>';
+    }catch(error){body.innerHTML='<tr><td colspan="6" class="table-empty">'+escapeHtml(error.message)+'</td></tr>';}
   }
+
+  let agreementReviewController;
+  function agreementReviewDialog(){
+    let dialog=$('#admin-agreement-review');
+    if(dialog)return dialog;
+    dialog=document.createElement('dialog');
+    dialog.id='admin-agreement-review';dialog.className='admin-dialog admin-agreement-review';
+    dialog.setAttribute('aria-labelledby','admin-agreement-review-title');
+    dialog.innerHTML=`<header class="agreement-review-header"><div><p class="eyebrow">SAVED ACCEPTANCE RECORD</p><h2 id="admin-agreement-review-title">User agreement</h2></div><button type="button" class="button button-secondary button-small" data-agreement-close autofocus>Close</button></header>
+      <p class="agreement-review-status muted small" role="status"></p>
+      <pre class="agreement-review-text" tabindex="0" aria-label="Saved agreement text" hidden></pre>
+      <footer class="agreement-review-actions"><a class="button button-primary button-small" data-agreement-txt download hidden>Download TXT</a><a class="button button-secondary button-small" data-agreement-json download hidden>Original JSON</a></footer>`;
+    dialog.querySelector('[data-agreement-close]').onclick=()=>dialog.close();
+    dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+    dialog.addEventListener('close',()=>{
+      agreementReviewController?.abort();
+      dialog.querySelector('pre').textContent='';
+      dialog.querySelectorAll('a').forEach(a=>{a.hidden=true;a.removeAttribute('href');});
+    });
+    document.body.append(dialog);return dialog;
+  }
+  $('#admin-agreements-body').addEventListener('click',async event=>{
+    const button=event.target.closest('[data-agreement-review]');if(!button)return;
+    const dialog=agreementReviewDialog(),status=dialog.querySelector('.agreement-review-status'),text=dialog.querySelector('pre');
+    agreementReviewController?.abort();
+    const controller=agreementReviewController=new AbortController();
+    const base='/api/admin/partner-agreements/'+encodeURIComponent(button.dataset.agreementReview)+'/file';
+    text.hidden=true;text.textContent='';status.textContent='Loading saved agreement…';status.setAttribute('role','status');
+    dialog.querySelectorAll('a').forEach(a=>{a.hidden=true;a.removeAttribute('href');});
+    if(!dialog.open)dialog.showModal();
+    try{
+      const signal=typeof AbortSignal.any==='function'?AbortSignal.any([controller.signal,AbortSignal.timeout(20000)]):controller.signal;
+      const response=await fetch(base+'?format=txt',{credentials:'same-origin',signal});
+      if(response.status===401||response.status===403){void expireSession();throw Error('Your administrator session has expired.');}
+      if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||'Unable to load the agreement. Please retry.');}
+      if(!response.headers.get('content-type')?.startsWith('text/plain'))throw Error('The agreement text could not be verified. Please retry.');
+      const content=await response.text();
+      if(controller.signal.aborted||!dialog.open)return;
+      text.textContent=content;text.hidden=false;text.scrollTop=0;
+      status.textContent='Original saved terms and acceptance details. Download a TXT copy below.';
+      for(const [selector,url]of [['[data-agreement-txt]',base+'?format=txt'],['[data-agreement-json]',base]]){
+        const link=dialog.querySelector(selector);link.href=url;link.hidden=false;
+      }
+    }catch(error){
+      if(controller.signal.aborted||!dialog.open)return;
+      status.setAttribute('role','alert');status.textContent=error.name==='TimeoutError'?'Loading timed out. Close and select Review to try again.':error.message;
+    }
+  });
   function showAdminPage(name) {
     const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements', 'account-requests', 'marketplace'];
     const active = pages.includes(name) ? name : 'overview';

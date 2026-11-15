@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CornGrid select interaction fixture</title>
+<link rel="stylesheet" href="/dashboard.css"><link rel="stylesheet" href="/corngrid-select.css">
+<style>body{padding:24px}main{max-width:600px;margin:auto;display:grid;gap:18px}label{display:grid;gap:6px}select{width:100%}dialog#nested{width:min(500px,90vw);padding:24px;background:var(--surface);color:var(--text);border:1px solid var(--border)}.fixture-actions{display:flex;gap:12px}</style>
+<script src="/corngrid-select.js" defer></script></head><body><main>
+<h1>CornGrid menu preview</h1>
+<form id="sample"><label>Performance period<select id="period" name="period" class="select-control"><option value="today">Today</option><option value="7d">7 days</option><option value="30d" selected>30 days</option><option value="90d">90 days</option><option value="all">All time</option><option value="custom">Custom range</option></select></label><div class="fixture-actions"><button type="reset">Reset form</button></div></form>
+<label>Strategy<select id="strategy" class="select-control"><optgroup label="Official"><option value="official">CornGrid EA</option><option value="wait" disabled>Coming soon</option></optgroup><optgroup label="Unavailable" disabled><option value="blocked">Blocked group option</option></optgroup><optgroup label="Partners"><option value="partner">Partner trend EA</option><option value="hidden" hidden>Hidden option</option><option value="partner">Duplicate value option</option></optgroup></select></label>
+<label for="brokers">Broker server</label><select id="brokers" class="select-control"></select>
+<label>Required selection<select id="required" class="select-control" required><option value="" selected disabled>Choose a plan</option><option value="plan">CornGrid plan</option></select></label>
+<label>Disabled<select id="disabled" class="select-control" disabled><option>Disabled control</option></select></label>
+<label>Multiple<select id="multiple" class="select-control" multiple><option>One</option><option>Two</option></select></label>
+<label>Inline list<select id="inline" class="select-control" size="3"><option>One</option><option>Two</option></select></label>
+<div id="dynamic"></div>
+<button type="button" id="show-nested">Open existing dialog</button>
+</main>
+<dialog id="nested"><h2>Existing CornGrid form</h2><label>Inside dialog<select id="nested-select" class="select-control"><option value="a">First option</option><option value="b">Second option</option></select></label><button type="button" id="close-nested">Close form</button></dialog>
+<script>
+ const brokers=document.getElementById('brokers');for(let i=0;i<120;i++)brokers.add(new Option('Broker server '+String(i).padStart(3,'0'),String(i)));
+ window.selectionEvents={input:0,change:0};document.getElementById('period').addEventListener('input',()=>selectionEvents.input++);document.getElementById('period').addEventListener('change',()=>selectionEvents.change++);
+ document.getElementById('show-nested').onclick=()=>document.getElementById('nested').showModal();document.getElementById('close-nested').onclick=()=>document.getElementById('nested').close();
+</script></body></html>
