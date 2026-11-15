@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
-const envPath = path.join(__dirname, '..', '.env');
+const envPath = process.env.CORNGRID_ENV_FILE || path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   try { require('dotenv').config({ path: envPath, quiet: true }); } catch { /* dotenv is optional at runtime */ }
 }

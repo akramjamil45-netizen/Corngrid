@@ -18,6 +18,7 @@ function createLoginHandler({
   db,
   jwtSecret,
   adminAuth,
+  mfa,
   setAuthCookie,
   isSameOriginRequest,
   isEmailVerified = defaultIsEmailVerified,
@@ -42,7 +43,7 @@ function createLoginHandler({
 
     if (adminAuth.matchesEmail(email)) {
       try {
-        const token = await adminAuth.authenticate(email, password, tokenDuration);
+        const token = await adminAuth.authenticate(email, password, tokenDuration, req.body?.mfaCode);
         if (!token) return res.status(400).json({ error: 'Email or password is incorrect.' });
         if (isSameOriginRequest(req)) setAuthCookie(res, token, req, cookieDuration);
         return res.json({
@@ -51,6 +52,7 @@ function createLoginHandler({
           user: { role: 'admin', username: 'Administrator' }
         });
       } catch (error) {
+        if(/^MFA_/.test(error.code||''))return res.status(error.code==='MFA_RATE_LIMITED'?429:403).json({error:'Enter a current authenticator code or an unused recovery code. Wait for the next code if one was already used.',code:error.code});
         logger.error('Failed to verify administrator credentials:', error.message);
         return res.status(500).json({ error: 'Error occurred while verifying credentials.' });
       }
@@ -98,8 +100,9 @@ function createLoginHandler({
 
     try {
       const authVersion = user.login_auth_version;
+      const proof=mfa?await mfa.authenticate('user:'+user.id,req.body?.mfaCode):null;
       const token = jwt.sign(
-        { id: user.id, email: user.email, username: user.username, authVersion },
+        { id: user.id, email: user.email, username: user.username, authVersion, ...(proof?{mfaVersion:proof.version}:{}) },
         jwtSecret,
         { expiresIn: tokenDuration }
       );
@@ -116,6 +119,7 @@ function createLoginHandler({
         }
       });
     } catch (error) {
+      if(/^MFA_/.test(error.code||''))return res.status(error.code==='MFA_RATE_LIMITED'?429:403).json({error:'Enter a current authenticator code or an unused recovery code. Wait for the next code if one was already used.',code:error.code});
       logger.error('Failed to create the login session:', error.message);
       return res.status(500).json({ error: 'Server error during login.' });
     }

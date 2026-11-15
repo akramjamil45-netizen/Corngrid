@@ -45,9 +45,12 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
     }
   }
 
-  function broadcastAdmins(message) {
+  async function validAdmin(token) {
+    try{return adminAuth?.verifyRealtimeSession?await adminAuth.verifyRealtimeSession(token):adminAuth?.verifySessionToken?.(token);}catch{return null;}
+  }
+  async function broadcastAdmins(message) {
     for (const [socket, token] of adminSockets) {
-      if (!adminAuth?.verifySessionToken?.(token)) {
+      if (!await validAdmin(token)) {
         adminSockets.delete(socket);
         socket.close(4003, 'Administrator session expired');
       } else {
@@ -58,7 +61,7 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
 
   // Push every persisted sandbox event to connected admin dashboards.
   events.subscribe(record => {
-    broadcastAdmins({ type: 'event', event: record });
+    broadcastAdmins({ type: 'event', event: record }).catch(()=>{});
   });
 
   async function adminSnapshot() {
@@ -80,10 +83,10 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
       FROM sandbox_instances WHERE deleted_at IS NULL
     `);
     const nodeList = await all(`
-      SELECT n.id, n.node_uid, n.name, n.status, n.is_test_node, n.cpu_percent, n.memory_used_mb, n.ram_mb,
+      SELECT n.id, n.node_uid, n.name, n.status, n.is_test_node, n.os_version, n.cpu_percent, n.memory_used_mb, n.ram_mb,
              n.disk_free_mb, n.running_instances, n.max_instances, n.last_heartbeat_at, n.agent_version,
              (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
-               AND i.status IN ('deploying','starting','running','stopping')) AS allocated_instances
+               AND i.status IN ('requested','allocating','deploying','starting','running','stopping')) AS allocated_instances
       FROM sandbox_nodes n ORDER BY n.id ASC
     `);
     return {
@@ -105,6 +108,7 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
       },
       nodes: nodeList.map(node => ({
         ...node,
+        placement:require('./node-admission').nodeAdmission(node,Number(node.allocated_instances)||0,nodes.admissionPolicy),
         online: Boolean(node.last_heartbeat_at && (Date.now() - node.last_heartbeat_at) < nodes.NODE_OFFLINE_AFTER_MS)
       })),
       serverTime: Date.now()
@@ -132,6 +136,9 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
         if (message.type !== 'auth' || !message.nodeUid || !message.token) {
           socket.close(4003, 'Authentication required');
           return;
+        }
+        if(process.env.CORNGRID_STAGING==='true'&&(!process.env.STAGING_DEMO_NODE_UID||message.nodeUid!==process.env.STAGING_DEMO_NODE_UID)){
+          socket.close(4003,'Only the staging demo node may connect');return;
         }
         try {
           nodeToken = String(message.token);
@@ -220,21 +227,21 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
     });
   }
 
-  function handleAdminConnection(socket, req) {
+  async function handleAdminConnection(socket, req) {
     // The browser sends the HttpOnly session cookie with the WS handshake, so
     // the admin JWT is read from the same credential sources as the HTTP API.
     // A query-string token remains as a fallback for non-browser tooling.
     const url = new URL(req.url, 'http://localhost');
     const credential = readAuthCredential(req);
     const token = (credential && credential.token) || url.searchParams.get('token') || '';
-    if ((credential?.source === 'cookie' && !isSameOriginRequest(req)) || !adminAuth?.verifySessionToken?.(token)) {
+    if ((credential?.source === 'cookie' && !isSameOriginRequest(req)) || !await validAdmin(token)) {
       socket.close(4003, 'Admin authentication required');
       return;
     }
     adminSockets.set(socket, token);
     adminSnapshot()
-      .then(snapshot => {
-        if (adminAuth.verifySessionToken(token)) send(socket, snapshot);
+      .then(async snapshot => {
+        if (await validAdmin(token)) send(socket, snapshot);
         else { adminSockets.delete(socket); socket.close(4003, 'Administrator session expired'); }
       })
       .catch(error => console.error('Admin snapshot failed:', error.message));
@@ -251,7 +258,7 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
       if (url.pathname === '/ws/sandbox/node') {
         wss.handleUpgrade(req, socket, head, ws => handleNodeConnection(ws, req));
       } else if (url.pathname === '/ws/admin/sandbox') {
-        wss.handleUpgrade(req, socket, head, ws => handleAdminConnection(ws, req));
+        wss.handleUpgrade(req, socket, head, ws => handleAdminConnection(ws, req).catch(()=>ws.close(1011,'Security verification unavailable')));
       }
       // Unknown upgrade paths are ignored so other tooling keeps working.
     });
@@ -260,7 +267,7 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
     const interval = setInterval(async () => {
       if (!adminSockets.size) return;
       try {
-        broadcastAdmins(await adminSnapshot());
+        await broadcastAdmins(await adminSnapshot());
       } catch (error) {
         console.error('Admin snapshot broadcast failed:', error.message);
       }

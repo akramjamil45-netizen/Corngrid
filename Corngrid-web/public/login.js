@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
     const userEmail = document.getElementById('userEmail');
     const userPassword = document.getElementById('userPassword');
+    const mfaGroup=document.createElement('div');mfaGroup.className='form-group';mfaGroup.hidden=true;
+    const mfaLabel=document.createElement('label');mfaLabel.htmlFor='login-mfa-code';mfaLabel.textContent='Authenticator or recovery code';
+    const mfaInput=document.createElement('input');mfaInput.id='login-mfa-code';mfaInput.type='text';mfaInput.autocomplete='one-time-code';mfaInput.maxLength=19;mfaInput.placeholder='6-digit code or recovery code';
+    const mfaField=document.createElement('div');mfaField.className='input-field';mfaField.append(mfaInput);mfaGroup.append(mfaLabel,mfaField);loginForm.insertBefore(mfaGroup,document.getElementById('rememberGroup'));
     const togglePassword = document.getElementById('togglePassword');
     const alertBox = document.getElementById('alertBox');
     const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
@@ -123,13 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     email: userEmail.value.trim(),
                     password: userPassword.value,
-                    ...(isRegister ? { username: userUsername.value.trim() } : { rememberMe: rememberMe ? rememberMe.checked : true })
+                    ...(isRegister ? { username: userUsername.value.trim() } : { rememberMe: rememberMe ? rememberMe.checked : true, mfaCode:mfaInput.value.trim() })
                 })
             });
 
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
+                if(data.code==='MFA_REQUIRED'||data.code==='MFA_INVALID'||data.code==='MFA_RATE_LIMITED'){
+                    mfaGroup.hidden=false;mfaInput.value='';mfaInput.focus();showAlert(data.error||'Enter your authenticator code.','info');return;
+                }
                 if (data.code === 'EMAIL_NOT_VERIFIED') {
                     rememberPendingVerification(userEmail.value.trim().toLowerCase());
                     redirecting = true;

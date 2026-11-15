@@ -59,7 +59,8 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       lastHeartbeatAt: node.last_heartbeat_at,
       lastSeenIp: node.last_seen_ip,
       online: Boolean(node.last_heartbeat_at && (now() - node.last_heartbeat_at) < nodes.NODE_OFFLINE_AFTER_MS),
-      createdAt: node.created_at
+      createdAt: node.created_at,
+      placement:require('./node-admission').nodeAdmission(node,Number(node.allocated_instances)||0,nodes.admissionPolicy)
     };
   }
 
@@ -102,7 +103,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
           SELECT COALESCE(SUM(max_instances), 0) AS total_slots,
                  COALESCE(SUM((SELECT COUNT(*) FROM sandbox_instances i
                    WHERE i.node_id = n.id AND i.deleted_at IS NULL
-                     AND i.status IN ('deploying','starting','running','stopping'))), 0) AS used_slots
+                     AND i.status IN ('requested','allocating','deploying','starting','running','stopping'))), 0) AS used_slots
           FROM sandbox_nodes n WHERE n.status = 'active' AND n.is_test_node = FALSE`);
 
         res.json({
@@ -138,7 +139,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       try {
         const rows = await all(`SELECT n.*,
           (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
-            AND i.status IN ('deploying','starting','running','stopping')) AS allocated_instances
+            AND i.status IN ('requested','allocating','deploying','starting','running','stopping')) AS allocated_instances
           FROM sandbox_nodes n ORDER BY n.id ASC`);
         res.json({ nodes: rows.map(publicNode) });
       } catch (error) {
@@ -190,7 +191,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
             return { http: 409, body: { error: 'Capacity was changed by another administrator. Close this dialog, refresh the node list and try again.' } };
           }
           const used = await get(`SELECT COUNT(*) AS count FROM sandbox_instances
-            WHERE node_id = ? AND deleted_at IS NULL AND status IN ('deploying','starting','running','stopping')`, [nodeId]);
+            WHERE node_id = ? AND deleted_at IS NULL AND status IN ('requested','allocating','deploying','starting','running','stopping')`, [nodeId]);
           const usedSlots = Number(used.count) || 0;
           if (maxInstances < usedSlots) {
             return { http: 409, body: { error: `This node is using ${usedSlots} slots. Capacity cannot be lower than this.`, usedSlots } };
@@ -202,7 +203,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
           }
           const updated = await run(`UPDATE sandbox_nodes SET max_instances = ?, updated_at = ? WHERE id = ?
             AND ? >= (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = sandbox_nodes.id
-              AND i.deleted_at IS NULL AND i.status IN ('deploying','starting','running','stopping'))`,
+              AND i.deleted_at IS NULL AND i.status IN ('requested','allocating','deploying','starting','running','stopping'))`,
           [maxInstances, now(), nodeId, maxInstances]);
           if (!updated.changes) return { http: 409, body: { error: 'Node usage changed. Refresh and try again.' } };
           await subscriptions.logAudit(null, 'admin', 'sandbox_node_capacity_updated', 'sandbox_node', nodeId,

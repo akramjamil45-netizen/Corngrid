@@ -41,10 +41,17 @@ const {
   readAuthCredential,
   setAuthCookie
 } = require('./session-cookie');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: process.env.CORNGRID_ENV_FILE || path.join(__dirname, '.env') });
 
 const app = express();
 app.disable('x-powered-by');
+if(process.env.CORNGRID_STAGING==='true'){
+  app.use((req,res,next)=>{res.set('X-CornGrid-Environment','staging');next();});
+  app.use('/api/sandbox/node',(req,res,next)=>{
+    const allowed=process.env.STAGING_DEMO_NODE_UID;
+    if(!allowed||req.get('X-Node-Id')!==allowed)return res.status(403).json({error:'Only the explicitly configured staging demo node may connect.'});next();
+  });
+}
 
 // The site is served through IIS/Cloudflare, so the socket peer is a proxy. With
 // trust proxy enabled, req.ip reflects the real client (from X-Forwarded-For),
@@ -105,10 +112,12 @@ if (process.env.NODE_ENV === 'production' && !mailTransport) {
 if (SMTP_HOST && !SMTP_FROM) {
   throw new Error('SMTP_FROM mesti ditetapkan apabila SMTP_HOST digunakan.');
 }
+let mfaService=null;
 const adminAuth = createAdminAuth({
   email: process.env.ADMIN_EMAIL,
   passwordHash: process.env.ADMIN_PASSWORD_HASH,
-  jwtSecret: SECRET_KEY
+  jwtSecret: SECRET_KEY,
+  mfa:()=>mfaService
 });
 
 // Middleware
@@ -323,17 +332,20 @@ const emailVerification = createEmailVerification({
   isReservedEmail: email => adminAuth.matchesEmail(email)
 });
 
+mfaService=require('./mfa').createMfa({db});
 const loginHandler = createLoginHandler({
   db,
   jwtSecret: SECRET_KEY,
   adminAuth,
+  mfa:mfaService,
   setAuthCookie,
   isSameOriginRequest,
   isEmailVerified: emailVerification.isEmailVerified,
   maskEmail: emailVerification.maskEmail
 });
 
-const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY });
+const verifyToken = createUserAuth({ db, jwtSecret: SECRET_KEY, mfa:mfaService });
+require('./mfa-api')(app,{db,mfa:mfaService,adminAuth,verifyToken,jwtSecret:SECRET_KEY,rateLimit});
 
 const { authenticateInstallation } = registerMt5Api(app, db, verifyToken);
 registerAvatarApi(app, db, verifyToken);
@@ -365,6 +377,13 @@ const sandboxSystem = createSandboxSystem(app, db, {
   jwtSecret: SECRET_KEY
 });
 // Publishes only a complete RELEASE.json deployment, in a separate process.
+require('./system-health').registerSystemHealth(app,{
+  db,verifyAdminToken:adminAuth.verifyToken,rateLimit,
+  nodeOfflineMs:sandboxSystem.nodes.NODE_OFFLINE_AFTER_MS,
+  heartbeatTimeoutMs:(Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS)||180)*1000,
+  stripeEnabled:Boolean(process.env.STRIPE_SECRET_KEY),stripeWebhookConfigured:Boolean(process.env.STRIPE_WEBHOOK_SECRET&&process.env.APP_BASE_URL),
+  updateStatus:()=>sandboxSystem.updates.status()
+});
 // Existing published code remains available if a new deployment is incomplete.
 startAutoPublisher();
 const partnerSystem = createPartnerSystem(app, db, {
@@ -382,7 +401,7 @@ const marketplace = createMarketplace(app, db, {
   rateLimit, prerequisite: sandboxSystem.ready
 });
 marketplace.setPublicationSystem(partnerSystem.publication);
-const emailAdmin = registerEmailAdmin(app, db, adminAuth.verifyToken, {
+const emailAdmin = process.env.CORNGRID_STAGING==='true'?{ready:async()=>{},close(){}}:registerEmailAdmin(app, db, adminAuth.verifyToken, {
   encryptionKey: process.env.EMAIL_ENCRYPTION_KEY || SECRET_KEY,
   appBaseUrl: process.env.APP_BASE_URL,
   supportEmail: process.env.SUPPORT_EMAIL || SMTP_FROM,
@@ -588,7 +607,7 @@ app.get('/api/health/ready', (req, res) => {
     done = true;
     clearTimeout(timer);
     if (error || !row) {
-      return res.status(503).json({ status: 'degraded', db: 'error', error: error ? error.message : 'no row', timestamp: Date.now() });
+      return res.status(503).json({ status: 'degraded', db: 'error', timestamp: Date.now() });
     }
     let depth;
     try { depth = require('./db-write').writeQueueDepth(db); } catch (e) { depth = undefined; }
@@ -858,6 +877,7 @@ backupScheduler.start();
     // Additive email-verification schema (SQLite) or migration check
     // (PostgreSQL) must finish before the first request is accepted.
     await emailVerification.ready();
+    await mfaService.ready();
     await subscriptionApi.ready();
     await stripePayments.ready();
     await emailAdmin.ready();

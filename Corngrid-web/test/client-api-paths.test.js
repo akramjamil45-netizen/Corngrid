@@ -32,6 +32,12 @@ function collectServerRoutes() {
     while ((match = routePattern.exec(source)) !== null) {
       routes.push({ method: match[1].toUpperCase(), route: match[2], file });
     }
+    // Shared admin/user modules register a finite, literal set of prefixes.
+    for(const loop of source.matchAll(/for\s*\(const\s+(\w+)\s+of\s+\[([^\]]+)\]\)/g)){
+      const prefixes=[...loop[2].matchAll(/'([^']+)'/g)].map(m=>m[1]).filter(p=>p.startsWith('/api/'));
+      const dynamic=new RegExp('app\\.(get|post|patch|put|delete)\\(\\s*'+loop[1]+"(?:\\s*\\+\\s*'([^']+)')?\\s*,",'g');
+      for(const registered of source.matchAll(dynamic))for(const prefix of prefixes)routes.push({method:registered[1].toUpperCase(),route:prefix+(registered[2]||''),file});
+    }
   }
   return routes;
 }
@@ -114,6 +120,8 @@ function findHelpers(source) {
       start: open,
       end: j + 1
     };
+    const prefix=body.match(/(?:nativeFetch|fetch)\(\s*(\w+)\s*\+\s*(?:path|route|url)\b/);
+    if(prefix){const definition=source.match(new RegExp('\\b'+prefix[1]+'\\s*=([^;]+);'));if(definition){const paths=[...definition[1].matchAll(/'([^']+)'/g)].map(m=>m[1]).filter(p=>p.startsWith('/api/'));if(paths.length)helpers[match[1]].prefixes=paths;}}
   }
   return helpers;
 }
@@ -160,6 +168,7 @@ function resolvePath(literal, isTemplate, helper) {
     if (value.startsWith(API_BASE)) return { error: 'double /api prefix' };
     return { path: API_BASE + value };
   }
+  if(helper?.prefixes)return {paths:helper.prefixes.map(prefix=>prefix+value)};
   return { path: value };
 }
 
@@ -229,7 +238,7 @@ test('client request paths resolve to registered server routes', () => {
         problems.push(`${name}: ${call.helper}("${call.literal}") ${resolved.error}`);
         continue;
       }
-      const effective = resolved.path;
+      for(const effective of resolved.paths||[resolved.path]){
       if (!effective.startsWith('/')) continue;
 
       const pathParts = segmentsOf(effective);
@@ -245,6 +254,7 @@ test('client request paths resolve to registered server routes', () => {
         // Paths outside the /api namespace only make sense for the static
         // asset folders; anything else is a missing /api prefix.
         problems.push(`${name}: "${effective}" does not target the /api namespace`);
+      }
       }
     }
   }

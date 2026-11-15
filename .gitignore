@@ -67,3 +67,10 @@ marketing/remote-sandbox-desktop.png
 
 # Local Stripe verification output (environment-specific payment diagnostics)
 marketing/stripe-live-verification.json
+
+# Encrypted operator backups and decrypted restore workspaces
+*.cgb
+.corngrid-backup-*/
+.env.staging
+Corngrid-web/.env.staging
+*.staging.sqlite

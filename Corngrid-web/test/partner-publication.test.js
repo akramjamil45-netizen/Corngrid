@@ -28,7 +28,7 @@ test('EA + set submission stays private until one admin approval publishes a wor
   assert.equal((await f.request('/api/sandbox/activate',{method:'POST',body})).status,403,'subscription checks still apply');
   await f.grant(1,1);
   const node=await f.sandbox.nodes.createNode({name:'Isolated hosting node',maxInstances:10});
-  await dbRun(f.db,"UPDATE sandbox_nodes SET status='active',last_heartbeat_at=? WHERE id=?",[Date.now(),node.id]);
+  await dbRun(f.db,"UPDATE sandbox_nodes SET status='active',last_heartbeat_at=?,os_version='Windows_NT fixture',ram_mb=8192,memory_used_mb=1024,disk_free_mb=20000,cpu_percent=10 WHERE id=?",[Date.now(),node.id]);
   const download=await f.request(`/api/sandbox/node/strategies/${strategy.code}/ea`,{user:null,headers:{'X-Node-Id':node.nodeUid,'X-Node-Token':node.token}});assert.equal(download.status,200);assert.deepEqual(download.data,f.ex5);
   assert.equal((await f.request('/api/sandbox/activate',{method:'POST',body})).status,201);
   assert.equal((await f.request('/api/sandbox/activate',{method:'POST',body:{...body,accountNumber:'12346'}})).status,403);

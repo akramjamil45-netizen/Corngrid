@@ -123,7 +123,7 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   assert.equal(authAck.nodeUid, nodeUid);
 
   // Agent heartbeats over the socket so the node is online.
-  agent.send(JSON.stringify({ type: 'heartbeat', machineName: 'WIN-WS', cpuCount: 4, ramMb: 16384, runningInstances: 0, instances: [] }));
+  agent.send(JSON.stringify({ type: 'heartbeat', machineName: 'WIN-WS', osVersion:'Windows_NT fixture', cpuCount: 4, ramMb: 16384, memoryUsedMb:2048, diskFreeMb:20000, cpuPercent:10, runningInstances: 0, instances: [] }));
   await waitFor(message => message.type === 'heartbeat_ack');
 
   // User activates a sandbox — the deploy command must arrive over the socket.

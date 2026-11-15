@@ -85,6 +85,7 @@ async function createFixture() {
   const adminToken = jwt.sign({ sub: 'admin', role: 'admin' }, jwtSecret);
 
   const request = async (route, { token, method = 'GET', body, headers = {} } = {}) => {
+    if(route==='/api/sandbox/node/heartbeat'&&body)body={osVersion:'Windows_NT fixture',ramMb:32768,memoryUsedMb:4096,diskFreeMb:20000,cpuPercent:10,...body};
     const finalHeaders = { ...headers };
     if (token) finalHeaders.Authorization = 'Bearer ' + token;
     if (body) finalHeaders['Content-Type'] = 'application/json';
@@ -350,7 +351,7 @@ test('admin node capacity validates limits, protects occupied slots and enables 
       (user_id,plan_id,status,purchase_price,currency,starts_at,expires_at,created_at,updated_at)
       VALUES (2,1,'active',100,'MYR',?,?,?,?)`, [now - 1000, now + 86400000, now, now]);
     const activate = (token, accountNumber) => request('/api/sandbox/activate', {
-      token, method: 'POST', body: { brokerServer: 'Dummy-Demo', accountNumber, password: 'dummy-only' }
+      token, method: 'POST', body: { brokerServer: 'Dummy-Demo', accountNumber, password: 'fixture-broker-password' }
     });
     assert.equal((await activate(userToken, '11111')).status, 201);
     assert.equal((await activate(otherUserToken, '22222')).status, 503, 'node starts full');

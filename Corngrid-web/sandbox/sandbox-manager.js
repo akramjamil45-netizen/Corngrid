@@ -212,7 +212,7 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
             reject(403, 'Your EA activation limit is reached. Use an already licensed MT5 account or upgrade your plan.', 'ACTIVATION_LIMIT_REACHED');
           }
           node = await nodes.allocateNode({ preferredNodeId });
-          if (!node) reject(503, 'No sandbox server capacity is available right now. Please try again shortly.', 'NO_CAPACITY');
+          if (!node) reject(503, 'No sandbox server capacity is available with a free slot and sufficient resources right now. Please try again shortly.', 'NO_CAPACITY');
           const inserted = await run(
             `INSERT INTO sandbox_instances
                (instance_uid, user_id, node_id, strategy_id, status, broker_server, mt5_account_number, account_masked, created_at, updated_at)
@@ -362,7 +362,7 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
         }
         if (['start', 'restart'].includes(action)) {
           if (!await nodes.allocateNode({ preferredNodeId: instance.node_id, excludeInstanceId: instance.id })) {
-            reject(503, 'The assigned node is offline or has no available capacity.', 'NO_CAPACITY');
+            reject(503, 'The assigned node is offline or lacks a free slot or sufficient resources.', 'NO_CAPACITY');
           }
         }
 

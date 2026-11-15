@@ -17,7 +17,8 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
-function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
+function createSandboxNodes({ db, events, now = () => Date.now(), resourcePolicy } = {}) {
+  const {loadPolicy,nodeAdmission}=require('./node-admission'),admissionPolicy=resourcePolicy||loadPolicy();
   // Live WebSocket connections keyed by node id, populated by sandbox-realtime.
   const liveConnections = new Map();
   // Last heartbeat timestamp keyed by node id (the DB row object goes stale).
@@ -113,7 +114,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
          os_version = COALESCE(?, os_version),
          cpu_count = COALESCE(?, cpu_count),
          ram_mb = COALESCE(?, ram_mb),
-         disk_free_mb = COALESCE(?, disk_free_mb),
+         disk_free_mb = ?,
          cpu_percent = ?,
          memory_used_mb = ?,
          running_instances = ?,
@@ -123,7 +124,7 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
        WHERE id = ?`,
       [
         agentVersion || null, machineName || null, osVersion || null,
-        cpuCount || null, ramMb || null, diskFreeMb || null,
+        cpuCount || null, ramMb || null, typeof diskFreeMb==='number'&&Number.isFinite(diskFreeMb)&&diskFreeMb>=0?diskFreeMb:null,
         typeof cpuPercent === 'number' ? cpuPercent : null,
         typeof memoryUsedMb === 'number' ? memoryUsedMb : null,
         Number.isInteger(runningInstances) ? runningInstances : 0,
@@ -391,12 +392,12 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     for (const candidate of candidates) {
       if (preferredNodeId != null && candidate.id !== preferredNodeId) continue;
       const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?' + (typeof db.transaction === 'function' ? ' FOR UPDATE SKIP LOCKED' : ''), [candidate.id]);
-      if (!node || node.status !== 'active' || node.is_test_node || node.last_heartbeat_at < cutoff) continue;
+      if (!node || node.status !== 'active' || node.is_test_node || node.last_heartbeat_at < cutoff || node.last_heartbeat_at>now()+60000) continue;
       const usage = await get(`SELECT COUNT(*) AS count FROM sandbox_instances
         WHERE node_id = ? AND deleted_at IS NULL ${excludeInstanceId == null ? '' : 'AND id <> ?'}
           AND status IN ('requested','allocating','deploying','starting','running','stopping')`,
         excludeInstanceId == null ? [node.id] : [node.id, excludeInstanceId]);
-      if (Number(usage.count) < node.max_instances) return node;
+      if (Number(usage.count) < node.max_instances && nodeAdmission(node,Number(usage.count),admissionPolicy).eligible) return node;
     }
     return null;
   }
@@ -441,7 +442,8 @@ function createSandboxNodes({ db, events, now = () => Date.now() } = {}) {
     detachConnection,
     isConnected,
     hashToken,
-    NODE_OFFLINE_AFTER_MS
+    NODE_OFFLINE_AFTER_MS,
+    admissionPolicy
   };
 }
 

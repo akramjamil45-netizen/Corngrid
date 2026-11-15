@@ -170,7 +170,7 @@
         <td><strong>${escapeHtml(node.name)}</strong><br><small class="muted">${escapeHtml(node.nodeUid)}${node.isTestNode ? ' · test node' : ''}</small></td>
         <td>${statusPill(node.online ? 'online' : 'offline')} ${node.status === 'disabled' ? pill('disabled', 'pill-offline') : ''}</td>
         <td><small>${node.cpuPercent != null ? `${Number(node.cpuPercent).toFixed(0)}% CPU` : '—'} · ${node.memoryUsedMb != null && node.ramMb ? `${Math.round(node.memoryUsedMb / 1024)}/${Math.round(node.ramMb / 1024)} GB` : '—'}<br>${node.diskFreeMb != null ? `${Math.round(node.diskFreeMb / 1024)} GB free` : ''}</small></td>
-        <td>${node.usedSlots ?? node.runningInstances} / ${node.maxInstances}</td>
+        <td>${node.usedSlots ?? node.runningInstances} / ${node.maxInstances}${node.placement&&!node.placement.eligible?`<br><small class="muted">Placement blocked: ${escapeHtml(node.placement.reasons.map(reason=>({RAM_LOW:'low RAM',DISK_LOW:'low disk',CPU_BUSY:'CPU busy',TELEMETRY_UNAVAILABLE:'waiting for resource report',PLATFORM_UNSUPPORTED:'platform not enabled'}[reason]||'check resources')).join(', '))}</small>`:''}</td>
         <td><small>${fmtTime(node.lastHeartbeatAt)}</small></td>
         <td class="admin-actions">
           <button class="button button-small" type="button" data-node-capacity="${node.id}" aria-label="Edit capacity for ${escapeHtml(node.name)}">Edit capacity</button>
@@ -449,7 +449,7 @@
         isTestNode: Boolean(node.is_test_node), maxInstances: node.max_instances, usedSlots: Number(node.allocated_instances ?? node.running_instances ?? 0),
         cpuPercent: node.cpu_percent, memoryUsedMb: node.memory_used_mb, ramMb: node.ram_mb,
         diskFreeMb: node.disk_free_mb, runningInstances: node.running_instances,
-        lastHeartbeatAt: node.last_heartbeat_at, online: node.online
+        lastHeartbeatAt: node.last_heartbeat_at, online: node.online, placement:node.placement
       }));
       renderNodes();
     }

@@ -1,0 +1,94 @@
+name: CornGrid platform checks
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-regression:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Corngrid-web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Corngrid-web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Build credential-free node candidates
+        run: |
+          node scripts/build-linux-node-agent.js
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-node-agent.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: node-candidates-${{ github.sha }}
+          path: |
+            CornGrid-Node-Agent.zip
+            CornGrid-Node-Agent-Linux.tar.gz
+            CornGrid-Node-Agent-Linux.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+  postgres-and-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: corngrid_fixture
+          POSTGRES_PASSWORD: isolated-ci-fixture
+          POSTGRES_DB: corngrid_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: Corngrid-web
+    env:
+      TEST_POSTGRES_URL: postgresql://corngrid_fixture:isolated-ci-fixture@127.0.0.1:5432/corngrid_test
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Corngrid-web/package-lock.json
+      - run: npm ci
+      - name: Install matching PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+      - name: Isolated PostgreSQL and Linux runtime checks
+        env:
+          PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
+          PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
+        run: |
+          node --test test/postgres-availability.test.js
+          node --test test/platform-postgres.test.js
+          node --test test/linux-agent.test.js test/platform-backup.test.js
+      - name: Linux installer syntax and read-only plan
+        run: |
+          bash -n agent/install-service.sh
+          bash -n agent/uninstall-service.sh
+          bash agent/install-service.sh --dry-run
+      - name: Install Chromium for isolated desktop/mobile UI checks
+        run: npx playwright install --with-deps chromium
+      - name: Health and two-factor authentication browser checks
+        run: npm run test:browser

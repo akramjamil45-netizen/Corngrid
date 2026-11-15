@@ -18,7 +18,7 @@ RULES = [
     ("Private key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
     ("AWS credential", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
     ("GitHub credential", re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b")),
-    ("Literal credential", re.compile(r'''(?i)(?:password|passwd|api_?key|api_?secret|access_?token|client_?secret|node_?token)\s*["']?\s*[:=]\s*["']([^"'\r\n]{8,})["']''')),
+    ("Literal credential", re.compile(r'''(?i)(?<![\w-])(?:password|passwd|api_?key|api_?secret|access_?token|client_?secret|node_?token)\s*["']?\s*[:=]\s*["']([^"'\r\n]{8,})["']''')),
     ("Credential URL", re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb|https?)://[^\s/@:]+:[^\s/@]+@")),
 ]
 TEXT = {".js", ".cjs", ".mjs", ".py", ".ps1", ".sh", ".json", ".md", ".html", ".css", ".yaml", ".yml", ".xml", ".config", ".txt", ".sql", ".gradle", ".toml", ".ini"}
@@ -31,7 +31,7 @@ def git(*args):
 
 
 def private_file(name):
-    return bool(re.search(r"(?:^|/)(?:\.env(?:\..+)?|agent-config\.json|signing-key\.pem|update-trust\.pem|cookies?\.json)$|\.(?:sqlite(?:-wal|-shm)?|jks|keystore|rdp|pfx|p12)$", name, re.I)) and not name.endswith(".env.example")
+    return bool(re.search(r"(?:^|/)(?:\.env(?:\..+)?|agent-config\.json|signing-key\.pem|update-trust\.pem|cookies?\.json)$|\.(?:sqlite(?:-wal|-shm)?|jks|keystore|rdp|pfx|p12)$", name, re.I)) and not name.endswith(".example")
 
 
 def scan(name, data):

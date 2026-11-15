@@ -99,7 +99,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261115-mobile-images1">
-<link rel="stylesheet" href="admin.css?v=20261115-agreement-text1">
+<link rel="stylesheet" href="admin.css?v=20261116-health1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout2">
   <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
   <link rel="stylesheet" href="marketplace.css?v=20261115-workspace-compact1">
@@ -110,9 +110,12 @@
   <script src="admin-marketplace.js?v=20261115-compact-filters1" defer></script>
 <script src="table-cards.js?v=20261029-2" defer></script>
 <script src="account-requests.js?v=20261113-account-requests1" defer></script>
-<script src="admin.js?v=20261115-agreement-text1" defer></script>
+<script src="admin-health.js?v=20261116-health1" defer></script>
+<script src="admin.js?v=20261116-health1" defer></script>
   <link rel="stylesheet" href="corngrid-select.css?v=20261115-menus1">
   <script src="corngrid-select.js?v=20261115-menus1" defer></script>
+<link rel="stylesheet" href="security.css?v=20261116-mfa1">
+<script src="security.js?v=20261116-mfa1" defer></script>
 </head>
 <body class="cg-admin-workspace">
   <div class="app-shell">
@@ -123,6 +126,7 @@
       </a>
       <div class="workspace-label">ADMIN WORKSPACE</div>
       <nav class="main-nav" aria-label="Administrator navigation">
+        <a class="nav-item admin-nav-link" href="#system-health" data-admin-page="system-health"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>System health</a>
         <a class="nav-item is-active admin-nav-link" href="#overview" data-admin-page="overview"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Overview</a>
         <a class="nav-item admin-nav-link" href="#subscriptions" data-admin-page="subscriptions"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>Subscription Monitor</a>
         <a class="nav-item admin-nav-link" href="#sandbox" data-admin-page="sandbox"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 9l2.5 2L7 13M12 13h4"/></svg></span>Sandbox Management</a>
@@ -155,6 +159,12 @@
       </header>
 
       <div class="page-wrap">
+        <section class="page" id="system-health" hidden aria-label="System health">
+          <div class="page-heading"><div><p class="eyebrow">OPERATIONS</p><h1>System health</h1><p class="muted">Read-only diagnostics from this backend and the latest received reports.</p></div></div>
+          <div class="panel health-summary"><strong data-health-summary role="status" aria-live="polite">Loading diagnostics...</strong><small class="muted" data-health-time></small></div>
+          <p class="muted health-note">Refreshes every 30 seconds while this page is visible. Configuration and heartbeats do not prove broker, Stripe or public website connectivity. Existing terminals and payment processing are unchanged.</p>
+          <div class="health-grid" data-health-cards></div>
+        </section>
         <section class="page" id="marketplace" hidden><div class="mp" id="admin-marketplace-root"></div></section>
         <section class="page" id="downloads" hidden>
           <div class="page-heading"><div><p class="eyebrow">USER RESOURCES</p><h1>Downloads directory</h1><p class="muted">Update the strategy presets and setup guide available on the user Downloads page.</p></div></div>
@@ -688,6 +698,6 @@
       </div>
     </form>
   </dialog>
-  <script src="admin-sandbox.js?v=20261113-capacity-recovery3" defer></script>
+  <script src="admin-sandbox.js?v=20261116-resource-policy1" defer></script>
 </body>
 </html>

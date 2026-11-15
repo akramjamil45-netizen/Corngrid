@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
+    "test:browser": "node scripts/check-platform-browser.js",
     "start": "node server.js",
     "loadtest": "node scripts/loadtest.js",
     "gen:android-assets": "node scripts/generate-android-assets.mjs",
@@ -40,6 +41,7 @@
     "ws": "^8.22.1"
   },
   "devDependencies": {
+    "playwright": "^1.65.1",
     "pngjs": "^7.0.0"
   }
 }

@@ -7,7 +7,7 @@ function isVerifiedValue(value) {
   return value === true || value === 1 || value === '1' || value === 't' || value === 'true';
 }
 
-function createUserAuth({ db, jwtSecret }) {
+function createUserAuth({ db, jwtSecret, mfa }) {
   const archiveReady=ensureArchiveSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_account_access (
@@ -61,7 +61,7 @@ function createUserAuth({ db, jwtSecret }) {
       const legacySql = baseSql;
       const params = [user.id, user.id, user.id, user.id, now];
 
-      const handleRow = (lookupError, row, checkedVerification) => {
+      const handleRow = async (lookupError, row, checkedVerification) => {
         if (lookupError) {
           console.error('Failed to verify the authenticated session:', lookupError.message);
           return res.status(500).json({ error: 'Unable to verify this session.' });
@@ -87,6 +87,8 @@ function createUserAuth({ db, jwtSecret }) {
             suspendedUntil: row.suspended_until
           });
         }
+        try{if(mfa&&!await mfa.sessionValid('user:'+user.id,user))return res.status(403).json({error:'Please sign in again to verify your security settings.',code:'MFA_SESSION_EXPIRED'});}
+        catch{return res.status(503).json({error:'Security verification is temporarily unavailable.'});}
         req.user = user;
         return next();
       };

@@ -1,0 +1,10 @@
+.cg-security-dialog { width:min(480px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:1px solid var(--border,#343840);border-radius:18px;background:var(--surface,#10151e);color:var(--text,#fff);font:inherit; }
+.cg-security-dialog::backdrop { background:rgba(0,0,0,.72);backdrop-filter:blur(4px); }
+.cg-security-dialog h2 { font-size:19px;margin:0 0 12px; }.cg-security-dialog p { font-size:13px;line-height:1.7; }
+.cg-security-dialog label { display:grid;gap:8px;margin:16px 0;font-size:13px; }
+.cg-security-dialog input,.cg-security-dialog textarea { box-sizing:border-box;width:100%;min-height:44px;padding:12px;border:1px solid var(--border,#343840);border-radius:10px;background:var(--bg,#080a0f);color:var(--text,#fff);font:inherit; }
+.cg-security-dialog input[readonly] { font-family:ui-monospace,monospace;font-size:12px; }
+.cg-security-dialog input:focus-visible,.cg-security-dialog button:focus-visible { outline:2px solid var(--accent,#ffda00);outline-offset:3px; }
+.cg-security-actions { display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-top:20px; }.cg-security-actions .button { min-height:44px; }
+.cg-security-settings { padding:18px;border-top:1px solid var(--border);margin-top:16px; }.cg-security-settings h3 { font-size:15px; }
+@media(max-width:480px) { .cg-security-dialog { padding:18px; }.cg-security-actions .button { flex:1; }.cg-admin-topbar .topbar-actions>button { font-size:12px;padding:9px; } }

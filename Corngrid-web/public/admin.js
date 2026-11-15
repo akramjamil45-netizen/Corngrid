@@ -1978,7 +1978,7 @@
     }
   });
   function showAdminPage(name) {
-    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements', 'account-requests', 'marketplace'];
+    const pages = ['overview', 'subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'ea-submissions', 'commissions', 'downloads', 'user-agreements', 'account-requests', 'marketplace', 'system-health'];
     const active = pages.includes(name) ? name : 'overview';
     pages.forEach(pageName => {
       const section = document.getElementById(pageName);
@@ -1992,7 +1992,8 @@
       else link.removeAttribute('aria-current');
     });
     const labels = { 'account-requests': 'Account requests', overview: 'Overview', subscriptions: 'Subscriptions', support: 'Support', email: 'Email', reports: 'Reports', announcements: 'Announcements', sandbox: 'Sandbox Management', 'ea-submissions': 'EA Submissions', commissions: 'Commissions' };
-    $('#admin-breadcrumb-page').textContent = active === 'marketplace' ? 'Marketplace' : active === 'user-agreements' ? 'User Agreements' : active === 'downloads' ? 'Downloads' : labels[active];
+    $('#admin-breadcrumb-page').textContent = active === 'system-health' ? 'System health' : active === 'marketplace' ? 'Marketplace' : active === 'user-agreements' ? 'User Agreements' : active === 'downloads' ? 'Downloads' : labels[active];
+    if(active==='system-health')window.CornGridAdminHealth?.open();else window.CornGridAdminHealth?.close();
     if (active === 'marketplace') window.CornGridAdminMarketplace?.open();
     if(active==='account-requests')window.CornGridAccountRequests?.openAdmin();
     if(active==='user-agreements')loadUserAgreements();
@@ -2012,6 +2013,7 @@
   }
 
   $('#admin-refresh').addEventListener('click', () => {
+    if(!$('#system-health').hidden){window.CornGridAdminHealth?.refresh();return;}
     if (!$('#sandbox').hidden) { window.CornGridAdminSandbox?.openSandbox(); return; }
     if(!$('#account-requests').hidden){window.CornGridAccountRequests?.openAdmin();return;}
     if(!$('#marketplace').hidden){window.CornGridAdminMarketplace?.open();return;}
@@ -2214,7 +2216,7 @@
   });
   window.addEventListener('hashchange', () => {
     const hash = location.hash.replace('#', '');
-    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'downloads', 'user-agreements', 'account-requests', 'marketplace'].includes(hash) ? hash : 'overview');
+    showAdminPage(['subscriptions', 'support', 'email', 'reports', 'announcements', 'sandbox', 'downloads', 'user-agreements', 'account-requests', 'marketplace', 'system-health'].includes(hash) ? hash : 'overview');
   });
   window.setInterval(() => {
     if (document.hidden) return;
@@ -2233,7 +2235,8 @@
   $('#admin-trading-dialog').addEventListener('click', event => {
     if (event.target === $('#admin-trading-dialog')) $('#admin-trading-dialog').close();
   });
-  if (location.hash === '#account-requests') showAdminPage('account-requests');
+  if (location.hash === '#system-health') showAdminPage('system-health');
+  else if (location.hash === '#account-requests') showAdminPage('account-requests');
   else if (location.hash === '#sandbox') showAdminPage('sandbox');
   else if (location.hash === '#marketplace') showAdminPage('marketplace');
   else if (location.hash === '#user-agreements') showAdminPage('user-agreements');
