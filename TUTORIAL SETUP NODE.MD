@@ -1,5 +1,7 @@
 # Tutorial setup CornGrid Node pada VPS lain
 
+**Pilih sistem operasi terlebih dahulu:** [Windows VPS](Corngrid-web/docs/VPS_NODE_INSTALLATION_WINDOWS.md) atau [Linux / Ubuntu VPS](Corngrid-web/docs/VPS_NODE_INSTALLATION_LINUX.md). Linux menggunakan pakej `CornGrid-Node-Agent-Linux.tar.gz`, Wine, Xvfb dan systemd. Langkah ringkas di bawah khusus **Windows**; jangan gunakan PowerShell/NSSM untuk node Linux.
+
 Panduan disemak semula pada **13 November 2026**. Panduan penuh yang menggantikan
 langkah pemasangan lama berada di
 [VPS_NODE_INSTALLATION.md](Corngrid-web/docs/VPS_NODE_INSTALLATION.md).

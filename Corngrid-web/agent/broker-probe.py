@@ -13,7 +13,7 @@ def probe(root, request_id):
     try:
         import MetaTrader5 as mt5
     except ImportError:
-        return dict(result, error='MetaTrader5 Python package is missing. Run agent/setup-broker-tools.ps1 on this node.')
+        return dict(result, error='MetaTrader5 Python package is missing. Install it with the configured 64-bit Windows Python; see the platform node installation guide.')
     config = configparser.ConfigParser(interpolation=None)
     config.read(root / 'config/broker-preflight.ini', encoding='utf-16')
     common = config['Common']

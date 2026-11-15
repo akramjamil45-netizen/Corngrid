@@ -1,10 +1,27 @@
 # Signed automatic Sandbox Agent updates
 
-The protocol-v1 launcher keeps the Windows scheduled task alive while replacing
+The protocol-v1 launcher keeps the Windows scheduled task or Linux systemd agent service alive while replacing
 its agent child. Agent releases live in separate, immutable directories under
 `agentDataDir\node-releases`. An atomic pointer selects the active version.
 Updating the agent does not stop, delete, redeploy or reconfigure MT5 terminals.
 The new agent adopts their existing processes through the existing recovery API.
+
+Linux installation uses [its own guide](VPS_NODE_INSTALLATION_LINUX.md). It needs
+Wine, Windows Python, Xvfb and systemd user units; setting a package OS flag alone
+does not make MT5 native Linux. Linux nodes reject older Windows-only releases.
+The immutable launcher respects `CORNGRID_AGENT_CONFIG_FILE` for `/etc/corngrid`.
+Pin the public trust key as root with group-read access for `corngrid`; keep
+bootstrap code root-owned. MT5 runs in independent user units, so restarting the
+system agent service does not kill terminals. Keep normal control-group cleanup
+for every unit; do not change to `KillMode=process`. Updating bootstrap services
+and installer scripts is an explicit operator task, separate from signed child
+agent updates. Validate Linux changes on a demo node before central publication.
+
+Build the Linux installer separately with
+`node Corngrid-web/scripts/build-linux-node-agent.js` from the Website root.
+It generates `CornGrid-Node-Agent-Linux.tar.gz` and its checksum without publishing
+the release or changing any running node. The Windows ZIP retains its existing
+PowerShell builder and includes the separate platform guides.
 
 ## Central deployment
 

@@ -3,6 +3,7 @@
 // This is compile validation. It never reports an unexecuted EA as runtime-tested.
 const fs=require('node:fs'),path=require('node:path'),{execFile}=require('node:child_process');
 function createEaTester({config,logger,mt5,transport,execFileImpl=execFile}){
+  const linux=process.platform==='linux'?require('./linux-runtime').createLinuxRuntime({config}):null;
   const root=path.resolve(config.agentDataDir,'tests');
   async function runTest(payload){
     const {testInstanceUid,submissionId,reportId}=payload||{};
@@ -26,7 +27,8 @@ function createEaTester({config,logger,mt5,transport,execFileImpl=execFile}){
       for(const file of files)await transport.downloadFile(`/api/admin/ea-testing/${submissionId}/source/${encodeURIComponent(file.name)}`,path.join(source,file.name));
       const output=path.join(source,main.replace(/\.mq5$/i,'.ex5')),logFile=path.join(dir,'compile.log');
       if(fs.existsSync(output))fs.unlinkSync(output);
-      await new Promise((resolve,reject)=>execFileImpl(metaeditor,[`/compile:${path.join(source,main)}`,`/log:${logFile}`],{timeout:180000,windowsHide:true},error=>error?reject(Error('MetaEditor compilation failed or timed out.')):resolve()));
+      if(linux)await linux.runProgram(dir,metaeditor,[`/compile:${linux.toWinePath(path.join(source,main))}`,`/log:${linux.toWinePath(logFile)}`],{kind:'compile',timeout:180000});
+      else await new Promise((resolve,reject)=>execFileImpl(metaeditor,[`/compile:${path.join(source,main)}`,`/log:${logFile}`],{timeout:180000,windowsHide:true},error=>error?reject(Error('MetaEditor compilation failed or timed out.')):resolve()));
       if(fs.existsSync(logFile)){const bytes=fs.readFileSync(logFile);compileLog=bytes.toString(bytes[0]===0xff&&bytes[1]===0xfe?'utf16le':'utf8').replace(/^\ufeff/,'');}
       if(!fs.existsSync(output))throw Error('MetaEditor did not produce an EX5 artifact.');
       const bytes=fs.readFileSync(output);
@@ -42,6 +44,7 @@ function createEaTester({config,logger,mt5,transport,execFileImpl=execFile}){
       try{await transport.httpRequest('POST',`/api/admin/ea-testing/reports/${reportId}/complete`,{success,kind:'compile',compileLog:compileLog.slice(0,18000),runtimeLog,errorCount:success?0:1});}
       catch(error){logger.error(testInstanceUid,'Compile report could not be stored: '+error.message);}
       const checked=path.relative(root,path.resolve(dir));if(checked!==testInstanceUid||checked.startsWith('..')||path.isAbsolute(checked))throw Error('Unsafe compile cleanup path.');
+      if(linux){await linux.stopDirectory(dir);linux.removePrefix(dir);}
       fs.rmSync(path.resolve(dir),{recursive:true,force:true});
     }
     return {reportId,success};

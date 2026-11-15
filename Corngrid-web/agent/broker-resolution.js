@@ -70,7 +70,12 @@ async function resolveBroker(dir, payload, config, run = execFile) {
   fs.rmSync(resultPath, { force: true });
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'resolve-broker.ps1'),
     '-InstanceDir', path.resolve(dir), '-Search', brokerSearch(payload.brokerServer), '-PythonPath', config.mt5PythonPath || 'python.exe', '-RequestId', requestId];
-  await new Promise((resolve, reject) => run('powershell.exe', args,
+  if(process.platform==='linux'){
+    if(!fs.existsSync(path.join(dir,'config','servers.dat')))throw new Error('Linux broker preflight requires a prepared broker servers.dat seed. See the Linux installation guide.');
+    fs.writeFileSync(path.join(dir,'config','common.ini'),fs.readFileSync(path.join(dir,'config','broker-preflight.ini')),{mode:0o600});
+    const runtime=require('./linux-runtime').createLinuxRuntime({config});
+    await runtime.runProgram(dir,config.mt5PythonPath,[runtime.toWinePath(path.join(__dirname,'broker-probe.py')),runtime.toWinePath(path.resolve(dir)),requestId],{kind:'probe',timeout:240000});
+  }else await new Promise((resolve, reject) => run('powershell.exe', args,
     { timeout: 240000, windowsHide: true, maxBuffer: 64 * 1024 }, error => {
       if (error) return reject(new Error('MT5 broker preflight could not run. Check the node Python/MetaTrader5 installation and broker discovery log.'));
       resolve();

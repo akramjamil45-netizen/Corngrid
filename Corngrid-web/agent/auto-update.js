@@ -17,16 +17,16 @@ async function prepareDependencies(directory,previousDir){
   if(fs.lstatSync(previousModules).isSymbolicLink())throw Error('UPDATE_DEPENDENCIES_UNSAFE');
   fs.cpSync(previousModules,path.join(directory,'node_modules'),{recursive:true,dereference:false});
  }else{
-  const cli=path.join(path.dirname(process.execPath),'node_modules/npm/bin/npm-cli.js');if(!fs.existsSync(cli))throw Error('UPDATE_NPM_NOT_AVAILABLE');
+  const cli=[path.join(path.dirname(process.execPath),'node_modules/npm/bin/npm-cli.js'),path.resolve(path.dirname(process.execPath),'../lib/node_modules/npm/bin/npm-cli.js'),'/usr/share/nodejs/npm/bin/npm-cli.js'].find(file=>fs.existsSync(file));if(!cli)throw Error('UPDATE_NPM_NOT_AVAILABLE');
   await run(process.execPath,[cli,'ci','--omit=dev','--ignore-scripts','--no-audit','--no-fund','--cache',path.join(directory,'.npm-cache')],{cwd:directory,windowsHide:true,timeout:120000,maxBuffer:65536});
   const cache=path.resolve(directory,'.npm-cache');if(path.dirname(cache)!==path.resolve(directory))throw Error('UPDATE_CACHE_UNSAFE');fs.rmSync(cache,{recursive:true,force:true});
  }
  await run(process.execPath,['-e',"require('ws');"],{cwd:directory,windowsHide:true,timeout:15000,maxBuffer:65536});
 }
 async function stageRelease(config,envelope,{expected={},previousDir=__dirname,prepare=prepareDependencies,syntaxCheck=async file=>run(process.execPath,['--check',file],{windowsHide:true,timeout:15000,maxBuffer:65536})}={}){
- const home=config.agentHome||__dirname,key=fs.readFileSync(path.join(home,'update-trust.pem'),'utf8'),payload=verifyEnvelope(envelope,key,expected);
+ const home=config.agentHome||__dirname,key=fs.readFileSync(path.join(home,'update-trust.pem'),'utf8'),payload=verifyEnvelope(envelope,key,{...expected,platform:process.platform});
  const root=safeReleaseRoot(config),destination=releaseDirectory(root,payload.id,payload.sequence);
- if(fs.existsSync(destination)){const stored=readJson(path.join(destination,'release-envelope.json'));verifyEnvelope(stored,key,{id:payload.id,sequence:payload.sequence});validateInstalled(destination,payload);return payload;}
+ if(fs.existsSync(destination)){const stored=readJson(path.join(destination,'release-envelope.json'));verifyEnvelope(stored,key,{id:payload.id,sequence:payload.sequence,platform:process.platform});validateInstalled(destination,payload);return payload;}
  const disk=fs.statfsSync(root);if(Number(disk.bavail)*Number(disk.bsize)<128*1024*1024)throw Error('UPDATE_DISK_LOW');
  const temporary=path.join(root,'.staging-'+payload.id+'-'+require('node:crypto').randomBytes(4).toString('hex'));fs.mkdirSync(temporary);
  try{

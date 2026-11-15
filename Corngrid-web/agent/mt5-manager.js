@@ -2,10 +2,10 @@
 
 // MT5 process manager.
 //
-// Each sandbox gets a fully isolated copy of the pre-deployed MT5 terminal
-// (robocopy of the base directory) launched in /portable mode, so terminal
-// data, EAs, logs and configuration live inside the instance directory and
-// users can never share or see each other's terminal data.
+// Each sandbox gets a separate copy of the pre-deployed MT5 terminal, launched
+// in /portable mode. Linux also uses a per-instance Wine prefix and systemd
+// user unit. These isolate application state, not untrusted native execution;
+// approved EA code and private filesystem permissions remain required.
 //
 //   C:\CornGrid\Sandbox\MT5\                 <- base files (placed manually)
 //   C:\CornGrid\Sandbox\Users\sbx_xxx\       <- isolated per-user copy
@@ -33,6 +33,7 @@ function isValidInstanceUid(value) {
 }
 
 function createMt5Manager({ config, logger, downloadFile }) {
+  const linux = process.platform === 'linux' ? require('./linux-runtime').createLinuxRuntime({config}) : null;
   // instanceUid -> { child, pid, startedAt, restarts: [timestamps], sandboxPath, meta }
   const running = new Map();
   const pendingRestarts = new Map();
@@ -53,6 +54,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
   // Base validation
   // -------------------------------------------------------------------------
   function validateBase() {
+    if (linux) { const check=linux.validate();if(!check.ok)return check; }
     const terminal = path.join(config.mt5BaseDir, 'terminal64.exe');
     if (!fs.existsSync(terminal)) {
       return { ok: false, error: `MT5 terminal not found at ${terminal}. Place the MT5 program files in ${config.mt5BaseDir}.` };
@@ -64,6 +66,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
   // Deployment
   // -------------------------------------------------------------------------
   function robocopy(source, target) {
+    if (linux) return Promise.resolve().then(()=>linux.copyTerminal(source,target));
     return new Promise((resolve, reject) => {
       // /E full tree, /NFL /NDL /NJH /NJS quiet, /R:2 /W:1 limited retries.
       execFile('robocopy.exe', [source, target, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/R:2', '/W:1'],
@@ -136,8 +139,9 @@ function createMt5Manager({ config, logger, downloadFile }) {
     logger.info(instanceUid, `Deploying sandbox environment at ${dir}`);
 
     // Clean slate for a redeploy.
+    if(linux){await stopInstanceProcesses(instanceUid);linux.removePrefix(dir);}
     if (fs.existsSync(dir)) {
-      await stopInstanceProcesses(instanceUid);
+      if(!linux)await stopInstanceProcesses(instanceUid);
       fs.rmSync(dir, { recursive: true, force: true });
     }
     fs.mkdirSync(dir, { recursive: true });
@@ -152,16 +156,22 @@ function createMt5Manager({ config, logger, downloadFile }) {
     await deployEa(dir, payload.strategy);
     prepareStartup(dir, payload, config);
 
-    const child = launch(dir, instanceUid, payload);
+    const child = await launch(dir, instanceUid, payload);
     return { sandboxPath: dir, pid: child.pid };
   }
 
   // -------------------------------------------------------------------------
   // Process lifecycle
   // -------------------------------------------------------------------------
-  function launch(dir, instanceUid, meta = {}, restarts = []) {
+  async function launch(dir, instanceUid, meta = {}, restarts = []) {
     const terminal = path.join(dir, 'terminal64.exe');
     const startupPath = ensureStartup(dir, config);
+    if (linux) {
+      const child=await linux.startTerminal(dir,startupPath);
+      running.set(instanceUid,{child:null,pid:child.pid,startedAt:Date.now(),restarts,sandboxPath:dir,meta,intentionallyStopped:false,adopted:true});
+      logger.info(instanceUid,`Wine terminal running in its systemd user unit (pid ${child.pid}).`);
+      return child;
+    }
     const child = spawn(terminal, ['/portable', '/config:' + startupPath], {
       cwd: dir,
       // A Windows attached child belongs to the agent's libuv process job and
@@ -223,11 +233,11 @@ function createMt5Manager({ config, logger, downloadFile }) {
     record.restarts.push(nowTs);
     const delayMs = Math.min(30000, 2000 * record.restarts.length);
     logger.info(instanceUid, `Restarting terminal in ${delayMs}ms (attempt ${record.restarts.length}).`);
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       pendingRestarts.delete(instanceUid);
       if (running.has(instanceUid)) return;
       try {
-        launch(record.sandboxPath, instanceUid, record.meta, record.restarts);
+        await launch(record.sandboxPath, instanceUid, record.meta, record.restarts);
       } catch (error) {
         logger.error(instanceUid, `Restart failed: ${error.message}`);
         scheduleRestart(instanceUid, record);
@@ -250,6 +260,11 @@ function createMt5Manager({ config, logger, downloadFile }) {
     clearTimeout(pendingRestarts.get(instanceUid));
     pendingRestarts.delete(instanceUid);
     const record = running.get(instanceUid);
+    if (linux) {
+      if (record) record.intentionallyStopped=true;
+      await linux.stopDirectory(instanceDir(instanceUid));
+      running.delete(instanceUid);return;
+    }
     if (record) {
       record.intentionallyStopped = true;
       await killPid(record.pid);
@@ -292,7 +307,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
       writeLicenseBundle(dir, verified);
       prepareStartup(dir, verified, config);
     }
-    const child = launch(dir, instanceUid, payload);
+    const child = await launch(dir, instanceUid, payload);
     return { pid: child.pid };
   }
 
@@ -318,6 +333,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+    if(linux)linux.removePrefix(dir);
     logger.info(instanceUid, `Sandbox environment removed (${dir}).`);
     return { destroyed: true };
   }
@@ -399,7 +415,9 @@ function createMt5Manager({ config, logger, downloadFile }) {
       const terminal = path.join(dir, 'terminal64.exe');
       if (!fs.existsSync(terminal)) continue;
       // Find a running terminal64.exe whose executable path is this one.
-      const pid = await findTerminalPid(dir);
+      let pid;
+      try { pid = await findTerminalPid(dir); }
+      catch { logger.warn(entry.name, 'Terminal adoption refused; verify this sandbox unit and Wine prefix before restarting it.'); continue; }
       if (pid) {
         running.set(entry.name, {
           child: null, // adopted: no child handle, liveness is polled
@@ -417,6 +435,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
   }
 
   function findTerminalPid(dir) {
+    if (linux) return Promise.resolve(linux.findTerminalPid(dir));
     return new Promise(resolve => {
       const normalized = path.join(dir, 'terminal64.exe').toLowerCase();
       execFile('powershell.exe', [

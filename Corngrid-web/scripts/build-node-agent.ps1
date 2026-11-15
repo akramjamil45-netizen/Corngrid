@@ -8,7 +8,7 @@ if($LASTEXITCODE -ne 0){throw 'Could not build the agent deployment manifest.'}
 if([string]::IsNullOrWhiteSpace($OutputPath)){$OutputPath=Join-Path $workspace 'CornGrid-Node-Agent.zip'}
 $agentFiles=@('agent.js','config.js','transport.js','system-monitor.js','mt5-manager.js','mt5-startup.js',
  'broker-resolution.js','broker-server-cache.js','broker-probe.py','resolve-broker.ps1','setup-broker-tools.ps1',
- 'ea-tester.js','source-compiler.js','check-installation.js','package.json','package-lock.json',
+ 'ea-tester.js','source-compiler.js','linux-runtime.js','check-installation.js','package.json','package-lock.json',
  'agent-config.example.json','install-service.ps1','uninstall-service.ps1',
  'auto-update.js','update-protocol.js','agent-launcher.js','RELEASE.json')
 $sources=@()
@@ -16,6 +16,8 @@ foreach($name in $agentFiles){$sources+=@{Source=(Join-Path $backend "agent/$nam
 $sources+=@{Source=(Join-Path $workspace 'TUTORIAL SETUP NODE.MD');Name='TUTORIAL SETUP NODE.MD'}
 $sources+=@{Source=(Join-Path $backend 'docs/WINDOWS_AGENT_SETUP.md');Name='WINDOWS_AGENT_SETUP.md'}
 $sources+=@{Source=(Join-Path $backend 'docs/VPS_NODE_INSTALLATION.md');Name='VPS_NODE_INSTALLATION.md'}
+$sources+=@{Source=(Join-Path $backend 'docs/VPS_NODE_INSTALLATION_WINDOWS.md');Name='VPS_NODE_INSTALLATION_WINDOWS.md'}
+$sources+=@{Source=(Join-Path $backend 'docs/VPS_NODE_INSTALLATION_LINUX.md');Name='VPS_NODE_INSTALLATION_LINUX.md'}
 $sources+=@{Source=(Join-Path $backend 'docs/PARTNER_PUBLICATION.md');Name='PARTNER_PUBLICATION.md'}
 $sources+=@{Source=(Join-Path $backend 'docs/NODE_AUTO_UPDATES.md');Name='NODE_AUTO_UPDATES.md'}
 foreach($file in $sources){if(-not (Test-Path -LiteralPath $file.Source -PathType Leaf)){throw "Missing package source: $($file.Name)"}}

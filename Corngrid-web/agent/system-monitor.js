@@ -48,6 +48,13 @@ function diskFreeMb(targetPath) {
 // Working set (MB) for a set of PIDs via CIM. Returns a map pid -> MB.
 // execFile with an argument array: no shell, no injection surface.
 function processMemoryMb(pids) {
+  if(process.platform==='linux'){
+    const map=new Map();
+    for(const pid of new Set(pids.filter(pid=>Number.isInteger(pid)&&pid>0))){
+      try{const match=fs.readFileSync(`/proc/${pid}/status`,'utf8').match(/^VmRSS:\s+(\d+)\s+kB/m);if(match)map.set(pid,Math.round(Number(match[1])/1024));}catch{}
+    }
+    return Promise.resolve(map);
+  }
   return new Promise(resolve => {
     const unique = [...new Set(pids.filter(pid => Number.isInteger(pid) && pid > 0))];
     if (!unique.length) return resolve(new Map());

@@ -46,7 +46,7 @@ test('node bundle contains matching runtime files and hashes, with no live confi
   const output=path.join(f.root,'unpacked');fs.mkdirSync(output);
   const extractor=path.join(f.root,'extract.ps1');fs.writeFileSync(extractor,"param($Zip,$Output)\n$ErrorActionPreference='Stop'\nExpand-Archive -LiteralPath $Zip -DestinationPath $Output\n");
   execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',extractor,'-Zip',zip,'-Output',output],{windowsHide:true,timeout:20000});
-  const manifest=JSON.parse(fs.readFileSync(path.join(output,'MANIFEST.json'),'utf8'));assert.equal(manifest.files.length,28);
+  const manifest=JSON.parse(fs.readFileSync(path.join(output,'MANIFEST.json'),'utf8'));assert.equal(manifest.files.length,31);
   for(const item of manifest.files){assert.equal(item.path.includes('..'),false);const bytes=fs.readFileSync(path.join(output,item.path));assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),item.sha256);assert.equal(bytes.length,item.bytes);}
   for(const name of RUNTIME_FILES){const file=path.join(output,'agent',name);assert.ok(fs.existsSync(file),name);assert.deepEqual(fs.readFileSync(file),fs.readFileSync(path.join(backend,'agent',name)));}
   for(const item of manifest.files)assert.equal(/(?:^|\/)(?:agent-config\.json|node_modules|broker-python|\.env|agent-recovery\.log)(?:\/|$)/.test(item.path),false,item.path);

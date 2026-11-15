@@ -1,14 +1,15 @@
 # Windows Sandbox Agent Setup
 
 Reviewed against the repository on **13 November 2026**. For the complete Malay
-VPS installation walkthrough, see [VPS_NODE_INSTALLATION.md](VPS_NODE_INSTALLATION.md).
+VPS installation walkthrough, see [VPS_NODE_INSTALLATION_WINDOWS.md](VPS_NODE_INSTALLATION_WINDOWS.md).
 This guide replaces the old unconditional SYSTEM/NSSM startup recommendation.
 
 ## Requirements and package
 
 - Windows x64 VPS with Desktop Experience/RDP and an English MT5 program base.
-  The broker discovery helper controls MT5 windows; Linux/Wine and Server Core
-  are not validated by this project.
+  The broker discovery helper controls MT5 windows. Ubuntu/Linux uses a separate
+  Wine/systemd installation and broker seeds: [Linux guide](VPS_NODE_INSTALLATION_LINUX.md).
+  Windows Server Core does not meet this Windows GUI workflow requirement.
 - Use a supported Node.js LTS. Node.js 24 LTS is the documented baseline; the
   package minimum >=20.17.0 is not an instruction to install EOL Node.js 20.
 - Python 3.13 x64 and the MetaTrader5 Python package are required for broker

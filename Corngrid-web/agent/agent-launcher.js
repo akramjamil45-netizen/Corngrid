@@ -9,14 +9,14 @@ function createLauncher({config,home=__dirname,spawnAgent,healthTimeoutMs=120000
  let child=null,healthy=false,healthTimer=null,restartTimer=null,pending=null,closed=false,starting=false;
  const state=()=>readJson(pointer,{active:null,sequence:0,phase:'ok'});
  function selected(){const current=state();return current.active?releaseDirectory(root,current.active,current.sequence):home;}
- function verifyCandidate(id,sequence){const directory=releaseDirectory(root,id,sequence),key=fs.readFileSync(path.join(home,'update-trust.pem'),'utf8'),payload=verifyEnvelope(readJson(path.join(directory,'release-envelope.json')),key,{id,sequence});validateInstalled(directory,payload);return payload;}
+ function verifyCandidate(id,sequence){const directory=releaseDirectory(root,id,sequence),key=fs.readFileSync(path.join(home,'update-trust.pem'),'utf8'),payload=verifyEnvelope(readJson(path.join(directory,'release-envelope.json')),key,{id,sequence,platform:process.platform});validateInstalled(directory,payload);return payload;}
  function clearHealth(){clearTimeout(healthTimer);healthTimer=null;}
  function start(){
   if(closed||child||starting)return;starting=true;
   try{
    let current=state();if(current.phase==='pending'&&!pending){const previous=current.previous||{active:null,sequence:0};atomicJson(pointer,{...previous,phase:'ok'});atomicJson(failure,{id:current.active,sequence:current.sequence,reason:'UPDATE_INTERRUPTED',at:now()});current=state();log('Interrupted update reverted before startup.');}
    if(current.active)verifyCandidate(current.active,current.sequence);
-   const directory=selected(),env={...process.env,CORNGRID_AGENT_HOME:home,CORNGRID_AGENT_CONFIG_FILE:path.join(home,'agent-config.json'),CORNGRID_AGENT_RELEASE_ID:current.active||''};
+   const directory=selected(),env={...process.env,CORNGRID_AGENT_HOME:home,CORNGRID_AGENT_CONFIG_FILE:process.env.CORNGRID_AGENT_CONFIG_FILE||path.join(home,'agent-config.json'),CORNGRID_AGENT_RELEASE_ID:current.active||''};
    healthy=false;const launched=spawnAgent?spawnAgent({directory,env}):spawn(process.execPath,[path.join(directory,'agent.js')],{cwd:directory,env,windowsHide:true,stdio:['ignore','inherit','inherit','ipc']});
    child=launched;launched.on('message',message=>onMessage(launched,message));launched.on('error',()=>onExit(launched));launched.on('exit',()=>onExit(launched));
    if(pending?.phase==='testing'){healthTimer=setTimeout(()=>{if(child===launched&&!healthy){log('New agent did not pass its health check.');launched.kill();}},healthTimeoutMs);healthTimer.unref?.();}

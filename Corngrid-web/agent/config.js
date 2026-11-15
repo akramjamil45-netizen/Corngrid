@@ -22,6 +22,7 @@ function readConfigFile() {
 function loadConfig() {
   const file = readConfigFile();
   const env = process.env;
+  const linux = process.platform === 'linux';
 
   const config = {
     agentHome: env.CORNGRID_AGENT_HOME || __dirname,
@@ -32,19 +33,26 @@ function loadConfig() {
     brokerServerDataDirs: file.brokerServerDataDirs || {},
     brokerSymbolMaps: file.brokerSymbolMaps || {},
     brokerAccountSymbolMaps: file.brokerAccountSymbolMaps || {},
-    brokerCacheDir: env.CORNGRID_BROKER_CACHE_DIR || file.brokerCacheDir || 'C:\\CornGrid\\Sandbox\\BrokerCaches',
-    mt5PythonPath: env.CORNGRID_MT5_PYTHON_PATH || file.mt5PythonPath || 'python.exe',
+    brokerCacheDir: env.CORNGRID_BROKER_CACHE_DIR || file.brokerCacheDir || (linux ? '/var/lib/corngrid/broker-caches' : 'C:\\CornGrid\\Sandbox\\BrokerCaches'),
+    mt5PythonPath: env.CORNGRID_MT5_PYTHON_PATH || file.mt5PythonPath || (linux ? '/opt/corngrid/windows-python/python.exe' : 'python.exe'),
     webRequestSettingsSource: file.webRequestSettingsSource || '',
     startupSymbol: env.CORNGRID_STARTUP_SYMBOL || file.startupSymbol || '',
     nodeUid: env.CORNGRID_NODE_UID || file.nodeUid || '',
     nodeToken: env.CORNGRID_NODE_TOKEN || file.nodeToken || '',
 
     // Pre-deployed MT5 program directory (terminal64.exe lives here).
-    mt5BaseDir: env.CORNGRID_MT5_BASE_DIR || file.mt5BaseDir || 'C:\\CornGrid\\Sandbox\\MT5',
+    mt5BaseDir: env.CORNGRID_MT5_BASE_DIR || file.mt5BaseDir || (linux ? '/opt/corngrid/mt5' : 'C:\\CornGrid\\Sandbox\\MT5'),
     // Per-user isolated instance directories are created under this root.
-    sandboxUsersDir: env.CORNGRID_SANDBOX_USERS_DIR || file.sandboxUsersDir || 'C:\\CornGrid\\Sandbox\\Users',
+    sandboxUsersDir: env.CORNGRID_SANDBOX_USERS_DIR || file.sandboxUsersDir || (linux ? '/var/lib/corngrid/instances' : 'C:\\CornGrid\\Sandbox\\Users'),
     // Local working directory for downloaded EA binaries and agent logs.
-    agentDataDir: env.CORNGRID_AGENT_DATA_DIR || file.agentDataDir || 'C:\\CornGrid\\Sandbox\\AgentData',
+    agentDataDir: env.CORNGRID_AGENT_DATA_DIR || file.agentDataDir || (linux ? '/var/lib/corngrid/agent-data' : 'C:\\CornGrid\\Sandbox\\AgentData'),
+    linuxWineEnabled: env.CORNGRID_LINUX_WINE !== undefined ? env.CORNGRID_LINUX_WINE === 'true' : file.linuxWineEnabled === true,
+    wineBinary: env.CORNGRID_WINE_BINARY || file.wineBinary || '/usr/bin/wine',
+    wineTemplateDir: env.CORNGRID_WINE_TEMPLATE_DIR || file.wineTemplateDir || '/var/lib/corngrid/wine-template',
+    winePrefixesDir: env.CORNGRID_WINE_PREFIXES_DIR || file.winePrefixesDir || '/var/lib/corngrid/wine-prefixes',
+    wineDisplay: env.DISPLAY || file.wineDisplay || ':99',
+    xAuthority: env.XAUTHORITY || file.xAuthority || '/etc/corngrid/xauthority',
+    linuxStartupTimeoutMs: Number(file.linuxStartupTimeoutMs) || 90000,
 
     heartbeatIntervalMs: Number(env.CORNGRID_HEARTBEAT_INTERVAL_MS) || file.heartbeatIntervalMs || 15000,
     reconnectMinMs: Number(env.CORNGRID_RECONNECT_MIN_MS) || 1000,

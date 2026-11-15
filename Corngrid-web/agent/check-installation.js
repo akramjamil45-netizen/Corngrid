@@ -5,28 +5,37 @@ const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('no
 const RUNTIME_FILES=['agent.js','config.js','transport.js','system-monitor.js','mt5-manager.js','mt5-startup.js','broker-resolution.js','broker-server-cache.js','broker-probe.py','resolve-broker.ps1','ea-tester.js','source-compiler.js','auto-update.js','update-protocol.js'];
 function checkLocal({config,agentDir=__dirname,platform=process.platform,arch=process.arch,nodeVersion=process.versions.node,testNode=false,run=execFileSync,resolveModule=(name)=>require.resolve(name,{paths:[agentDir]})}={}){
   const checks=[],add=(name,status,message)=>checks.push({name,status,message});
-  add('Windows x64',platform==='win32'&&arch==='x64'?'PASS':'FAIL','Use a Windows x64 VPS with the Desktop Experience required by broker discovery.');
+  const linux=platform==='linux';
+  add(linux?'Linux x64':'Windows x64',(linux||platform==='win32')&&arch==='x64'?'PASS':'FAIL',linux?'Linux hosting requires x86-64, systemd, Wine and Xvfb; Linux ARM is not supported.':'Use a Windows x64 VPS with the Desktop Experience required by broker discovery.');
   const [major,minor]=nodeVersion.split('.').map(Number),supported=major>20||major===20&&minor>=17;
   add('Node.js',!supported?'FAIL':[22,24,26].includes(major)?'PASS':'WARN',supported?'Use a supported LTS; Node.js 24 LTS is the documented baseline.':'Agent requires Node.js >=20.17.0.');
-  const missing=RUNTIME_FILES.filter(name=>!fs.existsSync(path.join(agentDir,name)));
+  const missing=[...RUNTIME_FILES,...(linux?['linux-runtime.js']:[])].filter(name=>!fs.existsSync(path.join(agentDir,name)));
   add('Agent files',missing.length?'FAIL':'PASS',missing.length?'Missing package files: '+missing.join(', '):'All required runtime files are present.');
-  try{resolveModule('ws');add('Dependencies','PASS','WebSocket dependency is available.');}catch{add('Dependencies','FAIL','Run npm.cmd ci --omit=dev in the agent directory.');}
+  try{resolveModule('ws');add('Dependencies','PASS','WebSocket dependency is available.');}catch{add('Dependencies','FAIL','Run npm ci --omit=dev in the agent directory.');}
   try{const url=new URL(config.backendUrl);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error();add('Backend origin',url.protocol==='https:'?'PASS':'WARN','Use the public HTTPS origin of CornGrid. Localhost points to this VPS.');}
   catch{add('Backend origin','FAIL','backendUrl must be an HTTP(S) origin without credentials, query or path.');}
   add('Node identity',/^node_[a-f0-9]{18}$/.test(config.nodeUid||'')&&/^cgn_[a-f0-9]{64}$/.test(config.nodeToken||'')?'PASS':'FAIL','Use a newly registered Node ID and token for this VPS; values are never printed.');
-  for(const [field,title] of [['mt5BaseDir','MT5 base'],['sandboxUsersDir','Sandbox users'],['agentDataDir','Agent data'],['brokerCacheDir','Broker cache']]){
+  for(const [field,title] of [['mt5BaseDir','MT5 base'],['sandboxUsersDir','Sandbox users'],['agentDataDir','Agent data'],['brokerCacheDir','Broker cache'],...(linux?[['winePrefixesDir','Wine prefixes'],['wineTemplateDir','Wine template']]:[])]){
     const value=config[field];let present=false;
     try{present=typeof value==='string'&&path.isAbsolute(value)&&fs.statSync(value).isDirectory();}catch{}
-    add(title,present?'PASS':'FAIL',present?'Directory exists; verify its ACL for the task account.':'Create the configured absolute directory on this VPS.');
+    add(title,present?'PASS':'FAIL',present?'Directory exists; verify permissions for the agent account.':'Create the configured absolute directory on this VPS.');
   }
   add('MT5 terminal',Boolean(config.mt5BaseDir&&fs.existsSync(path.join(config.mt5BaseDir,'terminal64.exe')))?'PASS':'FAIL','Copy the complete clean English MT5 program directory, not only terminal64.exe.');
   if(testNode)add('MetaEditor',Boolean(config.mt5BaseDir&&fs.existsSync(path.join(config.mt5BaseDir,'metaeditor64.exe')))?'PASS':'FAIL','Test nodes require metaeditor64.exe for MQ5 compilation.');
-  const roots=[config.mt5BaseDir,config.sandboxUsersDir,config.agentDataDir,config.brokerCacheDir].filter(v=>typeof v==='string').map(v=>path.resolve(v));
+  const roots=[config.mt5BaseDir,config.sandboxUsersDir,config.agentDataDir,config.brokerCacheDir,...(linux?[config.winePrefixesDir,config.wineTemplateDir]:[])].filter(v=>typeof v==='string').map(v=>path.resolve(v));
   const overlap=roots.some((a,i)=>roots.some((b,j)=>i!==j&&(!path.relative(a,b)||!path.relative(a,b).startsWith('..')&&!path.isAbsolute(path.relative(a,b)))));
   add('Directory isolation',overlap?'FAIL':'PASS','MT5 base, Users, AgentData and BrokerCaches must be separate directories, not nested inside one another.');
-  if(config.webRequestSettingsSource)add('WebRequest template',fs.existsSync(config.webRequestSettingsSource)?'PASS':'FAIL','Prepare the template under the same Windows account as the agent.');
+  if(config.webRequestSettingsSource)add('WebRequest template',fs.existsSync(config.webRequestSettingsSource)?'PASS':'FAIL',linux?'Prepare the allowlist using the Wine template and verify a demo EA heartbeat.':'Prepare the template under the same Windows account as the agent.');
   else add('WebRequest template','WARN','Prepare the EA WebRequest URLs on this VPS; file presence cannot verify protected settings.');
-  for(const directory of Object.values(config.brokerServerDataDirs||{}))add('Broker server seed',typeof directory==='string'&&fs.existsSync(path.join(directory,'config','servers.dat'))?'PASS':'WARN','Optional profile seeds contain config/servers.dat; discovery can build a cache if absent.');
+  for(const directory of Object.values(config.brokerServerDataDirs||{}))add('Broker server seed',typeof directory==='string'&&fs.existsSync(path.join(directory,'config','servers.dat'))?'PASS':'WARN',linux?'Prepare config/servers.dat for each broker; Linux has no PowerShell broker discovery.':'Optional profile seeds contain config/servers.dat; discovery can build a cache if absent.');
+  if(linux){
+    const validation=require('./linux-runtime').createLinuxRuntime({config,runSync:run}).validate();
+    add('Wine + user services',validation.ok?'PASS':'FAIL',validation.ok?'Wine configuration and systemd user manager are available.':validation.error);
+    try{run('xdpyinfo',['-display',config.wineDisplay],{timeout:10000,maxBuffer:65536,env:{...process.env,DISPLAY:config.wineDisplay,XAUTHORITY:config.xAuthority}});add('Xvfb display','PASS','Authenticated X11 display is reachable.');}catch{add('Xvfb display','FAIL','Start corngrid-display.service and check DISPLAY/XAUTHORITY.');}
+    const site=path.join(path.dirname(config.mt5PythonPath||''),'Lib','site-packages','MetaTrader5');
+    add('Windows Python + MetaTrader5',fs.existsSync(site)?'WARN':'FAIL',fs.existsSync(site)?'Package files exist. Run the documented Wine import check; presence does not prove broker connectivity.':'Install Windows x64 Python and its MetaTrader5 wheel through Wine. Native Linux pip does not supply this Windows extension.');
+    return checks;
+  }
   try{
     const code="import sys,struct,json;sys.path.insert(0,sys.argv[1]);import MetaTrader5 as m;print(json.dumps({'bits':struct.calcsize('P')*8,'version':m.__version__}))";
     const result=JSON.parse(String(run(config.mt5PythonPath||'python.exe',['-c',code,path.join(config.agentHome||agentDir,'broker-python')],{timeout:15000,windowsHide:true,maxBuffer:65536})));
@@ -48,7 +57,7 @@ async function checkOnline(config,{fetchImpl=fetch}={}){
 async function main(){
   if(process.argv.includes('--help')){console.log('node check-installation.js [--online] [--test-node]\nRead-only checks. --online checks HTTPS health and node authentication. It does not test broker login, EA execution or WebSockets.');return;}
   try{
-    const file=path.join(__dirname,'agent-config.json');if(fs.existsSync(file))JSON.parse(fs.readFileSync(file,'utf8'));
+    const file=process.env.CORNGRID_AGENT_CONFIG_FILE||path.join(__dirname,'agent-config.json');if(fs.existsSync(file))JSON.parse(fs.readFileSync(file,'utf8'));
     const config=require('./config').loadConfig(),checks=checkLocal({config,testNode:process.argv.includes('--test-node')});
     if(process.argv.includes('--online'))checks.push(...await checkOnline(config));
     for(const check of checks)console.log(`[${check.status}] ${check.name}: ${check.message}`);

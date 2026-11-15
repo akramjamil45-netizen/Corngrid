@@ -1,8 +1,8 @@
 'use strict';
 
-// CornGrid Windows Sandbox Agent.
+// CornGrid Sandbox Agent (native Windows, or Linux with Wine/systemd).
 //
-// Runs as a background service on each Windows sandbox node. Authenticates to
+// Runs as a background service on each supported sandbox node. Authenticates to
 // the CornGrid backend with its node credentials, heartbeats resource usage,
 // receives sandbox commands (deploy/start/stop/...), manages isolated MT5
 // terminal processes, and reports status back. Outbound connections only.
@@ -20,6 +20,7 @@ const AGENT_VERSION = require('./package.json').version;
 const LOG_BUFFER_MAX = 200;
 
 const config = loadConfig();
+if(process.platform==='linux')process.umask(0o077);
 
 // ---------------------------------------------------------------------------
 // Logging: console + in-memory buffer flushed to the backend in batches.
@@ -189,6 +190,7 @@ async function main() {
 
   const validation = mt5.validateBase();
   if (!validation.ok) {
+    if(process.platform==='linux')throw Error(validation.error);
     logger.error(null, validation.error);
     logger.error(null, 'The agent will keep running and retry deployments once MT5 files are in place.');
   } else {

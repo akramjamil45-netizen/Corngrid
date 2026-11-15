@@ -1,0 +1,23 @@
+{
+  "backendUrl": "https://corngrid.com",
+  "nodeUid": "node_xxxxxxxxxxxxxxxxxx",
+  "nodeToken": "cgn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "linuxWineEnabled": true,
+  "mt5BaseDir": "/opt/corngrid/mt5",
+  "sandboxUsersDir": "/var/lib/corngrid/instances",
+  "agentDataDir": "/var/lib/corngrid/agent-data",
+  "brokerCacheDir": "/var/lib/corngrid/broker-caches",
+  "winePrefixesDir": "/var/lib/corngrid/wine-prefixes",
+  "wineTemplateDir": "/var/lib/corngrid/wine-template",
+  "wineBinary": "/usr/bin/wine",
+  "wineDisplay": ":99",
+  "xAuthority": "/etc/corngrid/xauthority",
+  "mt5PythonPath": "/opt/corngrid/windows-python/python.exe",
+  "webRequestSettingsSource": "/opt/corngrid/mt5/config/common.ini",
+  "brokerServerDataDirs": {},
+  "brokerSymbolMaps": {},
+  "brokerAccountSymbolMaps": {},
+  "heartbeatIntervalMs": 15000,
+  "autoUpdateEnabled": true,
+  "autoUpdateIntervalMs": 300000
+}

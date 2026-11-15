@@ -21,6 +21,7 @@ function verifyEnvelope(envelope,publicKey,expected={}){
  }
  if(REQUIRED.some(name=>!seen.has(name))||releaseId(payload.version,payload.files)!==payload.id||expected.id&&expected.id!==payload.id||expected.sequence&&expected.sequence!==payload.sequence)throw Error('UPDATE_RELEASE_INVALID');
  const pkg=JSON.parse(Buffer.from(payload.files.find(f=>f.name==='package.json').data,'base64'));
+ if(expected.platform==='linux'&&(!Array.isArray(pkg.os)||!pkg.os.includes('linux')||!seen.has('linux-runtime.js')))throw Error('UPDATE_PLATFORM_UNSUPPORTED');
  const lock=JSON.parse(Buffer.from(payload.files.find(f=>f.name==='package-lock.json').data,'base64'));
  if(pkg.version!==payload.version||lock.version!==pkg.version||lock.packages?.['']?.version!==pkg.version)throw Error('UPDATE_PACKAGE_INVALID');
  return payload;
