@@ -127,6 +127,9 @@ html { scroll-padding-top:82px;scroll-padding-bottom:calc(24px + var(--cg-nav-of
   body.cg-keyboard-open { --cg-nav-offset:0px; }
   body.cg-has-mobile-nav :is(.chat-input-row,.chat-composer) { scroll-margin-bottom:calc(20px + var(--cg-nav-offset)); }
   body.cg-has-mobile-nav .chat-app-box { height:calc(100dvh - 104px - var(--cg-nav-offset));min-height:280px; }
+  body.cg-chat-page-open.cg-keyboard-open .page-wrap { padding-bottom:8px; }
+  body.cg-chat-page-open.cg-keyboard-open .chat-app-box { height:var(--cg-chat-available-height,calc(100dvh - 104px));min-height:0; }
+  body.cg-chat-page-open.cg-keyboard-open .chat-composer-form { margin-bottom:8px; }
 }
 @media(pointer:coarse) { .button-small,.cg-shortcut,.cg-attention-toggle { min-height:44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important;transition:none!important;scroll-behavior:auto!important; } }

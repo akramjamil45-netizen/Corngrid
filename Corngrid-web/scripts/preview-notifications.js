@@ -59,7 +59,7 @@ async function main() {
     r.cookie('corngrid_session', f.token(q.query.user === '2' ? 2 : 1), { httpOnly: true, sameSite: 'lax' });
     let html = fs.readFileSync(path.join(__dirname, '../public/dashboard.html'), 'utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
     html = html.replace('</head>', '<script src="/interface.js"></script><script src="/experience-model.js"></script><script src="/corngrid-select.js" defer></script></head>');
-    html = html.replace('</body>', '<script src="/stripe-checkout.js"></script><script src="/dashboard.js"></script><script src="/workplace.js"></script><script src="/notifications.js"></script><script src="/sandbox.js"></script></body>');
+    html = html.replace('</body>', '<script src="/message-tools.js"></script><script src="/stripe-checkout.js"></script><script src="/dashboard.js"></script><script src="/workplace.js"></script><script src="/notifications.js"></script><script src="/sandbox.js"></script></body>');
     r.type('html').send(html);
   });
   f.app.use(require('express').static(path.join(__dirname, '../public')));

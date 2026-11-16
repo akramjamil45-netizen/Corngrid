@@ -76,7 +76,7 @@
     if (document.getElementById('sidebar').classList.contains('is-open')) resetBottomNavigation();
   }
   const mobileNavigation = matchMedia('(max-width: 850px)');
-  let scrollPositions = new WeakMap(), scrollIntentUntil = 0, navigationHoldUntil = 0, scrollFrame = 0, pendingScroller;
+  let scrollPositions = new WeakMap(), scrollIntentUntil = 0, navigationHoldUntil = 0, scrollFrame = 0, pendingScroller, chatNearBottom = true;
   const scrollTop = node => Math.max(0, Math.min(node.scrollTop, Math.max(0, node.scrollHeight - node.clientHeight)));
   function resetBottomNavigation() {
     bottom.classList.remove('is-scroll-hidden'); navigationHoldUntil = performance.now() + 300; scrollIntentUntil = 0; scrollPositions = new WeakMap();
@@ -104,6 +104,7 @@
   document.addEventListener('scroll', event => {
     const node = event.target === document ? document.scrollingElement : event.target;
     if (!(node instanceof Element) || node !== document.scrollingElement && !node.matches('.page.is-visible .chat-messages-stream,.page.is-visible .chat-user-list')) return;
+    if (node.id === 'chat-messages-stream') chatNearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
     pendingScroller = node;
     if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; updateScrollNavigation(pendingScroller); });
   }, { capture: true, passive: true });
@@ -112,15 +113,29 @@
   mobileNavigation.addEventListener('change', resetBottomNavigation);
   new MutationObserver(syncNavigation).observe(document.getElementById('sidebar'), { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(records => { if (records.some(record => record.target.matches('.nav-item[data-page]'))) syncNavigation(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] });
-  let viewportHeight = innerHeight;
+  let viewportHeight = innerHeight, viewportWidth = innerWidth, keyboardFrame = 0;
   function keyboard() {
     const wasOpen = document.body.classList.contains('cg-keyboard-open');
-    const editing = document.activeElement?.matches('input,textarea,[contenteditable=true]'), height = window.visualViewport?.height || innerHeight;
-    if (!editing) viewportHeight = innerHeight;
-    document.body.classList.toggle('cg-keyboard-open', !!editing && height < Math.max(viewportHeight, innerHeight) * .78);
-    if (wasOpen !== document.body.classList.contains('cg-keyboard-open')) resetBottomNavigation();
+    const editing = document.activeElement?.matches('input,textarea,[contenteditable=true]'), viewport = window.visualViewport, height = viewport?.height || innerHeight;
+    if (Math.abs(innerWidth - viewportWidth) > 80) { viewportHeight = Math.max(innerHeight, editing ? viewportWidth : 0); viewportWidth = innerWidth; }
+    else if (!editing) viewportHeight = innerHeight;
+    const open = !!editing && Math.abs((viewport?.scale || 1) - 1) < .05 && height < Math.max(viewportHeight, innerHeight) * .78;
+    document.body.classList.toggle('cg-keyboard-open', open);
+    if (wasOpen !== open) resetBottomNavigation();
+    const box = document.querySelector('.chat-app-box');
+    if (!box) return;
+    if (open && page === 'chat' && mobileNavigation.matches) {
+      const stream = document.getElementById('chat-messages-stream'), atBottom = chatNearBottom;
+      const available = Math.max(0, Math.floor((viewport?.offsetTop || 0) + height - box.getBoundingClientRect().top - 8)) + 'px';
+      if (box.style.getPropertyValue('--cg-chat-available-height') !== available) {
+        box.style.setProperty('--cg-chat-available-height', available);
+        if (atBottom) stream.scrollTop = stream.scrollHeight;
+      }
+    } else box.style.removeProperty('--cg-chat-available-height');
   }
-  window.visualViewport?.addEventListener('resize', keyboard); document.addEventListener('focusin', keyboard); document.addEventListener('focusout', () => setTimeout(keyboard, 80));
+  function queueKeyboardLayout() { if (!keyboardFrame) keyboardFrame = requestAnimationFrame(() => { keyboardFrame = 0; if (!ended) keyboard(); }); }
+  for (const event of ['resize','scroll']) window.visualViewport?.addEventListener(event, queueKeyboardLayout, { passive:true });
+  window.addEventListener('resize', queueKeyboardLayout, { passive:true }); document.addEventListener('focusin', queueKeyboardLayout); document.addEventListener('focusout', () => setTimeout(queueKeyboardLayout, 80));
   const summary = el('section', null, 'panel cg-attention'), heading = el('div', null, 'cg-attention-heading'), title = el('h2', 'Checking your setup'), stamp = el('time', 'Checking status…', 'cg-meta');
   const attentionFeedback = el('div'), items = el('div', null, 'cg-attention-items'), checklist = el('ol', null, 'cg-checklist'), setupDetails = el('div', null, 'cg-attention-details');
   setupDetails.id = 'overview-setup-details'; setupDetails.hidden = true; setupDetails.append(stamp, checklist);
@@ -174,6 +189,7 @@
   }
   function onPage(value) {
     page = value; resetBottomNavigation(); syncNavigation(); clearInterval(timer);
+    document.body.classList.toggle('cg-chat-page-open', page === 'chat'); queueKeyboardLayout();
     if (page === 'overview' && !document.hidden) { void refreshAttention(); timer = setInterval(refreshAttention, 60000); }
     document.dispatchEvent(new CustomEvent('corngrid:page-changed', { detail: { page } }));
   }
@@ -187,7 +203,7 @@
     setSandbox(value) { sandbox = value; renderAttention(); }
   };
   document.addEventListener('visibilitychange', () => onPage(page));
-  window.addEventListener('pagehide', () => { ended = true; clearInterval(timer); cancelAnimationFrame(scrollFrame); scrollFrame = 0; });
+  window.addEventListener('pagehide', () => { ended = true; clearInterval(timer); cancelAnimationFrame(scrollFrame); cancelAnimationFrame(keyboardFrame); scrollFrame = keyboardFrame = 0; });
   window.addEventListener('pageshow', event => { if (event.persisted) { ended = false; onPage(page); } });
   renderAttention(); renderCheckout(); onPage(document.querySelector('.page.is-visible')?.id.replace('page-', '') || 'overview');
 })();

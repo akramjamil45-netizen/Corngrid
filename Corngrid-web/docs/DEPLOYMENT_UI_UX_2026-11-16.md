@@ -71,3 +71,12 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Eight focused model/API-path tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Checks include initial unread state, both badge counts, accessible labels, increase-only animation, unchanged counts, partial reads, 99+, reduced motion, transient failure retention and clearing after all messages are read. Mobile screenshots were reviewed.
 - All 24 gateway/public asset checks passed. Follow-up API verification passed nine readiness/authenticated checks, including the live Chat unread-count endpoint. Unauthenticated access was rejected. No production message, test account or payment was created by verification.
 - Both running Sandbox instances and all seven existing MT5 terminal processes were preserved. No service restart, backend, schema, dependency or environment change was required. Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-102044`.
+
+## PWA Chat keyboard follow-up - 18:40 Malaysia time
+
+- Deployed five changed UI/documentation files at 10:40:15 UTC on 16 November 2026. Dashboard interface/Workplace references use `20261116-chat-keyboard1`; service-worker cache is v37.
+- The viewport opts into content resizing for supported browsers. Mobile Chat also uses the visible viewport's height and offset while the keyboard is open, removes the bottom-bar reservation/minimum height, and restores its normal layout when the keyboard closes.
+- Unsent text is retained. Latest-message visibility and an older-message reading position are preserved. Pinch zoom is not mistaken for a keyboard resize; layout updates are coalesced into animation frames.
+- Eight focused model/API-path checks and browser acceptance at 1440px, 375px and 320px passed before deployment. The keyboard checks use a rendered conversation and simulate content resizing, visual-only resizing, viewport panning and closing. Actual Android PWA/Capacitor keyboard acceptance still requires a device check after deployment.
+- All nine API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven pre-existing MT5 terminal processes were preserved. No service restart, backend, database, dependency or key change was required, and no production message was sent by the tests.
+- Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-104010`.

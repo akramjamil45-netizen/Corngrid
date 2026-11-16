@@ -72,6 +72,37 @@ async page => {
       await noOverflow('Chat unread bubble'); if (width < 600) await p.screenshot({ path:'../.playwright-mcp/chat-unread-bubble-' + width + '.png' });
       await unread(0); await refreshChat();
       if (!await p.locator('#mobile-chat-unread').evaluate(node => node.hidden) || !await p.locator('#chat-nav-badge').evaluate(node => node.hidden) || await p.locator('.cg-mobile-nav [data-destination=chat]').getAttribute('aria-label') !== 'Chat') throw Error('Reading all messages did not clear both chat badges');
+      if (width < 600) {
+        const peer = { id:2,username:'Fixture trader',bio:'Isolated fixture' }, messageTime = Date.now();
+        await p.route('**/api/chat/conversations', route => route.fulfill({ json:{ conversations:[{ peerId:2,username:peer.username,lastMessage:'Fixture message',lastMessageAt:Date.now(),unreadCount:0 }] } }));
+        await p.route('**/api/chat/messages/2', route => route.fulfill({ json:{ peer,messages:Array.from({ length:35 },(_,index)=>({ id:index+1,message:'Fixture message ' + index,isMine:index%2===0,createdAt:messageTime,readAt:null })) } }));
+        await refreshChat(); await p.locator('[data-chat-peer="2"]').click(); await p.locator('#chat-composer-form').waitFor();
+        await p.waitForFunction(() => document.querySelectorAll('#chat-messages-stream .chat-row').length === 35);
+        const composer = p.locator('#chat-composer-text'); await composer.fill('Fixture unsent draft');
+        const nearKeyboard = () => p.waitForFunction(() => {
+          const viewport = window.visualViewport, bottom = (viewport?.offsetTop || 0) + (viewport?.height || innerHeight), rect = document.getElementById('chat-composer-form').getBoundingClientRect();
+          return document.body.classList.contains('cg-keyboard-open') && bottom - rect.bottom >= 6 && bottom - rect.bottom <= 26;
+        });
+        await p.setViewportSize({ width,height:520 }); await nearKeyboard();
+        if (await p.locator('.cg-mobile-nav').isVisible() || await composer.inputValue() !== 'Fixture unsent draft') throw Error('Keyboard layout lost the draft or kept the shortcut bar');
+        if (await p.locator('#chat-messages-stream').evaluate(node => node.scrollHeight-node.scrollTop-node.clientHeight) > 3) throw Error('Keyboard resize hid the latest message');
+        await p.screenshot({ path:'../.playwright-mcp/chat-keyboard-resized-' + width + '.png' });
+        await p.setViewportSize({ width,height:1000 }); await p.waitForFunction(() => !document.body.classList.contains('cg-keyboard-open'));
+        const readingPosition = await p.locator('#chat-messages-stream').evaluate(async stream => { stream.scrollTop = 200; await new Promise(requestAnimationFrame); return stream.scrollTop; });
+        if (readingPosition < 100) throw Error('Keyboard test did not open a scrollable conversation');
+        await p.evaluate(() => { Object.defineProperty(visualViewport,'height',{ configurable:true,value:520 }); Object.defineProperty(visualViewport,'offsetTop',{ configurable:true,value:60 }); visualViewport.dispatchEvent(new Event('resize')); });
+        await nearKeyboard();
+        await p.evaluate(() => { Object.defineProperty(visualViewport,'offsetTop',{ configurable:true,value:110 }); visualViewport.dispatchEvent(new Event('scroll')); }); await nearKeyboard();
+        if (Math.abs(await p.locator('#chat-messages-stream').evaluate(node => node.scrollTop) - readingPosition) > 3) throw Error('Keyboard resize moved a reader away from older messages');
+        await p.evaluate(() => { delete visualViewport.height; delete visualViewport.offsetTop; visualViewport.dispatchEvent(new Event('resize')); });
+        await p.waitForFunction(() => !document.body.classList.contains('cg-keyboard-open'));
+        if (await composer.inputValue() !== 'Fixture unsent draft' || !await p.locator('.cg-mobile-nav').isVisible()) throw Error('Closing the keyboard lost the draft or navigation');
+        await p.evaluate(() => { Object.defineProperty(visualViewport,'scale',{ configurable:true,value:2 }); Object.defineProperty(visualViewport,'height',{ configurable:true,value:520 }); visualViewport.dispatchEvent(new Event('resize')); });
+        await p.waitForTimeout(50);
+        if (await p.locator('body').evaluate(node => node.classList.contains('cg-keyboard-open'))) throw Error('Pinch zoom was mistaken for the keyboard');
+        await p.evaluate(() => { delete visualViewport.scale; delete visualViewport.height; visualViewport.dispatchEvent(new Event('resize')); });
+        await composer.blur(); await p.unroute('**/api/chat/conversations'); await p.unroute('**/api/chat/messages/2');
+      }
       await go('overview'); await p.evaluate(() => window.scrollTo(0,0));
       await p.waitForFunction(() => document.querySelector('#page-overview').dataset.loaded === 'true');
       await p.route('**/api/portfolio?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture portfolio refresh failed' }) }));

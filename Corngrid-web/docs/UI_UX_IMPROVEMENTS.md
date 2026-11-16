@@ -21,7 +21,7 @@ This update extends the existing vanilla JavaScript Workplace and administrator 
 - `public/notifications.js`, `public/notifications.css`: compact controls and keyboard interaction.
 - `public/sandbox.js`, `sandbox/sandbox-health.js`, `sandbox/sandbox-manager.js`: observed health signals and safe status refreshes.
 - `public/stripe-checkout.js`, `subscriptions/stripe-payments.js`, `subscriptions/subscription-api.js`: existing checkout integration and additive read-only response fields.
-- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v36).
+- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v37).
 
 No operational strategy configuration, MT5 credentials, entitlement limits or payment activation transaction rules are changed. Loading navigation or status does not send Sandbox start, stop or reconnect commands. Existing authenticated Stripe reconciliation can still verify a payment with its established idempotent backend flow.
 
@@ -51,3 +51,11 @@ Verified on 16 November 2026: the full Node suite passed 349 tests with no failu
 ## Release notes
 
 Publish matching dashboard/admin HTML, all changed and new public assets, the three changed backend modules plus `sandbox/sandbox-health.js`, both IIS configurations and `sw.js` together using the established deployment procedure. Restart only the web backend when deploying its code. The existing Sandbox agents require no update for this interface release. No production deployment is performed by the implementation or test commands above.
+
+## Chat keyboard viewport
+
+The dashboard opts into interactive-widget=resizes-content. While an editable field is focused and the keyboard reduces the viewport, mobile Chat uses the visual viewport height and offset to keep its composer near the keyboard. It removes the bottom-navigation reservation and mobile minimum height during this state. The layout restores after the keyboard closes, retains unsent text and preserves an older-message reading position. A reader already at the end follows the latest messages. Pinch zoom does not activate keyboard mode. Updates are coalesced in animation frames.
+
+Browser regression checks simulate both resized-content and visual-only keyboards at 320px and 375px, including viewport panning and keyboard closing. These are browser simulations; actual Android PWA and Capacitor keyboard behavior still needs a device check after deployment. No production message is sent by the tests.
+
+Implementation reference: [Chrome viewport resize behavior](https://developer.chrome.com/blog/viewport-resize-behavior).
