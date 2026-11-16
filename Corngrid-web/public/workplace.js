@@ -3,6 +3,14 @@
   const UI = window.CornGridUI, model = window.CornGridExperienceModel, host = document.getElementById('overview-attention');
   if (!UI || !model || !host) return;
   const API = '/api', { el, action } = UI;
+  document.getElementById('feed-filters')?.addEventListener('focusin', event => {
+    const button = event.target.closest('.feed-filter'), track = event.currentTarget;
+    if (!button || track.scrollWidth <= track.clientWidth) return;
+    const item = button.getBoundingClientRect(), bounds = track.getBoundingClientRect();
+    // Move only this horizontal strip; preserve the reader's vertical position.
+    if (item.left < bounds.left) track.scrollLeft += item.left - bounds.left;
+    else if (item.right > bounds.right) track.scrollLeft += item.right - bounds.right;
+  });
   let userId = null, page = 'overview', pins = [], accounts = null, subscription = null, sandbox = null, checkedAt = null, attentionError = false, pending, timer, ended = false;
   let checkout = {}, order = null, provider = null;
   const nav = document.querySelector('.main-nav'), sourceButtons = () => [...nav.querySelectorAll('.nav-item[data-page]')].filter(button => !button.hidden && button.style.display !== 'none');

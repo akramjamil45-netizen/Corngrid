@@ -21,7 +21,7 @@ This update extends the existing vanilla JavaScript Workplace and administrator 
 - `public/notifications.js`, `public/notifications.css`: compact controls and keyboard interaction.
 - `public/sandbox.js`, `sandbox/sandbox-health.js`, `sandbox/sandbox-manager.js`: observed health signals and safe status refreshes.
 - `public/stripe-checkout.js`, `subscriptions/stripe-payments.js`, `subscriptions/subscription-api.js`: existing checkout integration and additive read-only response fields.
-- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v37).
+- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v38).
 
 No operational strategy configuration, MT5 credentials, entitlement limits or payment activation transaction rules are changed. Loading navigation or status does not send Sandbox start, stop or reconnect commands. Existing authenticated Stripe reconciliation can still verify a payment with its established idempotent backend flow.
 
@@ -59,3 +59,15 @@ The dashboard opts into interactive-widget=resizes-content. While an editable fi
 Browser regression checks simulate both resized-content and visual-only keyboards at 320px and 375px, including viewport panning and keyboard closing. These are browser simulations; actual Android PWA and Capacitor keyboard behavior still needs a device check after deployment. No production message is sent by the tests.
 
 Implementation reference: [Chrome viewport resize behavior](https://developer.chrome.com/blog/viewport-resize-behavior).
+
+## Mobile text sizing across PWA and Android
+
+The shared dashboard/admin stylesheet sets prefixed and standard `text-size-adjust:100%` on the root so responsive text uses the authored sizes instead of leaving browser text inflation on auto. PWA and Capacitor continue using the same stylesheet and mobile breakpoints. No device-pixel-ratio compensation, CSS zoom, forced native text zoom or zoom-restricting viewport setting is added. Both HTML asset versions and the service-worker cache are advanced together.
+
+Mobile Live Feed filters stay in one horizontal, touch-scrollable row with a hidden scrollbar. Labels retain their size and the final filter remains reachable by touch and keyboard even with larger text.
+
+The experience browser suite compares rendered text and element dimensions at 320px, 375px and 412px under mobile Chrome (the PWA engine) and Android WebView user-agent simulations. It also checks enlarged filter text, actual touch scrolling and page zoom. These simulations do not install a PWA or run a native WebView, and cannot reproduce a particular phone's Chrome accessibility/page-zoom settings, Android font settings or installed APK. No local mobile device was connected during this change; confirm both apps on the same device after deployment. The supplied screenshots alone do not establish which device/browser setting caused the original difference.
+
+Implementation reference: [MDN text-size-adjust](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-size-adjust).
+
+Verified for this change: the experience browser suite passed its desktop/mobile regressions and six mobile sizing profiles using installed Chrome. The 12 PWA, client-route and experience-model unit tests passed; JavaScript syntax and Git whitespace checks passed. No native APK rebuild is required by this web-only change. Deployment and Git commit are separate release steps.

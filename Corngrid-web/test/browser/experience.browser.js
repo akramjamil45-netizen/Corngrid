@@ -185,5 +185,53 @@ async page => {
     } catch (error) { await p.screenshot({ path: '../.playwright-mcp/experience-failure-' + width + '.png', fullPage: true }).catch(() => {}); throw error; }
     finally { await context.close(); }
   }
+  // Compare the same CSS viewport in mobile Chrome (the PWA engine) and a
+  // WebView user agent. This does not install a PWA or run a native WebView.
+  for (const width of [320, 375, 412]) {
+    let baseline;
+    for (const profile of ['chrome', 'webview']) {
+      const userAgent = profile === 'chrome'
+        ? 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
+        : 'Mozilla/5.0 (Linux; Android 14; Pixel 7 Build/UP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.0.0 Mobile Safari/537.36';
+      const context = await browser.newContext({ viewport:{width,height:850},deviceScaleFactor:2.625,isMobile:true,hasTouch:true,userAgent,reducedMotion:'reduce' });
+      const p = await context.newPage(), cdp = await context.newCDPSession(p);
+      try {
+        await p.goto(origin + '/fixture#feed'); await p.locator('#page-feed.is-visible').waitFor(); await p.evaluate(() => document.fonts.ready);
+        const metrics = await p.evaluate(() => {
+          const selectors = ['#page-feed h1','#page-feed .page-heading .muted','#feed-composer-input','#feed-composer-submit','#feed-filters'];
+          return { adjust:getComputedStyle(document.documentElement).webkitTextSizeAdjust,
+            elements:selectors.map(selector => { const n=document.querySelector(selector), r=n.getBoundingClientRect(), c=getComputedStyle(n); return {selector,font:c.fontSize,width:r.width,height:r.height}; }) };
+        });
+        if (metrics.adjust !== '100%') throw Error('Mobile text baseline was not applied: ' + JSON.stringify(metrics));
+        if (baseline && JSON.stringify(baseline) !== JSON.stringify(metrics.elements)) throw Error('PWA/WebView layout differs at ' + width + ': ' + JSON.stringify(metrics));
+        baseline = metrics.elements;
+        const checkFilters = async () => {
+          const state = await p.locator('#feed-filters').evaluate(node => ({ tops:[...node.children].map(child => child.offsetTop),scroll:document.documentElement.scrollWidth,width:innerWidth }));
+          if (new Set(state.tops).size !== 1 || state.scroll > state.width) throw Error('Feed filters wrap or overflow the page at ' + width);
+          await p.locator('#feed-filters [data-feed-filter=latest]').focus();
+          await p.locator('#feed-filters [data-feed-filter=announcements]').focus();
+          await p.keyboard.press('Tab');
+          await p.waitForFunction(() => { const node=document.querySelector('#feed-filters [data-feed-filter=mine]'),a=node.getBoundingClientRect(),b=node.parentElement.getBoundingClientRect();return document.activeElement===node && a.left>=b.left-1 && a.right<=b.right+1; }, null, {timeout:2000}).catch(async () => { throw Error('Filter focus failed: '+JSON.stringify(await p.locator('#feed-filters').evaluate(node=>({active:document.activeElement.outerHTML,scroll:node.scrollLeft,rect:node.getBoundingClientRect().toJSON(),last:node.lastElementChild.getBoundingClientRect().toJSON()})))); });
+        };
+        await checkFilters();
+        await p.screenshot({ path:'../.playwright-mcp/mobile-sizing-' + profile + '-' + width + '.png' });
+        // Stress larger text without shrinking it to keep the labels on screen.
+        await p.addStyleTag({ content:'#feed-filters .feed-filter { font-size:25px; }' });
+        await checkFilters();
+        await p.locator('#feed-filters').evaluate(node => { node.scrollLeft=0; });
+        const filterBox = await p.locator('#feed-filters').boundingBox(), y=filterBox.y+filterBox.height/2;
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:width-30,y}]});
+        for (let x=width-60;x>=30;x-=30) await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y}]});
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        await p.waitForFunction(() => document.getElementById('feed-filters').scrollLeft > 0, null, {timeout:2000}).catch(() => { throw Error('Touch swipe did not scroll filters at ' + width + ' / ' + profile); });
+        const viewport = await p.locator('meta[name=viewport]').getAttribute('content');
+        if (/user-scalable\s*=\s*(no|0)|maximum-scale\s*=\s*1(?:[,.\s]|$)/i.test(viewport)) throw Error('User zoom is restricted');
+        await cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:2});
+        if (await p.evaluate(() => visualViewport.scale) < 1.9) throw Error('Mobile zoom did not remain available');
+        results.push({ width,profile,consistentTypography:true,feedFiltersOneRow:true,touchScroll:true,largerText:true,zoomAvailable:true });
+      } catch (error) { await p.screenshot({ path:'../.playwright-mcp/mobile-sizing-failure.png' }).catch(() => {}); throw error; }
+      finally { await context.close(); }
+    }
+  }
   return results;
 }

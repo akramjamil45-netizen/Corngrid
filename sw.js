@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corngrid-static-v37';
+const CACHE_NAME = 'corngrid-static-v38';
 const OFFLINE_PAGE = '/offline.html';
 const NETWORK_FIRST_ASSETS = new Set([
   '/pwa.js',

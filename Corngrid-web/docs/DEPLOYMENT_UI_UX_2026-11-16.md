@@ -80,3 +80,11 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Eight focused model/API-path checks and browser acceptance at 1440px, 375px and 320px passed before deployment. The keyboard checks use a rendered conversation and simulate content resizing, visual-only resizing, viewport panning and closing. Actual Android PWA/Capacitor keyboard acceptance still requires a device check after deployment.
 - All nine API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven pre-existing MT5 terminal processes were preserved. No service restart, backend, database, dependency or key change was required, and no production message was sent by the tests.
 - Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-104010`.
+
+## PWA and Android text sizing follow-up - 19:13 Malaysia time
+
+- Deployed six changed UI/documentation files at 11:13:23 UTC on 16 November 2026. Dashboard/admin stylesheet references and the Workplace script use `20261116-mobile-type1`; service-worker cache is v38.
+- Shared responsive typography now sets `text-size-adjust:100%` with the WebKit prefix. Mobile Live Feed filters stay in one touch-scrollable row with a hidden scrollbar. Keyboard focus reveals the full filter label without moving the page vertically. User page zoom remains available.
+- Twelve focused PWA, client-route and experience-model tests passed before deployment. The experience browser suite passed its 1440px, 375px and 320px regressions and six mobile Chrome/WebView user-agent comparisons at 320px, 375px and 412px. Checks include rendered dimensions, enlarged filter text, touch scrolling, keyboard access and page zoom. These are browser simulations; actual installed PWA/native WebView comparison on the user's phone remains a device check.
+- All nine API/readiness checks and 24 gateway/public asset checks passed after deployment. Both running Sandbox instances and all seven existing MT5 terminal processes were preserved. No service restart, backend, database, dependency, environment or native APK change was required.
+- Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-111318`.
