@@ -109,11 +109,11 @@ async function verify() {
 async function publicSmoke() {
   const checks = [];
   for (const origin of ['http://127.0.0.1:8080', 'https://corngrid.com']) {
-    for (const name of ['notifications.js?v=20261116-notifications1', 'notifications.css?v=20261116-notifications1', 'dashboard.js?v=20261116-notifications1', 'dashboard.html', 'sw.js']) {
+    for (const name of ['notifications.js?v=20261116-notifications2', 'notifications.css?v=20261116-notifications1', 'dashboard.js?v=20261116-notifications1', 'dashboard.html', 'sw.js']) {
       const response = await fetch(origin + '/' + name, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(15000) }); assert.equal(response.status, 200, 'Public asset unavailable: ' + name);
       const body = await response.text(), filename = name.split('?')[0];
-      if (filename === 'dashboard.html') assert(body.includes('id="page-notifications"') && body.includes('notifications.js?v=20261116-notifications1') && body.includes('id="notification-settings"'), 'Stale notification markup');
-      else if (filename === 'sw.js') assert(body.includes('corngrid-static-v29') && body.includes("'/notifications.js'"), 'Stale service worker');
+      if (filename === 'dashboard.html') assert(body.includes('id="page-notifications"') && body.includes('notifications.js?v=20261116-notifications2') && body.includes('id="notification-settings"'), 'Stale notification markup');
+      else if (filename === 'sw.js') assert(body.includes('corngrid-static-v30') && body.includes("'/notifications.js'"), 'Stale service worker');
       else { assert(!/text\/html/.test(response.headers.get('content-type') || ''), 'Asset routed to HTML'); assert.equal(crypto.createHash('sha256').update(body).digest('hex'), hash(path.join(backend, 'public', filename)), 'Public content differs from deployed asset'); }
       checks.push({ origin, name, status: response.status });
     }

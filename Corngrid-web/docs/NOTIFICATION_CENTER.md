@@ -1,6 +1,6 @@
 # User notification center
 
-Workplace now has **Community → Notifications**, a header bell with a global unread count, and **Settings → Notifications**. The subscription page's existing updates use the same records and read/delete operations. Existing notification history is preserved. New controls use CornGrid styling, native checkboxes, accessible labels/status feedback, and compact desktop/mobile layouts. English and Bahasa Melayu follow `selectedLang` (`en`, `ms`, or `bm`) / document language.
+Workplace now has **Community → Notifications**, a header bell with a global unread count, and **Settings → Notifications**. The subscription page's existing updates use the same records and read/delete operations. Existing notification history is preserved. New controls use CornGrid styling, native checkboxes, accessible labels/status feedback, and compact desktop/mobile layouts. The notification center and alert settings use English consistently with Workplace, regardless of a language previously saved by the marketing site.
 
 ## Delivery and preferences
 
@@ -34,7 +34,7 @@ Durable state suppresses repeated messages across polls, deletion of notificatio
 
 Apply additive **`migrations/postgres/0020_notification_center.sql`** before deploying the matching backend. It adds `notification_preferences`, `notification_alert_state` and `user_notification_details`, reusing the existing `user_notifications` table. No old records or operational tables are removed. SQLite applies the equivalent idempotent migration automatically through subscription readiness.
 
-Deploy matching `notification-center.js`, subscription/Stripe/server integration, dashboard HTML/JS, `notifications.js`, `notifications.css`, IIS asset rules and service worker v29. No new environment secret or external service is required.
+Deploy matching `notification-center.js`, subscription/Stripe/server integration, dashboard HTML/JS, `notifications.js`, `notifications.css`, IIS asset rules and service worker v30. No new environment secret or external service is required.
 
 The authorized Windows rollout helper is `marketing/deploy-notification-center.ps1 -Apply`. It verifies the production Git baseline, protects a file/database backup outside the web root, applies only migration 0020 in a transaction, copies an explicit runtime allowlist and restarts `CornGridWeb` only. It checks existing terminal PIDs, authenticated read APIs and anonymous access rejection. The companion `deploy-notification-center.cjs public` checks gateway/public assets. Rollback restores the backed-up files while retaining additive schema and notification history; it never restores the live database automatically or changes existing keys.
 
@@ -56,5 +56,5 @@ All routes require the existing user authentication, restrict ownership to the a
 
 - `node --test test/notification-center.test.js` covers outage episodes/recovery, intentional stops, waiting accounts, preferences, expiry bands/renewal, payment changes, Stripe failure deduplication, owner access, CSRF, validation, pagination and unread counts.
 - `node test/helpers/run-isolated-postgres.cjs` creates its own disposable cluster and also runs `notifications-postgres.test.js`: migration replay, cross-pool deduplication/preferences and rollback. It does not load production `.env`.
-- `npm run test:notifications:browser` uses an in-memory loopback fixture with real notification APIs and the actual dashboard navigation. Tests desktop 1440px, mobile 375px, Malay settings, saved preferences after reload, read/clear/cancel operations and viewport overflow. Install Playwright Chromium for CI or set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use an installed Chrome locally.
+- `npm run test:notifications:browser` uses an in-memory loopback fixture with real notification APIs and the actual dashboard navigation. Tests desktop 1440px, mobile 375px, English settings despite a saved Malay marketing preference, saved preferences after reload, read/clear/cancel operations and viewport overflow. Install Playwright Chromium for CI or set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use an installed Chrome locally.
 - `npm test` retains the existing payment, MT5, licensing, sandbox, authentication and account archive regressions. Hosted CI includes the PostgreSQL and notification browser checks when pushed/enabled.

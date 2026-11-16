@@ -37,6 +37,6 @@ async (page) => {
     } finally { await context.close(); }
   }
   const ms = await browser.newContext({ viewport: { width: 375, height: 1000 } }), p = await ms.newPage();
-  try { await p.addInitScript(() => localStorage.setItem('selectedLang', 'bm')); await p.goto(origin + '/fixture#notifications'); await p.getByRole('heading', { name: 'Notifikasi', exact: true }).waitFor(); await p.getByRole('button', { name: 'Tetapan amaran', exact: true }).click(); await p.getByRole('button', { name: 'Simpan tetapan', exact: true }).waitFor(); results.push({ language: 'ms', translatedSettings: true }); } finally { await ms.close(); }
+  try { await p.addInitScript(() => localStorage.setItem('selectedLang', 'bm')); await p.goto(origin + '/fixture#notifications'); await p.getByRole('heading', { name: 'Notifications', exact: true }).waitFor(); await p.getByRole('button', { name: 'Alert settings', exact: true }).click(); await p.getByRole('button', { name: 'Save preferences', exact: true }).waitFor(); results.push({ language: 'en', savedMarketingLanguageIgnored: true }); } finally { await ms.close(); }
   return results;
 }

@@ -14,7 +14,9 @@
       sandbox_offline_help: 'Apabila sandbox yang berjalan berhenti melapor atau gagal.', ea_disconnected_help: 'Apabila EA berhenti melapor atau mengalami masalah pengesahan.', subscription_expiry_help: 'Peringatan tamat tempoh dan perubahan status langganan.', payment_status_help: 'Kemas kini DuitNow dan Stripe, termasuk pengaktifan.',
       sandboxTitle: 'Sandbox memerlukan perhatian', eaTitle: 'Sambungan EA terputus', expiryTitle: 'Langganan hampir tamat', paymentTitle: 'Status pembayaran dikemas kini', status: { pending_payment: 'Menunggu pembayaran', pending_approval: 'Menunggu semakan', approved: 'Diluluskan', rejected: 'Ditolak', cancelled: 'Dibatalkan', failed: 'Gagal', expired: 'Tamat tempoh', paid: 'Dibayar' } }
   };
-  function locale() { let value = document.documentElement.lang; try { value = localStorage.getItem('selectedLang') || value; } catch {} return /^(ms|bm)/i.test(value) ? 'ms' : 'en'; }
+  // Match the English Workplace interface, including when the marketing site
+  // previously saved a different language on this device.
+  function locale() { return 'en'; }
   const t = key => copy[locale()][key];
   const el = (tag, text, className) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (className) node.className = className; return node; };
   const button = (text, handler, className = 'button button-small button-secondary') => { const node = el('button', text, className); node.type = 'button'; node.onclick = handler; return node; };
