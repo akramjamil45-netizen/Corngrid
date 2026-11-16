@@ -21,7 +21,7 @@ This update extends the existing vanilla JavaScript Workplace and administrator 
 - `public/notifications.js`, `public/notifications.css`: compact controls and keyboard interaction.
 - `public/sandbox.js`, `sandbox/sandbox-health.js`, `sandbox/sandbox-manager.js`: observed health signals and safe status refreshes.
 - `public/stripe-checkout.js`, `subscriptions/stripe-payments.js`, `subscriptions/subscription-api.js`: existing checkout integration and additive read-only response fields.
-- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v32).
+- Root `web.config`, `web.config.xml`, `sw.js`: IIS static routing and asset cache update (v33).
 
 No operational strategy configuration, MT5 credentials, entitlement limits or payment activation transaction rules are changed. Loading navigation or status does not send Sandbox start, stop or reconnect commands. Existing authenticated Stripe reconciliation can still verify a payment with its established idempotent backend flow.
 

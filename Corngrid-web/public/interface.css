@@ -52,6 +52,9 @@ html { scroll-padding-top:82px;scroll-padding-bottom:calc(24px + var(--cg-nav-of
 .cg-status-card[data-state=online],.cg-status-card[data-state=reporting] { border-left:3px solid var(--green); }
 .cg-status-card[data-state=unverified],.cg-status-card[data-state=waiting] { border-left:3px solid var(--accent); }
 .sandbox-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#sandbox-loading:empty { display:none; }
+#sandbox-health { margin:0; }
+.sandbox-picker-panel > .cg-meta { margin:0;font-size:11px; }
 .cg-attention { padding:18px;margin-bottom:20px; }
 .cg-attention-heading { display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px; }
 .cg-attention-heading h2 { margin:0;font-size:17px; }

@@ -38,3 +38,11 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Backed up replaced files under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-034117`. No backend, dependency, environment or schema change was deployed, and no service was restarted.
 - All eight API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven existing MT5 terminal processes were preserved.
 - Before deployment, eight focused model/API-path tests passed. Browser acceptance passed at 1440px, 375px and 320px, including no sidebar Pinned section, shortcut persistence, checkout padding, step/message overlap checks and timestamp spacing.
+
+## Sandbox spacing follow-up - 11:50 Malaysia time
+
+- Deployed four changed files: dashboard markup, shared interface CSS, the UI guide and service worker (cache v33). Completion time: 03:50:01 UTC on 16 November 2026.
+- Moved Last checked into the Your sandboxes card, removed empty loading grid tracks and reset the extra margin above the status cards.
+- Browser acceptance passed at 1440px, 375px and 320px. The layout checks assert the timestamp stays within its card and the gap to the first health card stays within 28 CSS pixels. Mobile screenshots were visually reviewed.
+- All eight API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven existing MT5 terminal processes were preserved. No service restart, backend, dependency, key or database change was required.
+- Original files and the reviewed candidate were saved in `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-034955`. This static-file release did not create or restore a database snapshot.

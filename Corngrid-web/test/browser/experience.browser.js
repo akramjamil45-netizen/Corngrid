@@ -47,6 +47,11 @@ async page => {
       await p.locator('#sandbox-health .cg-status-card').nth(1).getByText('Not verified', { exact: true }).waitFor();
       await p.locator('#sandbox-health .cg-status-card').nth(2).getByText('Reporting', { exact: true }).waitFor();
       if (await p.getByText('EA: Trading', { exact: true }).count()) throw Error('Process state falsely claims trading');
+      const sandboxSpacing = await p.locator('.sandbox-picker-panel').evaluate(picker => {
+        const bounds = picker.getBoundingClientRect(), checked = document.getElementById('sandbox-last-checked').getBoundingClientRect(), health = document.getElementById('sandbox-health').getBoundingClientRect();
+        return { checkedInside:picker.contains(document.getElementById('sandbox-last-checked')) && checked.bottom <= bounds.bottom, gap:health.top-bounds.bottom, emptyLoadingVisible:document.getElementById('sandbox-loading').getClientRects().length > 0 };
+      });
+      if (!sandboxSpacing.checkedInside || sandboxSpacing.emptyLoadingVisible || sandboxSpacing.gap < 0 || sandboxSpacing.gap > 28) throw Error('Excess Sandbox spacing: ' + JSON.stringify(sandboxSpacing));
       await noOverflow('Sandbox');
       await p.screenshot({ path: '../.playwright-mcp/experience-sandbox-' + width + '.png', fullPage: true });
       await scenario('offline'); await go('sandbox'); await p.locator('#sandbox-next-action').getByText('Hosting node is offline', { exact: true }).waitFor();

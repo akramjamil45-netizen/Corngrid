@@ -130,7 +130,7 @@
   <script src="corngrid-select.js?v=20261115-menus1" defer></script>
 <link rel="stylesheet" href="security.css?v=20261116-mfa1">
 <script src="security.js?v=20261116-mfa1" defer></script>
-  <link rel="stylesheet" href="interface.css?v=20261116-checkout-layout1">
+  <link rel="stylesheet" href="interface.css?v=20261116-sandbox-spacing1">
   <script src="interface.js?v=20261116-ux1"></script>
   <script src="experience-model.js?v=20261116-ux1"></script>
 </head>
@@ -841,6 +841,7 @@
               <button type="button" id="sandbox-add-btn" class="button button-primary">+ Add sandbox</button>
             </div>
             <p id="sandbox-license-summary" class="muted small" role="status"></p>
+            <time class="cg-meta" id="sandbox-last-checked">Not checked yet</time>
           </section>
 
           <!-- Activation: first setup or an additional licensed MT5 account -->
@@ -902,7 +903,6 @@
           <!-- Live sandbox: shown when a sandbox exists -->
           <div id="sandbox-loading"></div>
           <div class="cg-feedback" id="sandbox-refresh-feedback" hidden></div>
-          <time class="cg-meta" id="sandbox-last-checked">Not checked yet</time>
           <div id="sandbox-live-section" hidden>
             <section id="sandbox-health" class="cg-status-grid" aria-label="Sandbox connection signals"></section>
             <div id="sandbox-next-action" class="cg-feedback" hidden></div>
