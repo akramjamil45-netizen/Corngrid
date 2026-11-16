@@ -5,7 +5,7 @@ async page => {
     p.on('pageerror', error => errors.push(error.message));
     const scenario = value => p.evaluate(async scenario => { await fetch('/fixture/scenario', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenario }) }); }, value);
     const go = async value => {
-      if (width < 600 && ['feed', 'overview', 'sandbox'].includes(value)) await p.locator('.cg-mobile-nav [data-destination="' + value + '"]').click();
+      if (width < 600 && ['feed', 'chat', 'overview', 'sandbox'].includes(value)) await p.locator('.cg-mobile-nav [data-destination="' + value + '"]').click();
       else { if (width < 600 && !await p.locator('#sidebar').evaluate(node => node.classList.contains('is-open'))) await p.locator('.cg-mobile-nav [data-destination="more"]').click(); await p.locator('.main-nav .nav-item[data-page="' + value + '"]').click(); }
     };
     const noOverflow = async label => { const state = await p.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(node => node.getClientRects().length && node.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, class: node.className })) })); if (state.scroll > state.width) throw Error(label + ': ' + JSON.stringify(state)); };
@@ -20,6 +20,39 @@ async page => {
       await p.waitForFunction(() => document.querySelectorAll('.cg-shortcut').length === 3);
       if (await p.locator('#sidebar .cg-shortcut,#sidebar .cg-shortcut-settings,#sidebar .cg-pinned').count()) throw Error('Pinned shortcuts must not appear in navigation');
       await noOverflow('Overview');
+      const mobileLabels = await p.locator('.cg-mobile-nav button > span').allTextContents();
+      if (JSON.stringify(mobileLabels) !== JSON.stringify(['Live Feed','Chat','Overview','Sandbox','More'])) throw Error('Mobile navigation must have five ordered destinations');
+      if (width < 600) {
+        await p.emulateMedia({ reducedMotion:'no-preference' });
+        if (await p.locator('.cg-mobile-nav').evaluate(node => getComputedStyle(node).transitionDuration) === '0s') throw Error('Navigation slide animation is missing');
+        await p.waitForTimeout(350); // Wait for navigation's post-route scroll guard.
+        await p.mouse.move(width / 2, 550); await p.mouse.wheel(0, 350);
+        await p.waitForFunction(() => document.querySelector('.cg-mobile-nav').getBoundingClientRect().top >= innerHeight);
+        await p.screenshot({ path:'../.playwright-mcp/navigation-hidden-' + width + '.png' });
+        await p.mouse.wheel(0, -120);
+        await p.waitForFunction(() => document.querySelector('.cg-mobile-nav').getBoundingClientRect().top < innerHeight - 40);
+        await p.mouse.wheel(0, 4); await p.waitForTimeout(100);
+        if (await p.locator('.cg-mobile-nav').evaluate(node => node.classList.contains('is-scroll-hidden'))) throw Error('Tiny scroll jitter hid navigation');
+        await p.mouse.wheel(0, 180); await p.waitForFunction(() => document.querySelector('.cg-mobile-nav').classList.contains('is-scroll-hidden'));
+        await p.locator('.cg-mobile-nav [data-destination=feed]').focus();
+        await p.waitForFunction(() => !document.querySelector('.cg-mobile-nav').classList.contains('is-scroll-hidden'));
+        await go('feed'); await p.locator('#page-feed.is-visible').waitFor();
+        if (await p.locator('.cg-mobile-nav [data-destination=feed]').getAttribute('aria-current') !== 'page') throw Error('Live Feed shortcut did not navigate');
+        await go('chat'); await p.locator('#page-chat.is-visible').waitFor();
+        if (await p.locator('.cg-mobile-nav [data-destination=chat]').getAttribute('aria-current') !== 'page' || await p.locator('.cg-mobile-nav [data-destination=feed]').getAttribute('data-active') !== 'false') throw Error('Chat did not have its own active destination');
+        await p.locator('#chat-user-list .chat-empty-list').waitFor();
+        await p.locator('#chat-user-list').evaluate(list => { const filler = document.createElement('div'); filler.style.height = '1800px'; list.append(filler); });
+        await p.waitForTimeout(350); await p.locator('#chat-user-list').hover(); await p.mouse.wheel(0, 260);
+        await p.waitForFunction(() => document.querySelector('.cg-mobile-nav').classList.contains('is-scroll-hidden'));
+        await p.mouse.wheel(0, -100); await p.waitForFunction(() => !document.querySelector('.cg-mobile-nav').classList.contains('is-scroll-hidden'));
+        await p.locator('.cg-mobile-nav [data-destination=more]').click(); await p.locator('#sidebar.is-open').waitFor();
+        await p.locator('#sidebar .main-nav').evaluate(nav => { nav.scrollTop = 150; });
+        if (await p.locator('.cg-mobile-nav').evaluate(node => node.classList.contains('is-scroll-hidden'))) throw Error('Sidebar scrolling hid the shortcut bar');
+        await p.keyboard.press('Escape'); await go('overview'); await p.evaluate(() => window.scrollTo(0,0));
+        await p.emulateMedia({ reducedMotion:'reduce' });
+        if (await p.locator('.cg-mobile-nav').evaluate(node => getComputedStyle(node).transitionDuration) !== '0s') throw Error('Navigation ignores reduced motion');
+        await noOverflow('Five mobile shortcuts'); await p.screenshot({ path:'../.playwright-mcp/navigation-five-' + width + '.png' });
+      }
       await p.waitForFunction(() => document.querySelector('#page-overview').dataset.loaded === 'true');
       await p.route('**/api/portfolio?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture portfolio refresh failed' }) }));
       await p.locator('#refresh-button').click(); await p.locator('#overview-refresh-feedback').getByText('Account data could not refresh', { exact: true }).waitFor();

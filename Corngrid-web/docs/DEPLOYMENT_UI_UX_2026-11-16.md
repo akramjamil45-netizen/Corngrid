@@ -54,3 +54,12 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Five focused model tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Tests cover compact height, keyboard disclosure, checklist contents, refresh stability and existing navigation/payment flows. Desktop and mobile screenshots were reviewed.
 - Eight API/readiness checks and 24 gateway/public asset checks passed after deployment. Both running Sandbox instances and all seven pre-existing MT5 terminal processes were preserved. No service restart, database, backend, dependency or key change was required.
 - Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-094323`. No production test account or payment was created.
+
+## Five mobile shortcuts follow-up - 18:00 Malaysia time
+
+- Completed at 10:00:11 UTC on 16 November 2026. Deployed five changed UI/documentation files with `20261116-five-nav1` dashboard references and service-worker cache v35.
+- Mobile navigation now provides Live Feed, Chat, Overview, Sandbox and More. Chat has its own active state and uses the existing authorized conversation screen.
+- Downward content scrolling slides the bar below the viewport; upward scrolling restores it with a 240ms transition. Direction thresholds suppress jitter. Keyboard focus, menu visibility, virtual-keyboard handling and reduced-motion preferences remain supported. Nested Chat lists are supported without responding to sidebar scrolling.
+- Eight focused model/API-path tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Checks cover all five labels, direct Live Feed/Chat navigation, scroll hiding/restoration, keyboard recovery, jitter, nested Chat scrolling and reduced motion. Screenshots were reviewed.
+- All eight API/readiness and 24 gateway/public asset checks passed after deployment. Both running Sandbox instances and all seven existing MT5 processes were preserved. No service restart, backend, schema, dependency or environment change was required.
+- Original files and the candidate are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-100006`. No production account, payment or trading-control action was created by these checks.

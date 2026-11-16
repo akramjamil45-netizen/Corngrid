@@ -53,6 +53,7 @@ async function main() {
   f.app.get('/api/portfolio/trades', f.verifyToken, (_q, r) => r.json({ items: [], total: 0, symbols: [] }));
   f.app.get('/api/user/portfolio-sharing', (_q, r) => r.json({ isPublic: false, accounts: [] }));
   f.app.get('/api/chat/unread-count', (_q, r) => r.json({ unreadCount: 0 }));
+  f.app.get('/api/chat/conversations', f.verifyToken, (_q, r) => r.json({ conversations: [] }));
   f.app.get('/fixture', (q, r) => {
     r.cookie('corngrid_session', f.token(q.query.user === '2' ? 2 : 1), { httpOnly: true, sameSite: 'lax' });
     let html = fs.readFileSync(path.join(__dirname, '../public/dashboard.html'), 'utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');

@@ -41,8 +41,8 @@
     });
   }
   const bottom = el('nav', null, 'cg-mobile-nav'); bottom.setAttribute('aria-label', 'Mobile workspace navigation');
-  const icons = { feed: '<path d="M4 6h16M4 12h16M4 18h10"/>', overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', sandbox: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', more: '<path d="M4 6h16M4 12h16M4 18h16"/>' };
-  for (const [id, label] of [['feed', 'Community'], ['overview', 'Overview'], ['sandbox', 'Sandbox'], ['more', 'More']]) {
+  const icons = { feed: '<path d="M4 6h16M4 12h16M4 18h10"/>', chat: '<path d="M21 11a9 9 0 0 1-9 9 9 9 0 0 1-4-1l-5 2 2-5a9 9 0 1 1 16-5Z"/><path d="M8 8h8M8 12h5"/>', overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', sandbox: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', more: '<path d="M4 6h16M4 12h16M4 18h16"/>' };
+  for (const [id, label] of [['feed', 'Live Feed'], ['chat', 'Chat'], ['overview', 'Overview'], ['sandbox', 'Sandbox'], ['more', 'More']]) {
     const button = action('', () => id === 'more' ? document.getElementById('mobile-menu').click() : UI.navigate(id), ''); button.dataset.destination = id;
     button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' + icons[id] + '</svg>'; button.append(el('span', label));
     if (id === 'more') { button.setAttribute('aria-controls', 'sidebar'); button.setAttribute('aria-expanded', 'false'); } bottom.append(button);
@@ -52,18 +52,56 @@
     renderPins();
     for (const source of sourceButtons()) { if (source.dataset.page === page) source.setAttribute('aria-current', 'page'); else source.removeAttribute('aria-current'); }
     for (const button of bottom.querySelectorAll('button')) {
-      const id = button.dataset.destination, group = ['feed', 'chat', 'notifications'].includes(page) ? 'feed' : ['overview', 'monitoring', 'positions', 'history'].includes(page) ? 'overview' : page === 'sandbox' ? 'sandbox' : 'more';
+      const id = button.dataset.destination, group = page === 'feed' || page === 'chat' ? page : ['overview', 'monitoring', 'positions', 'history'].includes(page) ? 'overview' : page === 'sandbox' ? 'sandbox' : 'more';
       button.dataset.active = String(id === group); if (id === page) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       if (id === 'more') button.setAttribute('aria-expanded', String(document.getElementById('sidebar').classList.contains('is-open')));
     }
+    if (document.getElementById('sidebar').classList.contains('is-open')) resetBottomNavigation();
   }
+  const mobileNavigation = matchMedia('(max-width: 850px)');
+  let scrollPositions = new WeakMap(), scrollIntentUntil = 0, navigationHoldUntil = 0, scrollFrame = 0, pendingScroller;
+  const scrollTop = node => Math.max(0, Math.min(node.scrollTop, Math.max(0, node.scrollHeight - node.clientHeight)));
+  function resetBottomNavigation() {
+    bottom.classList.remove('is-scroll-hidden'); navigationHoldUntil = performance.now() + 300; scrollIntentUntil = 0; scrollPositions = new WeakMap();
+    for (const node of [document.scrollingElement, ...document.querySelectorAll('.chat-messages-stream,.chat-user-list')]) if (node) scrollPositions.set(node, { top: scrollTop(node), direction: 0, distance: 0 });
+  }
+  function noteScrollIntent(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('#sidebar,.cg-mobile-nav,dialog,[role=listbox],input,textarea,select,[contenteditable=true]')) return;
+    if (event.type === 'keydown' && (!['ArrowDown','ArrowUp','PageDown','PageUp','Home','End',' '].includes(event.key) || target?.closest('button,a,summary'))) return;
+    scrollIntentUntil = performance.now() + 1800;
+  }
+  function updateScrollNavigation(node) {
+    const top = scrollTop(node), previous = scrollPositions.get(node) || { top, direction: 0, distance: 0 }, delta = top - previous.top, now = performance.now();
+    previous.top = top; scrollPositions.set(node, previous);
+    if (!mobileNavigation.matches || ended) return;
+    if (top <= 16 || now < navigationHoldUntil || now > scrollIntentUntil || bottom.querySelector(':focus-visible') || document.getElementById('sidebar').classList.contains('is-open') || document.querySelector('dialog[open]') || document.body.classList.contains('cg-keyboard-open')) {
+      previous.direction = 0; previous.distance = 0; bottom.classList.remove('is-scroll-hidden'); return;
+    }
+    scrollIntentUntil = now + 1800;
+    if (Math.abs(delta) < 2) return;
+    const direction = Math.sign(delta); previous.distance = previous.direction === direction ? previous.distance + Math.abs(delta) : Math.abs(delta); previous.direction = direction;
+    if (direction > 0 && top > 80 && previous.distance >= 32) { bottom.classList.add('is-scroll-hidden'); previous.distance = 0; }
+    else if (direction < 0 && previous.distance >= 14) { bottom.classList.remove('is-scroll-hidden'); previous.distance = 0; }
+  }
+  document.addEventListener('scroll', event => {
+    const node = event.target === document ? document.scrollingElement : event.target;
+    if (!(node instanceof Element) || node !== document.scrollingElement && !node.matches('.page.is-visible .chat-messages-stream,.page.is-visible .chat-user-list')) return;
+    pendingScroller = node;
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; updateScrollNavigation(pendingScroller); });
+  }, { capture: true, passive: true });
+  for (const event of ['wheel','touchmove','keydown']) document.addEventListener(event, noteScrollIntent, { capture: true, passive: true });
+  bottom.addEventListener('focusin', resetBottomNavigation);
+  mobileNavigation.addEventListener('change', resetBottomNavigation);
   new MutationObserver(syncNavigation).observe(document.getElementById('sidebar'), { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(records => { if (records.some(record => record.target.matches('.nav-item[data-page]'))) syncNavigation(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] });
   let viewportHeight = innerHeight;
   function keyboard() {
+    const wasOpen = document.body.classList.contains('cg-keyboard-open');
     const editing = document.activeElement?.matches('input,textarea,[contenteditable=true]'), height = window.visualViewport?.height || innerHeight;
     if (!editing) viewportHeight = innerHeight;
     document.body.classList.toggle('cg-keyboard-open', !!editing && height < Math.max(viewportHeight, innerHeight) * .78);
+    if (wasOpen !== document.body.classList.contains('cg-keyboard-open')) resetBottomNavigation();
   }
   window.visualViewport?.addEventListener('resize', keyboard); document.addEventListener('focusin', keyboard); document.addEventListener('focusout', () => setTimeout(keyboard, 80));
   const summary = el('section', null, 'panel cg-attention'), heading = el('div', null, 'cg-attention-heading'), title = el('h2', 'Checking your setup'), stamp = el('time', 'Checking status…', 'cg-meta');
@@ -118,7 +156,7 @@
     }));
   }
   function onPage(value) {
-    page = value; syncNavigation(); clearInterval(timer);
+    page = value; resetBottomNavigation(); syncNavigation(); clearInterval(timer);
     if (page === 'overview' && !document.hidden) { void refreshAttention(); timer = setInterval(refreshAttention, 60000); }
     document.dispatchEvent(new CustomEvent('corngrid:page-changed', { detail: { page } }));
   }
@@ -132,7 +170,7 @@
     setSandbox(value) { sandbox = value; renderAttention(); }
   };
   document.addEventListener('visibilitychange', () => onPage(page));
-  window.addEventListener('pagehide', () => { ended = true; clearInterval(timer); });
+  window.addEventListener('pagehide', () => { ended = true; clearInterval(timer); cancelAnimationFrame(scrollFrame); scrollFrame = 0; });
   window.addEventListener('pageshow', event => { if (event.persisted) { ended = false; onPage(page); } });
   renderAttention(); renderCheckout(); onPage(document.querySelector('.page.is-visible')?.id.replace('page-', '') || 'overview');
 })();
