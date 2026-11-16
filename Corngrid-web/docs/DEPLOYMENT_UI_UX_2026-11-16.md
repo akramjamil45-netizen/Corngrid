@@ -26,3 +26,15 @@ The MT5 connection signal deliberately reads **Not verified** until independent 
 Pinned shortcuts are stored per user on the current device. The mobile layouts were checked in browser emulation; real-device Android/WebView acceptance remains a separate device check. Users with an already open tab can refresh to load the new asset versions.
 
 See `UI_UX_IMPROVEMENTS.md` for implementation details and test commands. The deployment helper requires the intended Windows host, refuses production drift, protects backups, verifies readiness and attempts file rollback if post-deployment checks fail.
+
+## Follow-up: shortcuts and checkout layout
+
+At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up deployment completed:
+
+- Removed the entire Pinned section from the sidebar. Saved shortcuts and editing are available in **Settings > Appearance**.
+- Restored checkout panel padding that had been overridden by Subscription panel styles. Mobile step indicators now use two columns, the status message has its own separated area, and the last-check timestamp sits closer to the panel.
+- Published five changed asset/documentation files. Dashboard CSS and Workplace script references use `20261116-checkout-layout1`; service-worker cache version is v32.
+- Updated the deployment helper to select content changes independently of Windows line endings, derive public asset versions from current markup, and skip database snapshots and web-service restarts for static-only updates. Drift checks, file backups, API verification and rollback remain enforced.
+- Backed up replaced files under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-034117`. No backend, dependency, environment or schema change was deployed, and no service was restarted.
+- All eight API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven existing MT5 terminal processes were preserved.
+- Before deployment, eight focused model/API-path tests passed. Browser acceptance passed at 1440px, 375px and 320px, including no sidebar Pinned section, shortcut persistence, checkout padding, step/message overlap checks and timestamp spacing.

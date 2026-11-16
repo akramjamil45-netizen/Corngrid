@@ -8,9 +8,10 @@
   const nav = document.querySelector('.main-nav'), sourceButtons = () => [...nav.querySelectorAll('.nav-item[data-page]')].filter(button => !button.hidden && button.style.display !== 'none');
   const available = id => sourceButtons().find(button => button.dataset.page === id);
   const labelOf = source => { const copy = source.cloneNode(true); copy.querySelectorAll('.nav-chat-badge').forEach(node => node.remove()); return copy.textContent.trim().replace(/\s+/g, ' '); };
-  const pinRoot = el('section', null, 'cg-pinned'); pinRoot.hidden = true;
-  const pinHeading = el('div', null, 'cg-pinned-heading'), pinList = el('div', null, 'cg-pinned-list'), editPins = action('Edit shortcuts', choosePins);
-  pinHeading.append(el('strong', 'Pinned'), editPins); pinRoot.append(pinHeading, pinList); nav.prepend(pinRoot);
+  const pinRoot = el('section', null, 'cg-shortcut-settings'); pinRoot.hidden = true;
+  const pinHeading = el('div', null, 'cg-shortcut-settings-heading'), pinList = el('div', null, 'cg-shortcut-list'), editPins = action('Edit shortcuts', choosePins);
+  const pinTitle = el('h3', 'Pinned shortcuts'); pinTitle.id = 'shortcut-settings-title'; pinRoot.setAttribute('aria-labelledby', pinTitle.id);
+  pinHeading.append(pinTitle, editPins); pinRoot.append(pinHeading, el('p', 'Manage your saved menu shortcuts on this device.', 'muted small'), pinList); document.getElementById('setting-appearance').append(pinRoot);
   function renderPins() {
     pinRoot.hidden = !userId; pinList.replaceChildren();
     for (const id of pins) { const source = available(id); if (!source) continue; const button = action(labelOf(source), () => UI.navigate(id), 'cg-shortcut'); if (page === id) button.setAttribute('aria-current', 'page'); pinList.append(button); }
@@ -102,7 +103,8 @@
     const state = model.checkoutState({ ...checkout, order, provider }); progress.replaceChildren(); progress.className = 'panel cg-checkout'; progress.dataset.state = state.state;
     const steps = el('ol'); steps.setAttribute('aria-label', 'Subscription checkout progress');
     ['Choose plan', 'Payment', 'Verification', 'Active'].forEach((label, index) => { const item = el('li'); item.dataset.complete = String(index < state.step || state.complete); if (index === state.step) item.setAttribute('aria-current', 'step'); item.append(el('strong', String(index + 1) + '. ' + label), el('small', index < state.step || state.complete ? 'Complete' : index === state.step ? 'Current step' : 'Not started')); steps.append(item); });
-    progress.append(steps, el('h2', state.title), el('p', state.detail));
+    const message = el('div', null, 'cg-checkout-message'); message.append(el('h2', state.title), el('p', state.detail));
+    progress.append(steps, message);
     if (state.action && window.CornGridStripe?.checkPayment) progress.append(action(state.action, async event => {
       const control = event.currentTarget; control.disabled = true;
       try { await window.CornGridStripe.checkPayment(); }

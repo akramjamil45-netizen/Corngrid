@@ -45,6 +45,7 @@ async function inspect() {
     let baseline = null; try { baseline = cp.execFileSync('git', ['show', 'HEAD:' + name], { cwd: source, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).replace(/\r\n/g, '\n'); } catch {}
     const exists = fs.existsSync(to);
     return { name, exists, sourceHash: hash(from), originalHash: exists ? hash(to) : null,
+      changed: !exists || fs.readFileSync(from,'utf8').replace(/\r\n/g,'\n') !== fs.readFileSync(to,'utf8').replace(/\r\n/g,'\n'),
       productionDiverged: exists && (baseline === null || fs.readFileSync(to, 'utf8').replace(/\r\n/g, '\n') !== baseline) };
   });
   const db = await client(); let database;
@@ -64,18 +65,22 @@ async function inspect() {
 async function prepare(value) {
   const backup = backupRoot(value), state = await inspect(); assert(fs.existsSync(backup), 'Create private backup directory first');
   assert(!state.runtime.some(item => item.productionDiverged), 'Production differs from reviewed Git baseline');
+  state.runtime = state.runtime.filter(item => item.changed);
   const plan = { ...state, backup, envHash: hash(path.join(backend, '.env')), appliedFiles: [], phase: 'prepared' };
+  plan.backendRestartRequired = plan.runtime.some(item => /^Corngrid-web\/(?!public\/|docs\/|package\.json$)/.test(item.name));
   for (const item of plan.runtime) {
     const candidate = contained(path.join(backup, 'candidate'), item.name); fs.mkdirSync(path.dirname(candidate), { recursive: true }); fs.copyFileSync(contained(source, item.name), candidate);
     if (item.exists) { const saved = contained(path.join(backup, 'files'), item.name); fs.mkdirSync(path.dirname(saved), { recursive: true }); fs.copyFileSync(contained(target, item.name), saved); }
   }
+  if (plan.backendRestartRequired) {
   const url = new URL(env.DATABASE_URL), dump = path.join(backup, 'database-before.dump');
   const dumpEnv = { ...process.env, PGHOST: url.hostname, PGPORT: url.port || '5432', PGUSER: decodeURIComponent(url.username), PGPASSWORD: decodeURIComponent(url.password), PGDATABASE: decodeURIComponent(url.pathname.slice(1)), PGCONNECT_TIMEOUT: '8' };
   if (url.searchParams.get('sslmode')) dumpEnv.PGSSLMODE = url.searchParams.get('sslmode');
   const operation = cp.spawnSync(env.PG_DUMP_BIN || 'C:/Program Files/PostgreSQL/16/bin/pg_dump.exe', ['--format=custom', '--no-password', '--file', dump], { env: dumpEnv, windowsHide: true, timeout: 120000, encoding: 'utf8' });
   assert.equal(operation.status, 0, 'Private PostgreSQL snapshot failed'); assert(fs.statSync(dump).size > 0, 'Empty snapshot');
+  }
   fs.writeFileSync(path.join(backup, 'plan.json'), JSON.stringify(plan, null, 2));
-  return { phase: 'prepared', backup, files: plan.runtime.length, databaseSnapshot: true, database: state.database };
+  return { phase: 'prepared', backup, files: plan.runtime.length, databaseSnapshot: plan.backendRestartRequired, backendRestartRequired: plan.backendRestartRequired, database: state.database };
 }
 function loadPlan(value) { const backup = backupRoot(value), plan = JSON.parse(fs.readFileSync(path.join(backup, 'plan.json'))); assert.equal(plan.backup, backup); assert(plan.runtime.every(item => files.includes(item.name)), 'Unreviewed manifest path'); return plan; }
 async function apply(value) {
@@ -124,13 +129,16 @@ async function publicSmoke() {
   const assets = ['interface.js','interface.css','experience-model.js','workplace.js','notifications.js','notifications.css','dashboard.js','sandbox.js','stripe-checkout.js','dashboard.html','admin.html','sw.js'];
   for (const origin of ['http://127.0.0.1:8080','https://corngrid.com']) {
     for (const name of assets) {
-      const response = await fetch(origin + '/' + name + '?v=20261116-ux1', { headers: { 'Cache-Control':'no-cache' }, signal:AbortSignal.timeout(20000) });
+      const markup = fs.readFileSync(path.join(source,'Corngrid-web/public/dashboard.html'),'utf8');
+      const version = markup.match(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\?v=([^"\x27]+)'))?.[1] || hash(name === 'sw.js' ? path.join(source,name) : path.join(backend,'public',name)).slice(0,16);
+      const response = await fetch(origin + '/' + name + '?v=' + encodeURIComponent(version), { headers: { 'Cache-Control':'no-cache' }, signal:AbortSignal.timeout(20000) });
       assert.equal(response.status,200,'Asset unavailable: '+name);
       const body = await response.text(), local = name === 'sw.js' ? path.join(source,name) : path.join(backend,'public',name);
       if (!name.endsWith('.html')) assert(!/text\/html/.test(response.headers.get('content-type') || ''),'Asset routed to HTML: '+name);
       if (name.endsWith('.html')) {
-        assert(body.includes('interface.css?v=20261116-ux1') && body.includes('interface.js?v=20261116-ux1'),'Stale shared interface markup: '+name);
-        if (name === 'dashboard.html') assert(body.includes('workplace.js?v=20261116-ux1') && body.includes('id="checkout-progress"'),'Stale Workplace markup');
+        const expected = fs.readFileSync(path.join(source,'Corngrid-web/public',name),'utf8').match(/(?:interface\.(?:css|js)|workplace\.js)\?v=[^"']+/g);
+        assert(expected?.length && expected.every(reference => body.includes(reference)),'Stale interface markup: '+name);
+        if (name === 'dashboard.html') assert(body.includes('id="checkout-progress"'),'Stale Workplace markup');
       } else assert.equal(crypto.createHash('sha256').update(body).digest('hex'),hash(local),'Stale public asset: '+name);
       checks.push({origin,name,status:response.status});
     }

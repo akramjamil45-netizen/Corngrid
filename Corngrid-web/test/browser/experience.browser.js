@@ -13,6 +13,7 @@ async page => {
       await p.goto(origin + '/fixture#overview'); await scenario('normal'); await p.reload();
       await p.getByRole('heading', { name: 'No setup issues detected', exact: true }).waitFor();
       await p.waitForFunction(() => document.querySelectorAll('.cg-shortcut').length === 3);
+      if (await p.locator('#sidebar .cg-shortcut,#sidebar .cg-shortcut-settings,#sidebar .cg-pinned').count()) throw Error('Pinned shortcuts must not appear in navigation');
       await noOverflow('Overview');
       await p.waitForFunction(() => document.querySelector('#page-overview').dataset.loaded === 'true');
       await p.route('**/api/portfolio?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture portfolio refresh failed' }) }));
@@ -26,7 +27,12 @@ async page => {
       await p.locator('.cg-skip-link').focus(); await p.keyboard.press('Enter'); if (await p.evaluate(() => document.activeElement.id) !== 'cg-main-content') throw Error('Skip link did not focus content');
       if (width < 600) { await p.locator('.cg-mobile-nav [data-destination=more]').click(); await p.locator('#sidebar.is-open').waitFor(); await p.keyboard.press('Escape'); await p.locator('#sidebar:not(.is-open)').waitFor(); }
       if (width < 600) await p.locator('.cg-mobile-nav [data-destination=more]').click();
-      await p.getByRole('button', { name: 'Edit shortcuts', exact: true }).click();
+      await p.locator('#sidebar .nav-item[data-page=settings]').click();
+      await p.getByRole('button', { name: 'Appearance', exact: true }).click();
+      await p.locator('#setting-appearance').getByRole('heading', { name: 'Pinned shortcuts', exact: true }).waitFor();
+      await noOverflow('Shortcut settings');
+      await p.screenshot({ path: '../.playwright-mcp/experience-shortcut-settings-' + width + '.png', fullPage: true });
+      await p.locator('#setting-appearance').getByRole('button', { name: 'Edit shortcuts', exact: true }).click();
       const dialog = p.locator('.cg-dialog[open]'); await dialog.waitFor();
       const checked = dialog.locator('input:checked'); while (await checked.count()) await checked.first().uncheck();
       await dialog.locator('input[value=overview]').check(); await dialog.locator('input[value=subscription]').check(); await dialog.getByRole('button', { name: 'Save shortcuts', exact: true }).click();
@@ -51,6 +57,16 @@ async page => {
       for (const [value, state, title] of [['normal', 'active', 'Access active'], ['review', 'verification', 'Awaiting administrator review'], ['pending', 'payment', 'Complete your card payment'], ['paid', 'active', 'Access active'], ['rejected', 'incomplete', 'Payment not completed']]) {
         await scenario(value); await go('subscription'); await p.locator('#checkout-progress[data-state="' + state + '"]').getByRole('heading', { name: title, exact: true }).waitFor();
         if (await p.locator('#checkout-progress ol li').count() !== 4) throw Error('Checkout step count differs'); await noOverflow('Checkout ' + value);
+        const layout = await p.locator('#checkout-progress').evaluate(panel => {
+          const bounds = panel.getBoundingClientRect(), style = getComputedStyle(panel), steps = [...panel.querySelectorAll('ol li')];
+          return { padding:parseFloat(style.paddingLeft), columns:getComputedStyle(panel.querySelector('ol')).gridTemplateColumns.split(' ').length,
+            overlaps:steps.some(step => step.querySelector('strong').getBoundingClientRect().bottom > step.querySelector('small').getBoundingClientRect().top + 1),
+            outside:steps.some(step => { const r = step.getBoundingClientRect(); return r.left < bounds.left + 14 || r.right > bounds.right - 14; }),
+            messageOverlaps:panel.querySelector('ol').getBoundingClientRect().bottom > panel.querySelector('.cg-checkout-message').getBoundingClientRect().top,
+            checkedGap:document.getElementById('subscription-last-checked').getBoundingClientRect().top - bounds.bottom };
+        });
+        if (layout.padding < 14 || layout.overlaps || layout.outside || layout.messageOverlaps || layout.checkedGap < 0 || layout.checkedGap > 20 || layout.columns !== (width < 600 ? 2 : 4)) throw Error('Crowded checkout layout: ' + JSON.stringify(layout));
+        if (value === 'rejected') await p.screenshot({ path:'../.playwright-mcp/experience-checkout-' + width + '.png',fullPage:true });
       }
       await scenario('normal'); await go('subscription'); await p.locator('#checkout-progress[data-state=active]').waitFor();
       await scenario('subscription-error'); await go('subscription'); await p.locator('#subscription-refresh-feedback').getByText('Could not refresh subscription', { exact: true }).waitFor();

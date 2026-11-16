@@ -61,24 +61,29 @@ html { scroll-padding-top:82px;scroll-padding-bottom:calc(24px + var(--cg-nav-of
 .cg-attention-item p { font-size:13px;line-height:1.6;color:var(--muted);margin:0 0 12px; }
 .cg-checklist { display:flex;flex-wrap:wrap;gap:8px 18px;padding:12px 0 0;margin:0;list-style:none;color:var(--muted);font-size:12px; }
 .cg-checklist li[data-complete=true] { color:var(--green); }
-.cg-pinned { padding:0 5px 14px;border-bottom:1px solid var(--border);margin-bottom:14px; }
-.cg-pinned-heading { display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted); }
-.cg-pinned-heading button { padding:4px 8px;min-height:36px;background:none;border:0;color:var(--accent-text);cursor:pointer; }
-.cg-pinned-list { display:flex;flex-wrap:wrap;gap:6px; }
+.cg-shortcut-settings { margin-top:24px;padding-top:20px;border-top:1px solid var(--border); }
+.cg-shortcut-settings-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap; }
+.cg-shortcut-settings-heading h3 { font-size:15px;margin:0; }
+.cg-shortcut-settings > p { margin:8px 0 12px; }
+.cg-shortcut-list { display:flex;flex-wrap:wrap;gap:6px; }
 .cg-shortcut { min-height:40px;display:inline-flex;align-items:center;gap:6px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;font-size:12px; }
 .cg-shortcut[aria-current=page] { color:var(--accent-text);border-color:var(--accent); }
 .cg-pin-option { display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 0;font-size:14px; }
 .cg-pin-option input { appearance:auto;width:18px;height:18px;min-height:0;margin:0;accent-color:var(--accent); }
 .cg-mobile-nav { display:none; }
-.cg-checkout { padding:18px;margin-bottom:18px; }
+#page-subscription .panel.cg-checkout { padding:20px;margin:0; }
+.subscription-checkout-summary { display:grid;gap:10px;min-width:0; }
+.subscription-checkout-summary > :is(.cg-meta,.cg-feedback) { margin:0; }
 .cg-checkout ol { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;list-style:none;margin:0 0 16px;padding:0; }
-.cg-checkout li { min-width:0;border-top:3px solid var(--border);padding-top:9px;color:var(--muted);font-size:12px; }
+.cg-checkout li { min-width:0;border-top:3px solid var(--border);padding-top:9px;color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere; }
 .cg-checkout li[data-complete=true] { border-color:var(--green); }
 .cg-checkout li[aria-current=step] { border-color:var(--accent);color:var(--text); }
 .cg-checkout li strong,.cg-checkout li small { display:block; }
 .cg-checkout li small { font-size:11px;margin-top:3px; }
 .cg-checkout h2 { font-size:16px;margin:0 0 6px; }
 .cg-checkout p { font-size:13px;color:var(--muted);line-height:1.6;margin:0; }
+.cg-checkout-message { border-top:1px solid var(--border);padding-top:14px; }
+.cg-checkout > .button { margin-top:14px; }
 .cg-checkout[data-state=incomplete] { border-left:3px solid var(--red); }
 @media(max-width:600px) {
   .panel-header { padding:14px 16px; }
@@ -91,9 +96,11 @@ html { scroll-padding-top:82px;scroll-padding-bottom:calc(24px + var(--cg-nav-of
   .cg-status-card p,.cg-status-card time { grid-column:1/-1; }
   #page-sandbox .sandbox-detail-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:14px; }
   #page-sandbox .sandbox-detail-grid dd { font-size:12px; }
-  .cg-attention,.cg-checkout { padding:14px; }
-  .cg-checkout ol { gap:7px; }
-  .cg-checkout li { font-size:11px; }
+  .cg-attention { padding:14px; }
+  #page-subscription .panel.cg-checkout { padding:16px; }
+  .cg-checkout ol { grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;margin-bottom:16px; }
+  .cg-checkout li { font-size:12px; }
+  .cg-checkout li small { font-size:12px;margin-top:4px; }
 }
 @media(max-width:850px) {
   body.cg-has-mobile-nav { --cg-nav-offset:calc(66px + env(safe-area-inset-bottom,0px)); }
@@ -107,5 +114,5 @@ html { scroll-padding-top:82px;scroll-padding-bottom:calc(24px + var(--cg-nav-of
   body.cg-has-mobile-nav :is(.chat-input-row,.chat-composer) { scroll-margin-bottom:calc(20px + var(--cg-nav-offset)); }
   body.cg-has-mobile-nav .chat-app-box { height:calc(100dvh - 104px - var(--cg-nav-offset));min-height:280px; }
 }
-@media(pointer:coarse) { .button-small,.cg-shortcut,.cg-pinned-heading button { min-height:44px; } }
+@media(pointer:coarse) { .button-small,.cg-shortcut { min-height:44px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important;transition:none!important;scroll-behavior:auto!important; } }
