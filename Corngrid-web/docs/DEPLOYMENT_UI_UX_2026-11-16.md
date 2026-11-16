@@ -63,3 +63,11 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Eight focused model/API-path tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Checks cover all five labels, direct Live Feed/Chat navigation, scroll hiding/restoration, keyboard recovery, jitter, nested Chat scrolling and reduced motion. Screenshots were reviewed.
 - All eight API/readiness and 24 gateway/public asset checks passed after deployment. Both running Sandbox instances and all seven existing MT5 processes were preserved. No service restart, backend, schema, dependency or environment change was required.
 - Original files and the candidate are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-100006`. No production account, payment or trading-control action was created by these checks.
+
+## Chat unread bubble follow-up - 18:20 Malaysia time
+
+- Deployed six changed UI/documentation files at 10:20:49 UTC on 16 November 2026. Updated dashboard, coordinator and stylesheet references to `20261116-chat-bubble1`; service-worker cache is v36.
+- The mobile Chat icon shares the sidebar's confirmed unread count, displays 99+ for large counts, animates once when the count increases and clears on confirmed zero. Partial reads update quietly. Refresh errors retain the last confirmed count. Existing polling and read-receipt rules remain authoritative.
+- Eight focused model/API-path tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Checks include initial unread state, both badge counts, accessible labels, increase-only animation, unchanged counts, partial reads, 99+, reduced motion, transient failure retention and clearing after all messages are read. Mobile screenshots were reviewed.
+- All 24 gateway/public asset checks passed. Follow-up API verification passed nine readiness/authenticated checks, including the live Chat unread-count endpoint. Unauthenticated access was rejected. No production message, test account or payment was created by verification.
+- Both running Sandbox instances and all seven existing MT5 terminal processes were preserved. No service restart, backend, schema, dependency or environment change was required. Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-102044`.

@@ -573,17 +573,18 @@
       try {
         const data = await request('/chat/unread-count');
         const badge = $('#chat-nav-badge');
-        const count = Number(data.unreadCount) || 0;
+        const count = Number(data.unreadCount);
+        if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid unread count.');
         const increased = count > chatUnreadCount;
         badge.hidden = count === 0;
         badge.textContent = count > 99 ? '99+' : String(count);
+        badge.dataset.unreadCount = String(count);
+        badge.closest('button').setAttribute('aria-label', count ? `Chat, ${count} unread message${count === 1 ? '' : 's'}` : 'Chat');
         chatUnreadCount = count;
         if (increased && count) pulseBadge(badge);
+        window.dispatchEvent(new CustomEvent('corngrid:chat-unread', { detail: { count } }));
       } catch (error) {
-        // Chat unread count endpoint may not be available - hide badge silently
-        const badge = $('#chat-nav-badge');
-        if (badge) badge.hidden = true;
-        chatUnreadCount = 0;
+        // Preserve the last confirmed count through a transient refresh failure.
       } finally {
         chatUnreadPromise = null;
       }

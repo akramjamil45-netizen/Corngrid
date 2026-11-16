@@ -5,7 +5,7 @@ const fs = require('node:fs'), path = require('node:path');
 const { createFixture } = require('../test/helpers/notification-fixture');
 async function main() {
   const f = await createFixture();
-  let scenario = 'normal'; const calls = [], themes = new Map();
+  let scenario = 'normal'; const calls = [], themes = new Map(), chatUnread = new Map();
   f.app.use((req, _res, next) => { if (req.path.startsWith('/api/')) calls.push({ method: req.method, path: req.path }); next(); });
   await f.service.notify(1, 'subscription_suspended', 'Subscription status updated', 'Fixture subscription status.');
   await f.run("INSERT INTO sandbox_nodes VALUES(1,'active',1)");
@@ -52,7 +52,8 @@ async function main() {
   f.app.get('/api/portfolio/positions', f.verifyToken, (_q, r) => r.json({ items: [], total: 0 }));
   f.app.get('/api/portfolio/trades', f.verifyToken, (_q, r) => r.json({ items: [], total: 0, symbols: [] }));
   f.app.get('/api/user/portfolio-sharing', (_q, r) => r.json({ isPublic: false, accounts: [] }));
-  f.app.get('/api/chat/unread-count', (_q, r) => r.json({ unreadCount: 0 }));
+  f.app.post('/fixture/chat-unread', f.verifyToken, (q, r) => { const count = q.body?.unreadCount; if (!Number.isSafeInteger(count) || count < 0) return r.sendStatus(400); chatUnread.set(q.user.id, count); r.json({ ok:true }); });
+  f.app.get('/api/chat/unread-count', f.verifyToken, (q, r) => r.json({ unreadCount: chatUnread.get(q.user.id) || 0 }));
   f.app.get('/api/chat/conversations', f.verifyToken, (_q, r) => r.json({ conversations: [] }));
   f.app.get('/fixture', (q, r) => {
     r.cookie('corngrid_session', f.token(q.query.user === '2' ? 2 : 1), { httpOnly: true, sameSite: 'lax' });

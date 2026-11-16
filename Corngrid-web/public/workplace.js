@@ -44,10 +44,27 @@
   const icons = { feed: '<path d="M4 6h16M4 12h16M4 18h10"/>', chat: '<path d="M21 11a9 9 0 0 1-9 9 9 9 0 0 1-4-1l-5 2 2-5a9 9 0 1 1 16-5Z"/><path d="M8 8h8M8 12h5"/>', overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', sandbox: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', more: '<path d="M4 6h16M4 12h16M4 18h16"/>' };
   for (const [id, label] of [['feed', 'Live Feed'], ['chat', 'Chat'], ['overview', 'Overview'], ['sandbox', 'Sandbox'], ['more', 'More']]) {
     const button = action('', () => id === 'more' ? document.getElementById('mobile-menu').click() : UI.navigate(id), ''); button.dataset.destination = id;
-    button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' + icons[id] + '</svg>'; button.append(el('span', label));
+    button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' + icons[id] + '</svg>'; button.append(el('span', label, 'cg-mobile-label'));
     if (id === 'more') { button.setAttribute('aria-controls', 'sidebar'); button.setAttribute('aria-expanded', 'false'); } bottom.append(button);
   }
   document.body.append(bottom); document.body.classList.add('cg-has-mobile-nav');
+  const chatButton = bottom.querySelector('[data-destination=chat]'), chatIcon = el('span', null, 'cg-mobile-chat-icon'), chatBubble = el('span', '', 'cg-chat-bubble'), chatAnnouncement = el('span', '', 'sr-only');
+  chatIcon.setAttribute('aria-hidden', 'true'); chatIcon.append(chatButton.querySelector('svg')); chatBubble.id = 'mobile-chat-unread'; chatBubble.hidden = true; chatIcon.append(chatBubble); chatButton.prepend(chatIcon);
+  chatAnnouncement.setAttribute('role', 'status'); chatAnnouncement.setAttribute('aria-live', 'polite'); chatAnnouncement.setAttribute('aria-atomic', 'true'); bottom.append(chatAnnouncement);
+  let mobileUnreadCount = 0;
+  function renderChatUnread(count, announce = true) {
+    if (!Number.isSafeInteger(count) || count < 0) return;
+    const changed = count !== mobileUnreadCount, increased = count > mobileUnreadCount; mobileUnreadCount = count;
+    chatBubble.hidden = count === 0; chatBubble.textContent = count > 99 ? '99+' : String(count);
+    chatButton.setAttribute('aria-label', count ? `Chat, ${count} unread message${count === 1 ? '' : 's'}` : 'Chat');
+    if (!changed) return;
+    chatBubble.classList.remove('is-bumping');
+    if (increased && !matchMedia('(prefers-reduced-motion: reduce)').matches) { void chatBubble.offsetWidth; chatBubble.classList.add('is-bumping'); }
+    if (announce) chatAnnouncement.textContent = count ? `${count} unread chat message${count === 1 ? '' : 's'}` : 'All chat messages read';
+  }
+  chatBubble.addEventListener('animationend', () => chatBubble.classList.remove('is-bumping'));
+  window.addEventListener('corngrid:chat-unread', event => renderChatUnread(event.detail?.count));
+  renderChatUnread(Number(document.getElementById('chat-nav-badge')?.dataset.unreadCount || 0), false);
   function syncNavigation() {
     renderPins();
     for (const source of sourceButtons()) { if (source.dataset.page === page) source.setAttribute('aria-current', 'page'); else source.removeAttribute('aria-current'); }

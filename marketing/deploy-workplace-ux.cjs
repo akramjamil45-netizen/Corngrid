@@ -111,7 +111,7 @@ async function verify() {
   assert(user, 'No existing eligible account for read-only smoke check');
   const token = require(path.join(modules, 'jsonwebtoken')).sign({ id: user.id, authVersion: Number(user.version), mfaVersion: Number(user.mfa_version) }, env.JWT_SECRET, { expiresIn: '2m' });
   const headers = { Authorization: 'Bearer ' + token }, base = 'http://127.0.0.1:3000', routes = [];
-  for (const route of ['/api/health/ready', '/api/notifications/preferences', '/api/notifications?limit=1', '/api/notifications?limit=1&category=sandbox_offline', '/api/me', '/api/mt5/accounts', '/api/subscription/overview', '/api/sandbox/status']) {
+  for (const route of ['/api/health/ready', '/api/notifications/preferences', '/api/notifications?limit=1', '/api/notifications?limit=1&category=sandbox_offline', '/api/me', '/api/mt5/accounts', '/api/subscription/overview', '/api/sandbox/status', '/api/chat/unread-count']) {
     const response = await fetch(base + route, { headers, signal: AbortSignal.timeout(10000) }); assert.equal(response.status, 200, 'API smoke failed: ' + route);
     const data = await response.json();
     if (route.includes('/notifications')) assert.match(response.headers.get('cache-control') || '', /private.*no-store/);
@@ -119,9 +119,10 @@ async function verify() {
     if (route === '/api/sandbox/status') { assert(data.health && data.health.host && data.health.mt5 && data.health.ea, 'New Sandbox health signals missing'); assert.notEqual(data.mt5Connection, 'connected', 'Process status must not imply broker connectivity'); }
     if (route === '/api/subscription/overview') assert(Object.hasOwn(data, 'scheduledRenewal'), 'Subscription presentation field missing');
     if (route === '/api/notifications?limit=1') { assert(Array.isArray(data.notifications)); assert(Number.isInteger(data.unread)); }
+    if (route === '/api/chat/unread-count') assert(Number.isSafeInteger(data.unreadCount) && data.unreadCount >= 0, 'Invalid unread count response');
     routes.push({ route, status: response.status });
   }
-  for (const route of ['/api/notifications', '/api/notifications/preferences']) assert.equal((await fetch(base + route, { signal: AbortSignal.timeout(10000) })).status, 401);
+  for (const route of ['/api/notifications', '/api/notifications/preferences', '/api/chat/unread-count']) assert.equal((await fetch(base + route, { signal: AbortSignal.timeout(10000) })).status, 401);
   return { phase: 'verified', database, routes, unauthorizedRequestsRejected: true, productionTestAccountsCreated: 0, preferenceWritesPerformed: 0, productionPaymentsAttempted: 0 };
 }
 async function publicSmoke() {

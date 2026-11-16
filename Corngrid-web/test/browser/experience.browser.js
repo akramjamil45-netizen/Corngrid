@@ -4,13 +4,15 @@ async page => {
     const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce', ...(width < 600 ? { hasTouch: true, isMobile: true } : {}) }), p = await context.newPage(), errors = [];
     p.on('pageerror', error => errors.push(error.message));
     const scenario = value => p.evaluate(async scenario => { await fetch('/fixture/scenario', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenario }) }); }, value);
+    const unread = count => p.evaluate(async unreadCount => { const response = await fetch('/fixture/chat-unread', { method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ unreadCount }) }); if (!response.ok) throw Error('Unread fixture failed'); }, count);
     const go = async value => {
       if (width < 600 && ['feed', 'chat', 'overview', 'sandbox'].includes(value)) await p.locator('.cg-mobile-nav [data-destination="' + value + '"]').click();
       else { if (width < 600 && !await p.locator('#sidebar').evaluate(node => node.classList.contains('is-open'))) await p.locator('.cg-mobile-nav [data-destination="more"]').click(); await p.locator('.main-nav .nav-item[data-page="' + value + '"]').click(); }
     };
     const noOverflow = async label => { const state = await p.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll('body *')].filter(node => node.getClientRects().length && node.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(node => ({ tag: node.tagName, id: node.id, class: node.className })) })); if (state.scroll > state.width) throw Error(label + ': ' + JSON.stringify(state)); };
     try {
-      await p.goto(origin + '/fixture#overview'); await scenario('normal'); await p.reload();
+      await p.goto(origin + '/fixture#overview'); await scenario('normal'); await unread(2); await p.reload();
+      await p.waitForFunction(() => document.getElementById('mobile-chat-unread')?.textContent === '2' && !document.getElementById('mobile-chat-unread').hidden);
       await p.getByRole('heading', { name: 'No setup issues detected', exact: true }).waitFor();
       const setupToggle = p.getByRole('button', { name: 'Setup details', exact: true });
       if (await p.locator('#overview-setup-details').isVisible() || (await p.locator('.cg-attention').boundingBox()).height > 90) throw Error('Healthy Overview status is not compact');
@@ -20,7 +22,7 @@ async page => {
       await p.waitForFunction(() => document.querySelectorAll('.cg-shortcut').length === 3);
       if (await p.locator('#sidebar .cg-shortcut,#sidebar .cg-shortcut-settings,#sidebar .cg-pinned').count()) throw Error('Pinned shortcuts must not appear in navigation');
       await noOverflow('Overview');
-      const mobileLabels = await p.locator('.cg-mobile-nav button > span').allTextContents();
+      const mobileLabels = await p.locator('.cg-mobile-nav .cg-mobile-label').allTextContents();
       if (JSON.stringify(mobileLabels) !== JSON.stringify(['Live Feed','Chat','Overview','Sandbox','More'])) throw Error('Mobile navigation must have five ordered destinations');
       if (width < 600) {
         await p.emulateMedia({ reducedMotion:'no-preference' });
@@ -53,6 +55,24 @@ async page => {
         if (await p.locator('.cg-mobile-nav').evaluate(node => getComputedStyle(node).transitionDuration) !== '0s') throw Error('Navigation ignores reduced motion');
         await noOverflow('Five mobile shortcuts'); await p.screenshot({ path:'../.playwright-mcp/navigation-five-' + width + '.png' });
       }
+      await go('chat');
+      const refreshChat = async () => { await p.locator('#refresh-chat-btn').click(); await p.waitForFunction(() => !document.getElementById('refresh-chat-btn').disabled); };
+      await p.emulateMedia({ reducedMotion:'no-preference' });
+      await p.evaluate(() => { window.chatBubblePops = 0; document.getElementById('mobile-chat-unread').addEventListener('animationstart', () => window.chatBubblePops++); });
+      const expectedPops = width < 600 ? 1 : 0;
+      await unread(5); await refreshChat(); await p.waitForFunction(expected => document.getElementById('mobile-chat-unread').textContent === '5' && window.chatBubblePops === expected, expectedPops);
+      if (await p.locator('.cg-mobile-nav [data-destination=chat]').getAttribute('aria-label') !== 'Chat, 5 unread messages' || await p.locator('#chat-nav-badge').textContent() !== '5') throw Error('Chat unread badge or accessible label is out of sync');
+      await refreshChat(); if (await p.evaluate(() => window.chatBubblePops) !== expectedPops) throw Error('An unchanged unread count repeated the animation');
+      await unread(3); await refreshChat(); if (await p.locator('#mobile-chat-unread').textContent() !== '3' || await p.evaluate(() => window.chatBubblePops) !== expectedPops) throw Error('A partial read did not update quietly');
+      await p.route('**/api/chat/unread-count', route => route.fulfill({ status:503,contentType:'application/json',body:JSON.stringify({ error:'Fixture unavailable' }) }));
+      await refreshChat(); if (await p.locator('#mobile-chat-unread').textContent() !== '3' || await p.locator('#chat-nav-badge').evaluate(node => node.hidden)) throw Error('A transient refresh failure erased unread counts');
+      await p.unroute('**/api/chat/unread-count'); await p.emulateMedia({ reducedMotion:'reduce' });
+      await unread(120); await refreshChat(); await p.waitForFunction(() => document.getElementById('mobile-chat-unread').textContent === '99+');
+      if (await p.locator('#mobile-chat-unread').evaluate(node => getComputedStyle(node).animationName) !== 'none') throw Error('Chat bubble ignores reduced motion');
+      await noOverflow('Chat unread bubble'); if (width < 600) await p.screenshot({ path:'../.playwright-mcp/chat-unread-bubble-' + width + '.png' });
+      await unread(0); await refreshChat();
+      if (!await p.locator('#mobile-chat-unread').evaluate(node => node.hidden) || !await p.locator('#chat-nav-badge').evaluate(node => node.hidden) || await p.locator('.cg-mobile-nav [data-destination=chat]').getAttribute('aria-label') !== 'Chat') throw Error('Reading all messages did not clear both chat badges');
+      await go('overview'); await p.evaluate(() => window.scrollTo(0,0));
       await p.waitForFunction(() => document.querySelector('#page-overview').dataset.loaded === 'true');
       await p.route('**/api/portfolio?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture portfolio refresh failed' }) }));
       await p.locator('#refresh-button').click(); await p.locator('#overview-refresh-feedback').getByText('Account data could not refresh', { exact: true }).waitFor();
