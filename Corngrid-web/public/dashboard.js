@@ -339,6 +339,8 @@
     });
   }
 
+  pageNames.notifications = 'Notifications';
+  window.addEventListener('corngrid:notifications-changed', () => { if (state.page === 'subscription') loadSubscriptionNotifications(); });
   function showPage(name) {
     if (!pageNames[name]) return;
     state.page = name;
@@ -360,7 +362,9 @@
         button.title = item.filename + ' · ' + item.version;
       })).catch(error => toast(error.message, 'error'));
     }
-    if (name === 'settings') window.CornGridAccountRequests?.openUser();
+    if (name === 'settings') { window.CornGridAccountRequests?.openUser(); window.CornGridNotifications?.openSettings(); }
+    if (name === 'notifications') window.CornGridNotifications?.onOpen();
+    else window.CornGridNotifications?.onClose();
     if (name === 'subscription') loadSubscription();
     if (name === 'chat') {
       setChatMobileView();
@@ -845,6 +849,7 @@
   $('#mark-notifications-read').addEventListener('click', async () => {
     try {
       await request('/notifications/read', { method: 'POST' });
+      window.dispatchEvent(new Event('corngrid:notifications-changed'));
       loadSubscriptionNotifications();
       toast('Notifications marked as read.', 'success');
     } catch (error) {
@@ -858,6 +863,7 @@
     button.disabled = true;
     try {
       await request('/notifications', { method: 'DELETE' });
+      window.dispatchEvent(new Event('corngrid:notifications-changed'));
       loadSubscriptionNotifications();
       toast('Notifications cleared.', 'success');
     } catch (error) {
@@ -873,6 +879,7 @@
     button.disabled = true;
     try {
       await request(`/notifications/${encodeURIComponent(button.dataset.notificationDelete)}`, { method: 'DELETE' });
+      window.dispatchEvent(new Event('corngrid:notifications-changed'));
       loadSubscriptionNotifications();
       toast('Notification deleted.', 'success');
     } catch (error) {
@@ -1628,7 +1635,7 @@
   }
 
   $$('.nav-item[data-page]').forEach(item => item.addEventListener('click', () => {
-    if (['marketplace','partner-marketplace'].includes(item.dataset.page)) history.replaceState(null,'','#'+item.dataset.page);
+    if (['marketplace','partner-marketplace','notifications','settings'].includes(item.dataset.page)) history.replaceState(null,'','#'+item.dataset.page);
     showPage(item.dataset.page);
   }));
   $('#mobile-menu').addEventListener('click', () => {
@@ -1925,7 +1932,7 @@
   loadPortfolioSharing();
   const openLinkedPage = () => {
     const page = window.location.hash.slice(1).split('/')[0];
-    if (['subscription', 'sandbox', 'partner', 'marketplace', 'partner-marketplace'].includes(page)) showPage(page);
+    if (pageNames[page]) showPage(page);
   };
   window.addEventListener('hashchange', openLinkedPage);
   // Public CTAs open existing menus once the dashboard modules have loaded.

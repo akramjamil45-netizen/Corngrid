@@ -112,7 +112,11 @@ function createStripePayments(app,db,verifyUser,adminAuth,subscriptions,options=
     if(result.http!==200)throw invalid('STRIPE_SUBSCRIPTION_ACTIVATION_BLOCKED');
     await run('UPDATE stripe_orders SET activated_at=? WHERE id=?',[Date.now(),o.id]);approved=await get('SELECT * FROM subscription_payments WHERE id=?',[o.payment_id]);
     if(reconciliation)await run("INSERT INTO subscription_audit_logs(actor_role,action,affected_type,affected_id,metadata,created_at) VALUES('system','stripe_payment_reconciled','payment',?,?,?)",[o.payment_id,JSON.stringify({orderId:o.id,sessionId:session.id,paidAt,source:'stripe_api'}),Date.now()]);
-   }else if(session.status==='expired'||event?.type.endsWith('async_payment_failed'))await run('UPDATE stripe_orders SET status=? WHERE id=?',[session.status==='expired'?'expired':'failed',o.id]);
+   }else if(session.status==='expired'||event?.type.endsWith('async_payment_failed')){
+    const outcome=session.status==='expired'?'expired':'failed';
+    await run('UPDATE stripe_orders SET status=? WHERE id=?',[outcome,o.id]);
+    await subscriptions.notificationCenter?.stripeOutcome(o.user_id,o.id,outcome);
+   }
   });
   if(approved)for(const listener of subscriptions.paymentApprovedListeners){try{await listener(approved);}catch{console.error('Stripe post-approval listener failed.');}}
  }

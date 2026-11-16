@@ -5,6 +5,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { exclusive } = require('../db-write');
+const { createNotificationCenter, registerNotificationRoutes } = require('../notification-center');
 
 const DEFAULT_MAX_ACTIVATIONS = 5;
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -130,7 +131,8 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_user_notifications_user ON user_notifications(user_id, read_at, created_at);
 `;
 
-function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation) {
+function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation, options = {}) {
+  const notificationCenter = createNotificationCenter({ db, ...options.notifications });
   const PROOF_DIR = process.env.PAYMENT_PROOF_DIR
     ? path.resolve(process.env.PAYMENT_PROOF_DIR)
     : path.join(__dirname, '..', 'storage', 'payment-proofs');
@@ -204,12 +206,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     }
   }
 
-  async function notify(userId, kind, title, body) {
+  async function notify(userId, kind, title, body, context) {
     try {
-      await run(
-        `INSERT INTO user_notifications (user_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?)`,
-        [userId, kind, title, body || null, now()]
-      );
+      await notificationCenter.notify(userId, kind, title, body, context);
     } catch (error) {
       console.error('Failed to create subscription notification:', error.message);
     }
@@ -239,7 +238,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       await new Promise((resolve, reject) => {
         db.exec(SCHEMA, error => (error ? reject(error) : resolve()));
       });
-      return;
+      return notificationCenter.ready();
     }
     try {
       const table = await get("SELECT to_regclass('public.subscription_plans') AS table_name");
@@ -249,6 +248,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     } catch (error) {
       console.error('Unable to verify subscription tables:', error.message);
     }
+    await notificationCenter.ready();
   }
 
   // ---------------------------------------------------------------------------
@@ -605,7 +605,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       await logAudit(userId, 'user', 'payment_proof_submitted', 'payment', paymentId,
         { hasProof: Boolean(outcome.proofPath) }, null, req.ip);
       await notify(userId, 'payment_submitted', 'Payment submitted',
-        'Your DuitNow payment is awaiting administrator approval.');
+        'Your DuitNow payment is awaiting administrator approval.', { paymentId });
 
       res.json({ message: 'Payment evidence submitted. Your subscription activates after approval.' });
     } catch (error) {
@@ -685,56 +685,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
   // Notifications
   // ---------------------------------------------------------------------------
 
-  app.get('/api/notifications', verifyToken, async (req, res) => {
-    try {
-      const rows = await all(
-        'SELECT id, kind, title, body, read_at, created_at FROM user_notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50',
-        [req.user.id]
-      );
-      res.json({ notifications: rows, unread: rows.filter(row => !row.read_at).length });
-    } catch (error) {
-      console.error('Failed to load notifications:', error.message);
-      res.status(500).json({ error: 'Unable to load notifications.' });
-    }
-  });
-
-  app.post('/api/notifications/read', verifyToken, async (req, res) => {
-    try {
-      await run('UPDATE user_notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL',
-        [now(), req.user.id]);
-      res.json({ message: 'Notifications marked as read.' });
-    } catch (error) {
-      res.status(500).json({ error: 'Unable to update notifications.' });
-    }
-  });
-
-  app.delete('/api/notifications', verifyToken, async (req, res) => {
-    try {
-      const result = await run('DELETE FROM user_notifications WHERE user_id = ?', [req.user.id]);
-      res.json({ message: 'Notifications cleared.', deleted: result.changes });
-    } catch (error) {
-      console.error('Failed to clear notifications:', error.message);
-      res.status(500).json({ error: 'Unable to clear notifications.' });
-    }
-  });
-
-  app.delete('/api/notifications/:id', verifyToken, async (req, res) => {
-    try {
-      const notificationId = Number.parseInt(req.params.id, 10);
-      if (!Number.isSafeInteger(notificationId) || notificationId < 1) {
-        return res.status(400).json({ error: 'Invalid notification.' });
-      }
-      const result = await run(
-        'DELETE FROM user_notifications WHERE id = ? AND user_id = ?',
-        [notificationId, req.user.id]
-      );
-      if (!result.changes) return res.status(404).json({ error: 'Notification not found.' });
-      res.json({ message: 'Notification deleted.' });
-    } catch (error) {
-      console.error('Failed to delete notification:', error.message);
-      res.status(500).json({ error: 'Unable to delete this notification.' });
-    }
-  });
+  registerNotificationRoutes(app, db, verifyToken, notificationCenter, options.rateLimit);
 
   // ---------------------------------------------------------------------------
   // License API (authenticated by the EA installation credential)
@@ -1107,7 +1058,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
           { amount: Number(payment.amount), currency: payment.currency, subscriptionId: subscription.id, expiresAt },
           note, ip);
         await notify(payment.user_id, 'payment_approved', 'Subscription active',
-          `Your payment was approved. Your subscription is active until ${new Date(expiresAt).toISOString().slice(0, 10)}.`);
+          `Your payment was approved. Your subscription is active until ${new Date(expiresAt).toISOString().slice(0, 10)}.`, { paymentId });
         await notify(payment.user_id, 'subscription_active', 'Subscription activated',
           'Your CornGrid EA subscription is now active.');
 
@@ -1169,7 +1120,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
         await logAudit(adminId, 'admin', 'payment_rejected', 'payment', paymentId, null, reason, req.ip);
         await notify(payment.user_id, 'payment_rejected', 'Payment rejected',
-          `Your payment was rejected: ${reason}`);
+          `Your payment was rejected: ${reason}`, { paymentId });
         return { http: 200, body: { message: 'Payment rejected.' } };
       });
 
@@ -1655,7 +1606,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   // Exposed for sibling modules (e.g. the sandbox manager) so subscription
   // eligibility is evaluated in exactly one place.
-  return { activatePayment, paymentApprovedListeners, ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, maxActivationsFor, activeActivationCount, logAudit, notify, onPaymentApproved, setPaymentRemovalReconciler };
+  return { activatePayment, paymentApprovedListeners, ready, eligibleSubscription, currentSubscription, latestSubscription, effectiveStatus, maxActivationsFor, activeActivationCount, logAudit, notify, onPaymentApproved, setPaymentRemovalReconciler, notificationCenter };
 }
 
 function maskAccount(accountNumber) {

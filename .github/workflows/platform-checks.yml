@@ -82,6 +82,7 @@ jobs:
         run: |
           node --test test/postgres-availability.test.js
           node --test test/platform-postgres.test.js
+          node --test test/notifications-postgres.test.js
           node --test test/linux-agent.test.js test/platform-backup.test.js
       - name: Linux installer syntax and read-only plan
         run: |
@@ -91,4 +92,6 @@ jobs:
       - name: Install Chromium for isolated desktop/mobile UI checks
         run: npx playwright install --with-deps chromium
       - name: Health and two-factor authentication browser checks
-        run: npm run test:browser
+        run: |
+          npm run test:browser
+          npm run test:notifications:browser

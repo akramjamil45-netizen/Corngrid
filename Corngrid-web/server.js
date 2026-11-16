@@ -366,7 +366,9 @@ registerAdminApi(
 );
 const stripeRouter = express.Router();
 app.use(stripeRouter);
-const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation);
+const subscriptionApi = createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation, {
+  rateLimit, notifications: { eaOfflineMs: (Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180) * 1000 }
+});
 stripePayments = require('./subscriptions/stripe-payments')(stripeRouter, db, verifyToken, adminAuth, subscriptionApi);
 stripePayments.mountProtection();
 const sandboxSystem = createSandboxSystem(app, db, {
@@ -894,6 +896,7 @@ backupScheduler.start();
   const server = app.listen(PORT, process.env.HOST || undefined, () => {
     console.log(`CornGrid backend is running at http://localhost:${PORT}`);
     stripePayments.start();
+    subscriptionApi.notificationCenter.start();
   });
 
   // WebSocket hub for sandbox node agents (/ws/sandbox/node) and the admin
@@ -916,6 +919,7 @@ backupScheduler.start();
     shuttingDown = true;
     console.log(`Received ${signal}; shutting down CornGrid backend.`);
     const stripeRecoveryStopped = stripePayments.stop();
+    const notificationsStopped = subscriptionApi.notificationCenter.stop();
     const forceExit = setTimeout(() => {
       console.error('Graceful shutdown timed out; forcing exit.');
       process.exit(1);
@@ -927,6 +931,7 @@ backupScheduler.start();
     if (emailAdmin && typeof emailAdmin.close === 'function') emailAdmin.close();
     server.close(async () => {
       await stripeRecoveryStopped;
+      await notificationsStopped;
       try {
         if (typeof marketFeed.close === 'function') marketFeed.close();
       } catch (feedError) {
