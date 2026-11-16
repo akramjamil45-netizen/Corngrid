@@ -13,7 +13,7 @@ async (page) => {
    dialog=p.locator('.cg-security-dialog[open]');await dialog.getByRole('heading',{name:'Add CornGrid to your authenticator'}).waitFor();const secret=await dialog.getByLabel('Authenticator manual setup key').inputValue();const code=await p.evaluate(otp,secret);await dialog.getByLabel('6-digit authenticator code').fill(code);await dialog.getByRole('button',{name:'Continue'}).click();
    const recovery=p.locator('.cg-security-dialog[open]');await recovery.getByRole('heading',{name:'Save your recovery codes'}).waitFor();if((await recovery.getByLabel('Single-use recovery codes').inputValue()).split('\n').length!==8)throw Error('Recovery codes missing');
    const box=await recovery.boundingBox();if(box.x<0||box.x+box.width>(mobile?375:1440))throw Error('Security dialog exceeds viewport');await recovery.getByRole('button',{name:'I have saved the codes'}).click();
-   if(await p.locator('.cg-security-dialog').count())throw Error('Recovery secrets left in DOM');if(errors.length)throw Error(errors.join('; '));results.push({mobile,healthCards:cards,mfaEnrollment:true,recoveryCodes:8,horizontalOverflow:false});
+   await p.locator('.cg-security-dialog').waitFor({state:'detached',timeout:2000});if(errors.length)throw Error(errors.join('; '));results.push({mobile,healthCards:cards,mfaEnrollment:true,recoveryCodes:8,horizontalOverflow:false});
   }finally{await context.close();}
  }
  return results;

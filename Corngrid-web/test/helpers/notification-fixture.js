@@ -23,7 +23,7 @@ async function createFixture() {
   registerNotificationRoutes(app, db, verifyToken, service);
   const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
-  return { db, app, service, base, time: () => stamp, setTime: value => { stamp = value; },
+  return { db, app, service, base, verifyToken, time: () => stamp, setTime: value => { stamp = value; },
     run: (sql, params) => dbRun(db, sql, params), get: (sql, params) => dbGet(db, sql, params), all: (sql, params) => dbAll(db, sql, params),
     token: id => jwt.sign({ id, authVersion: 0 }, secret, { expiresIn: '5m' }),
     async close() { await service.stop(); await new Promise(resolve => server.close(resolve)); await new Promise(resolve => db.close(resolve)); }

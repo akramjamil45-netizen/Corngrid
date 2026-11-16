@@ -36,18 +36,32 @@
   bell.append(badge); document.querySelector('.topbar-actions')?.prepend(bell);
   function updateBadge(count) { badge.hidden = !count; badge.textContent = count > 99 ? '99+' : String(count); bell.setAttribute('aria-label', t('title') + (count ? ': ' + count : '')); bell.title = t('title'); const nav = document.querySelector('[data-notification-nav]'); if (nav) nav.textContent = t('title'); }
   const heading = el('div', null, 'page-heading'), headingText = el('div'), title = el('h1', t('title')), intro = el('p', t('intro'), 'muted'); headingText.append(title, intro);
-  const settingsButton = button(t('settings'), () => { go('settings'); document.querySelector('[data-setting="notifications"]')?.click(); }); heading.append(headingText, settingsButton);
-  const panel = el('section', null, 'panel nc-panel'), toolbar = el('div', null, 'nc-toolbar'), filter = el('select', null, 'select-control'), unreadLabel = el('label', null, 'nc-check'), unread = el('input'); unread.type = 'checkbox';
-  unreadLabel.append(unread, el('span', t('unread')));
+  const openSettings = () => { go('settings'); document.querySelector('[data-setting="notifications"]')?.click(); };
+  const settingsButton = button(t('settings'), openSettings); heading.append(headingText, settingsButton);
+  const panel = el('section', null, 'panel nc-panel'), toolbar = el('div', null, 'nc-toolbar'), filter = el('select', null, 'select-control'), tabs = el('div', null, 'nc-tabs');
+  let unreadOnly = false;
+  tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Notification view');
+  const allTab = button('All', () => changeTab(false), 'nc-tab'), unreadTab = button('Unread', () => changeTab(true), 'nc-tab');
+  for (const [tab, id] of [[allTab, 'nc-tab-all'], [unreadTab, 'nc-tab-unread']]) { tab.id = id; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', 'nc-notifications-list'); }
+  tabs.append(allTab, unreadTab);
   const refreshButton = button(t('refresh'), () => refresh()), markButton = button(t('mark'), event => mutate('/read', 'POST', event.currentTarget)), clearButton = button(t('clear'), async event => {
     const control = event.currentTarget; control.disabled = true;
     try { if (await confirmClear()) await mutate('', 'DELETE', control); } finally { control.disabled = false; }
   });
-  toolbar.append(filter, unreadLabel, refreshButton, markButton, clearButton);
+  refreshButton.classList.add('nc-refresh'); refreshButton.setAttribute('aria-label', 'Refresh notifications'); refreshButton.title = 'Refresh notifications';
+  refreshButton.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></svg>';
+  const menu = el('details', null, 'cg-menu'), menuTitle = el('summary', 'More', 'button button-small button-secondary'), menuContent = el('div', null, 'cg-menu-content');
+  menu.dataset.cgMenu = 'true'; menuTitle.setAttribute('role', 'button'); menuTitle.setAttribute('aria-label', 'More notification actions'); clearButton.classList.add('button-danger'); menuContent.append(markButton, clearButton); menu.append(menuTitle, menuContent); menuContent.addEventListener('click', event => { if (event.target.closest('button')) menu.open = false; });
+  toolbar.append(tabs, filter, refreshButton, menu);
   const status = el('p', t('loading'), 'nc-status muted'), list = el('div', null, 'nc-list'), more = button(t('more'), () => refresh(true)); more.hidden = true; status.setAttribute('role', 'status'); list.setAttribute('aria-label', t('title'));
-  panel.append(toolbar, status, list, more); host.append(heading, panel);
+  list.id = 'nc-notifications-list'; list.setAttribute('role', 'tabpanel');
+  const stamp = el('time', 'Not checked yet', 'cg-meta');
+  panel.append(toolbar, status, list, more, stamp); host.append(heading, panel);
+  function changeTab(value, load = true) { unreadOnly = value; allTab.setAttribute('aria-selected', String(!value)); unreadTab.setAttribute('aria-selected', String(value)); allTab.tabIndex = value ? -1 : 0; unreadTab.tabIndex = value ? 0 : -1; list.setAttribute('aria-labelledby', value ? unreadTab.id : allTab.id); if (load) refresh(); }
+  tabs.addEventListener('keydown', event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const target = event.key === 'Home' ? false : event.key === 'End' ? true : !unreadOnly; changeTab(target); (target ? unreadTab : allTab).focus(); });
+  changeTab(false, false);
   function options() { const selected = filter.value; filter.replaceChildren(); for (const value of ['', ...categories]) { const option = el('option', value ? t(value) : t('all')); option.value = value; filter.append(option); } filter.value = selected; filter.setAttribute('aria-label', t('all')); }
-  filter.onchange = unread.onchange = () => refresh();
+  filter.onchange = () => refresh();
   function message(item) {
     const p = item.payload || {};
     if (item.kind === 'sandbox_offline') return [t('sandboxTitle'), locale() === 'ms' ? `Sandbox #${p.instanceId} tidak melapor seperti biasa. Semak status di halaman Sandbox.` : `Sandbox #${p.instanceId} is not reporting normally. Check its status in Sandbox.`];
@@ -61,20 +75,25 @@
     line.append(el('h2', name), time); row.append(line, el('p', body, 'muted'), el('span', t(item.category), 'nc-category'));
     const actions = el('div', null, 'nc-item-actions');
     actions.append(button(t('open'), async event => { if (!item.read_at && !await mutate('/' + item.id + '/read', 'POST', event.currentTarget)) return; go(['sandbox', 'monitoring', 'subscription'].includes(item.target) ? item.target : 'subscription'); }));
-    if (!item.read_at) actions.append(button(t('read'), event => mutate('/' + item.id + '/read', 'POST', event.currentTarget)));
-    actions.append(button(t('remove'), event => mutate('/' + item.id, 'DELETE', event.currentTarget))); row.append(actions); list.append(row);
+    const itemMenu = el('details', null, 'cg-menu'), itemTitle = el('summary', 'Actions', 'button button-small button-secondary'), itemActions = el('div', null, 'cg-menu-content'); itemMenu.dataset.cgMenu = 'true'; itemTitle.setAttribute('role', 'button'); itemTitle.setAttribute('aria-label', 'More actions for ' + name);
+    if (!item.read_at) itemActions.append(button(t('read'), event => mutate('/' + item.id + '/read', 'POST', event.currentTarget)));
+    itemActions.append(button(t('remove'), event => mutate('/' + item.id, 'DELETE', event.currentTarget), 'button button-small button-danger')); itemMenu.append(itemTitle, itemActions); itemActions.addEventListener('click', event => { if (event.target.closest('button')) itemMenu.open = false; }); actions.append(itemMenu); row.append(actions); list.append(row);
   }
   async function refresh(append = false, passive = false) {
     if (ended || document.hidden) return;
     const preserveReading = active && passive && (list.contains(document.activeElement) || window.scrollY > 160);
     const request = ++generation;
     const query = new URLSearchParams({ limit: active && !preserveReading ? '30' : '1' });
-    if (active && !preserveReading && filter.value) query.set('category', filter.value); if (active && !preserveReading && unread.checked) query.set('unread', '1'); if (append && next) query.set('before', next);
-    refreshButton.disabled = more.disabled = true; if (active && !preserveReading) { panel.setAttribute('aria-busy', 'true'); status.textContent = t('loading'); }
+    if (active && !preserveReading && filter.value) query.set('category', filter.value); if (active && !preserveReading && unreadOnly) query.set('unread', '1'); if (append && next) query.set('before', next);
+    refreshButton.disabled = more.disabled = true; if (active && !preserveReading) { panel.setAttribute('aria-busy', 'true'); if (!passive) status.textContent = t('loading'); }
     try {
       const data = await api('?' + query); if (request !== generation || ended) return;
       updateBadge(data.unread);
-      if (active && !preserveReading) { if (!append) list.replaceChildren(); data.notifications.forEach(render); next = data.nextBefore; more.hidden = !next; status.textContent = list.children.length ? '' : t('empty'); }
+      if (active && !preserveReading) {
+        if (!append) list.replaceChildren(); data.notifications.forEach(render); next = data.nextBefore; more.hidden = !next; status.textContent = '';
+        if (!list.querySelector('.nc-item')) window.CornGridUI?.empty(list, unreadOnly ? 'No unread notifications' : filter.value ? 'No alerts in this category' : 'You’re all caught up', 'Your next sandbox, EA, subscription or payment update will appear here.', t('settings'), openSettings);
+        stamp.textContent = window.CornGridUI?.checked(Date.now()) || 'Just checked'; stamp.dateTime = new Date().toISOString();
+      }
     } catch { if (active && request === generation) status.textContent = t('error'); }
     finally { if (request === generation) { refreshButton.disabled = more.disabled = false; panel.removeAttribute('aria-busy'); } }
   }

@@ -150,7 +150,8 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
 
   const status = await request('/api/sandbox/status', { token: userToken });
   assert.equal(status.body.sandbox.status, 'running');
-  assert.equal(status.body.mt5Connection, 'connected');
+  assert.equal(status.body.mt5Connection, 'unverified', 'a running process does not prove live broker connectivity');
+  assert.equal(status.body.health.terminal.status, 'running');
 
   // Admin WS receives the event stream (cookie-less: use the token fallback).
   const adminWs = openSocket(`${wsBase}/ws/admin/sandbox?token=${encodeURIComponent(adminToken)}`);

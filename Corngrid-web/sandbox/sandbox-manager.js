@@ -443,9 +443,11 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
     const subscription = await subscriptions.eligibleSubscription(userId) || await subscriptions.currentSubscription(userId) || await subscriptions.latestSubscription(userId);
     const subscriptionStatus = subscription ? subscriptions.effectiveStatus(subscription) : 'none';
     const node = instance?.node_id
-      ? await get('SELECT node_uid, name, last_heartbeat_at FROM sandbox_nodes WHERE id = ?', [instance.node_id])
+      ? await get('SELECT node_uid, name, status, last_heartbeat_at FROM sandbox_nodes WHERE id = ?', [instance.node_id])
       : null;
-    const nodeOnline = Boolean(node && node.last_heartbeat_at && (now() - node.last_heartbeat_at) < nodes.NODE_OFFLINE_AFTER_MS);
+    const account = instance ? await get('SELECT last_heartbeat,auth_error_at FROM mt5_accounts WHERE user_id=? AND account_number=? AND broker_server=?', [userId, instance.mt5_account_number, instance.broker_server]) : null;
+    const health = require('./sandbox-health').sandboxHealth({ instance, node, account, now: now(), nodeTimeout: nodes.NODE_OFFLINE_AFTER_MS, eaTimeout: (Number(process.env.MT5_HEARTBEAT_TIMEOUT_SECONDS) || 180) * 1000 });
+    const nodeOnline = health.host.status === 'online';
 
     return {
       sandbox: publicInstance(instance),
@@ -462,7 +464,8 @@ function createSandboxManager({ db, nodes, events, crypto: sandboxCrypto, subscr
         planName: subscription ? subscription.plan_name : null
       },
       node: node ? { nodeUid: node.node_uid, name: node.name, online: nodeOnline } : null,
-      mt5Connection: instance?.status === 'running' ? 'connected' : (['starting', 'deploying'].includes(instance?.status) ? 'connecting' : 'disconnected')
+      mt5Connection: health.mt5.status,
+      health
     };
   }
 

@@ -182,6 +182,7 @@
   function toast(message, type = '') {
     const item = document.createElement('div');
     item.className = `toast ${type ? `toast-${type}` : ''}`;
+    item.setAttribute('role', type === 'error' ? 'alert' : 'status');
     item.textContent = message;
     $('#toast-region').append(item);
     window.setTimeout(() => item.remove(), 4500);
@@ -307,7 +308,7 @@
     // Count up once, when the first real value arrives. Later updates are
     // applied instantly so polling never delays or rewinds live figures.
     const parsed = firstLoad ? parseStatDisplay(display) : null;
-    if (parsed && typeof Counter === 'function') {
+    if (parsed && typeof Counter === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const counter = new Counter({
         element,
         start: 0,
@@ -344,6 +345,7 @@
   function showPage(name) {
     if (!pageNames[name]) return;
     state.page = name;
+    window.CornGridExperience?.onPage(name);
     $$('.page').forEach(page => page.classList.toggle('is-visible', page.id === `page-${name}`));
     $$('.nav-item[data-page]').forEach(item => item.classList.toggle('is-active', item.dataset.page === name));
     $('#page-title').textContent = pageNames[name];
@@ -701,6 +703,7 @@
   }
 
   function renderSubscriptionOverview(data) {
+    window.CornGridExperience?.setSubscription(data);
     const container = $('#subscription-status-content');
     const subscription = data.subscription;
     if (!subscription) {
@@ -710,16 +713,16 @@
       container.innerHTML = `
         <div class="subscription-overview-grid">
           <div class="subscription-metric"><span class="subscription-metric-label">Status</span><span class="badge badge-${tone}">${escapeHtml(subscriptionStatusLabel(subscription.status))}</span></div>
-          <div class="subscription-metric"><span class="subscription-metric-label">Plan</span><strong class="subscription-metric-value">${escapeHtml(subscription.planName || '�?"')}</strong></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">Plan</span><strong class="subscription-metric-value">${escapeHtml(subscription.planName || 'Not selected')}</strong></div>
           <div class="subscription-metric"><span class="subscription-metric-label">Expires</span><strong class="subscription-metric-value">${escapeHtml(subscriptionDate(subscription.expiresAt))}</strong></div>
-          <div class="subscription-metric"><span class="subscription-metric-label">Days Remaining</span><strong class="subscription-metric-value">${data.daysRemaining === null ? '�?"' : escapeHtml(String(data.daysRemaining))}</strong></div>
+          <div class="subscription-metric"><span class="subscription-metric-label">Days Remaining</span><strong class="subscription-metric-value">${data.daysRemaining == null ? 'Not available' : escapeHtml(String(data.daysRemaining))}</strong></div>
           <div class="subscription-metric"><span class="subscription-metric-label">EA Activations</span><strong class="subscription-metric-value">${escapeHtml(String(data.activationCount || 0))} / ${escapeHtml(String(data.maxActivations || 5))}</strong></div>
         </div>
         ${subscription.status === 'suspended' && subscription.suspendedReason ? `<p class="muted small subscription-reason">Reason: ${escapeHtml(subscription.suspendedReason)}</p>` : ''}`;
     }
     const latest = data.latestPayment;
     if (latest && ['pending_payment', 'pending_approval'].includes(latest.status)) {
-      activePayment = { id: latest.id, amount: latest.amount, currency: latest.currency, planName: latest.plan_name || subscription?.planName || 'Subscription' };
+      activePayment = { id: latest.id, amount: latest.amount, currency: latest.currency, status: latest.status, payment_method: latest.payment_method, planName: latest.plan_name || subscription?.planName || 'Subscription' };
       $('#subscription-payment-section').style.display = '';
       $('#payment-amount').textContent = subscriptionMoney(latest.amount, latest.currency);
       $('#payment-plan-name').textContent = activePayment.planName;
@@ -890,19 +893,25 @@
 
   async function loadSubscription() {
     const overviewEl = $('#subscription-status-content');
-    overviewEl.innerHTML = '<p class="muted">Loading subscription status…</p>';
+    const feedback = $('#subscription-refresh-feedback'); feedback.hidden = true;
+    if (overviewEl.dataset.loaded !== 'true') window.CornGridUI?.skeleton(overviewEl, 'Loading subscription status');
+    overviewEl.setAttribute('aria-busy', 'true');
     try {
       const [overview, plans] = await Promise.all([
         request('/subscription/overview'),
         request('/subscription/plans')
       ]);
       renderSubscriptionOverview(overview);
+      overviewEl.dataset.loaded = 'true'; overviewEl.removeAttribute('aria-busy');
+      const checked = Date.now(); $('#subscription-last-checked').textContent = window.CornGridUI?.checked(checked) || 'Updated'; $('#subscription-last-checked').dateTime = new Date(checked).toISOString();
       renderSubscriptionPlans(plans.plans || []);
       renderSubscriptionActivations(overview.activations || []);
       loadSubscriptionDownloads();
       loadSubscriptionNotifications();
     } catch (error) {
-      overviewEl.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
+      overviewEl.removeAttribute('aria-busy');
+      if (overviewEl.dataset.loaded !== 'true') window.CornGridUI?.empty(overviewEl, 'Subscription status unavailable', 'Please try loading your subscription again.');
+      window.CornGridUI?.feedback(feedback, { title: 'Could not refresh subscription', body: error.message + (overviewEl.dataset.loaded === 'true' ? ' Previously received details are shown.' : ''), label: 'Try again', onClick: loadSubscription, tone: 'error' });
     }
   }
 
@@ -915,7 +924,8 @@
         method: 'POST',
         body: JSON.stringify({ planId: Number(button.dataset.subscribePlan) })
       });
-      activePayment = { id: data.paymentId, amount: data.amount, currency: data.currency, planName: data.plan?.name || 'Subscription' };
+      activePayment = { id: data.paymentId, amount: data.amount, currency: data.currency, status: 'pending_payment', payment_method: 'duitnow', planName: data.plan?.name || 'Subscription' };
+      window.CornGridExperience?.setPayment(activePayment, 'duitnow');
       window.CornGridStripe?.setPayment(activePayment, 'duitnow');
       $('#payment-amount').textContent = subscriptionMoney(data.amount, data.currency);
       $('#payment-plan-name').textContent = activePayment.planName;
@@ -992,13 +1002,28 @@
 
   async function loadOverviewData() {
     let accountsLoaded = false;
+    const scope = () => [state.overviewAccountId, state.period, $('#period-from').value, $('#period-to').value].join('|');
+    let requestedScope = scope();
+    const clearPreviousOverview = () => {
+      delete $('#page-overview').dataset.scope; delete $('#page-overview').dataset.loaded;
+      $$('[data-stat]').forEach(element => { element.textContent = 'N/A'; element.classList.remove('positive', 'negative'); });
+      chartSignature = ''; $('#equity-chart').replaceChildren(); $('#connection-details').hidden = true;
+      $('#ea-status').textContent = 'Checking'; $('#live-label').textContent = 'CHECKING STATUS'; $('#live-indicator').classList.remove('is-live');
+      $('#overview-positions').innerHTML = '<tr><td colspan="7" class="table-empty">Checking the selected account.</td></tr>';
+      $('#last-update').textContent = 'Last update: checking'; $('#overview-refresh-feedback').hidden = true;
+    };
+    if ($('#page-overview').dataset.loaded === 'true' && $('#page-overview').dataset.scope !== requestedScope) clearPreviousOverview();
     setOverviewStatsLoading(true);
     try {
       const accountList = await request('/mt5/accounts');
       state.accounts = accountList.accounts || [];
+      window.CornGridExperience?.setAccounts(state.accounts);
       accountsLoaded = true;
       renderOverviewAccountSelector();
+      requestedScope = scope();
       if (!state.accounts.length) {
+        clearPreviousOverview();
+        $('#ea-status').textContent = 'No data'; $('#live-label').textContent = 'NO LIVE FEED'; $('#last-update').textContent = 'No linked accounts';
         setOverviewStatsLoading(false);
         $('#data-notice').hidden = true;
         $('#connection-summary').hidden = false;
@@ -1034,6 +1059,7 @@
         request(`/portfolio/performance?${performanceParams}`),
         request(`/portfolio/positions?page=1&limit=5${accountParams.size ? `&${accountParams}` : ''}`)
       ]);
+      if (requestedScope !== scope()) return;
       setOverviewStatsLoading(false);
       const selectedAccount = state.overviewAccountId
         ? (portfolio.accounts || []).find(account => String(account.id) === state.overviewAccountId)
@@ -1068,11 +1094,18 @@
       $('#last-update').textContent = `Last update: ${update}`;
       $('#live-label').textContent = selectedAccount?.status === 'Online' ? 'LIVE MONITORING' : 'NO LIVE FEED';
       $('#live-indicator').classList.toggle('is-live', selectedAccount?.status === 'Online');
+      $('#page-overview').dataset.loaded = 'true'; $('#page-overview').dataset.scope = requestedScope; $('#overview-refresh-feedback').hidden = true;
       $('#data-notice').className = 'notice notice-info';
       $('#data-notice').innerHTML = '<span class="notice-icon">i</span><span>Overview metrics, chart, EA status, open positions, and trade history are scoped to the selected MT5 account. No demo or estimated trading figures are used.</span>';
       $('#data-notice').hidden = true;
     } catch (error) {
+      if (requestedScope !== scope()) return;
       setOverviewStatsLoading(false);
+      if ($('#page-overview').dataset.loaded === 'true' && $('#page-overview').dataset.scope === scope() && requestedScope === scope()) {
+        $('#live-label').textContent = 'REFRESH FAILED'; $('#live-indicator').classList.remove('is-live');
+        window.CornGridUI?.feedback($('#overview-refresh-feedback'), { title: 'Account data could not refresh', body: 'Previously received values are still shown. ' + error.message, label: 'Retry refresh', onClick: loadOverview, tone: 'error' });
+        return;
+      }
       chartSignature = '';
       $$('[data-stat]').forEach(element => {
         element.textContent = 'N/A';
@@ -1180,17 +1213,24 @@
 
   async function loadAccounts(showLoading = false) {
     const host = $('#account-list');
-    if (state.page === 'accounts' && (showLoading || host.dataset.loaded !== 'true')) {
+    if (state.page === 'accounts' && host.dataset.loaded !== 'true') {
       host.innerHTML = '<div class="panel empty-state" role="status"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span><h2>Loading your accounts</h2><p>Checking your secure MT5 account links…</p></div>';
     }
     try {
+      if (state.page === 'accounts') window.CornGridUI?.pending(host, 'Loading your MT5 accounts');
       const result = await request('/mt5/accounts');
       state.accounts = result.accounts || [];
+      window.CornGridExperience?.setAccounts(state.accounts);
       renderOverviewAccountSelector();
       renderAccounts(state.accounts);
+      window.CornGridUI?.loaded(host);
       await loadPortfolioSharing();
       return true;
     } catch (error) {
+      if (window.CornGridUI && ['accounts', 'monitoring'].includes(state.page)) {
+        window.CornGridUI.failed(state.page === 'accounts' ? host : $('#monitor-summary'), 'Account status could not refresh', error.message, () => state.page === 'accounts' ? loadAccounts(true) : loadMonitoring());
+        return false;
+      }
       if (state.page === 'accounts') {
         host.dataset.loaded = 'false';
         host.innerHTML = `<div class="panel empty-state" role="alert"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><h2>Unable to load MT5 accounts</h2><p>${escapeHtml(error.message)}</p><button class="button button-primary" type="button" data-retry-accounts>Try again</button></div>`;
@@ -1250,23 +1290,31 @@
 
   async function loadPositions() {
     const body = $('#positions-body');
-    body.innerHTML = '<tr><td colspan="12" class="table-empty">Loading verified position data…</td></tr>';
+    const params = new URLSearchParams({ page: String(state.positionPage + 1), limit: String(state.pageSize), sort: $('#position-sort').value });
+    if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
+    if ($('#position-search').value.trim()) params.set('search', $('#position-search').value.trim());
+    if ($('#position-direction').value) params.set('direction', $('#position-direction').value);
+    const requestedScope = params.toString(), sameScope = body.dataset.scope === requestedScope, sequence = Number(body.dataset.sequence || 0) + 1;
+    const panel = body.closest('.panel'); panel.id = 'positions-panel'; panel.dataset.loaded = String(sameScope); body.dataset.sequence = String(sequence); panel.setAttribute('aria-busy', 'true');
+    if (!sameScope) { delete body.dataset.scope; state.positions = []; state.positionTotal = 0; $('#positions-count').textContent = 'Checking positions'; $('#positions-prev').disabled = true; $('#positions-next').disabled = true; }
+    if (!sameScope) { body.innerHTML = '<tr><td colspan="12" class="table-empty">Loading verified position data…</td></tr>'; const stamp = $('#positions-panel-checked'); if (stamp) stamp.hidden = true; }
     try {
-      const params = new URLSearchParams({ page: String(state.positionPage + 1), limit: String(state.pageSize), sort: $('#position-sort').value });
-      if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
-      if ($('#position-search').value.trim()) params.set('search', $('#position-search').value.trim());
-      if ($('#position-direction').value) params.set('direction', $('#position-direction').value);
       const result = await request(`/portfolio/positions?${params}`);
+      if (sequence !== Number(body.dataset.sequence)) return;
       state.positions = result.items || [];
       state.positionTotal = result.total || 0;
       renderPositions();
+      body.dataset.scope = requestedScope; window.CornGridUI?.loaded(panel);
     } catch (error) {
+      if (sequence !== Number(body.dataset.sequence)) return;
+      if (sameScope) { window.CornGridUI?.failed(panel, 'Positions could not refresh', error.message, loadPositions, true); return; }
       state.positionTotal = 0;
       state.positions = [];
       $('#positions-count').textContent = 'Position data unavailable';
       $('#positions-prev').disabled = true;
       $('#positions-next').disabled = true;
       body.innerHTML = `<tr><td colspan="12" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+      window.CornGridUI?.failed(panel, 'Positions unavailable', error.message, loadPositions, true);
     }
   }
 
@@ -1281,7 +1329,6 @@
 
   async function loadTrades() {
     const body = $('#trades-body');
-    body.innerHTML = '<tr><td colspan="16" class="table-empty">Loading verified trade data…</td></tr>';
     const params = new URLSearchParams({ page: String(state.tradePage + 1), limit: String(state.pageSize) });
     if (state.overviewAccountId) params.set('accountId', state.overviewAccountId);
     if ($('#trade-from').value) params.set('from', $('#trade-from').value);
@@ -1290,21 +1337,30 @@
     if ($('#trade-symbol').value) params.set('symbol', $('#trade-symbol').value);
     if ($('#trade-result').value) params.set('result', $('#trade-result').value);
     params.set('sort', $('#trade-sort').value);
+    const requestedScope = params.toString(), sameScope = body.dataset.scope === requestedScope, sequence = Number(body.dataset.sequence || 0) + 1;
+    const panel = body.closest('.panel'); panel.id = 'trades-panel'; panel.dataset.loaded = String(sameScope); body.dataset.sequence = String(sequence); panel.setAttribute('aria-busy', 'true');
+    if (!sameScope) { delete body.dataset.scope; state.trades = []; state.tradeTotal = 0; $('#trades-count').textContent = 'Checking trade history'; $('#trades-prev').disabled = true; $('#trades-next').disabled = true; }
+    if (!sameScope) { body.innerHTML = '<tr><td colspan="16" class="table-empty">Loading verified trade data…</td></tr>'; const stamp = $('#trades-panel-checked'); if (stamp) stamp.hidden = true; }
     try {
       const result = await request(`/portfolio/trades?${params}`);
+      if (sequence !== Number(body.dataset.sequence)) return;
       state.trades = result.items || [];
       state.tradeTotal = result.total || 0;
       const selectedSymbol = $('#trade-symbol').value;
       $('#trade-symbol').replaceChildren(new Option('All symbols', ''), ...(result.symbols || []).map(symbol => new Option(symbol, symbol)));
       if ((result.symbols || []).includes(selectedSymbol)) $('#trade-symbol').value = selectedSymbol;
       renderTrades();
+      body.dataset.scope = requestedScope; window.CornGridUI?.loaded(panel);
     } catch (error) {
+      if (sequence !== Number(body.dataset.sequence)) return;
+      if (sameScope) { window.CornGridUI?.failed(panel, 'Trade history could not refresh', error.message, loadTrades, true); return; }
       state.tradeTotal = 0;
       state.trades = [];
       $('#trades-count').textContent = 'Trade data unavailable';
       $('#trades-prev').disabled = true;
       $('#trades-next').disabled = true;
       body.innerHTML = `<tr><td colspan="16" class="table-empty">${escapeHtml(error.message)}</td></tr>`;
+      window.CornGridUI?.failed(panel, 'Trade history unavailable', error.message, loadTrades, true);
     }
   }
 
@@ -1360,19 +1416,25 @@
   }
 
   async function loadMonitoring() {
+    window.CornGridUI?.pending($('#monitor-summary'), 'Loading EA reporting status');
     if (!await loadAccounts()) return;
     const host = $('#monitor-summary');
+    if (!state.accounts.length && window.CornGridUI) {
+      window.CornGridUI.empty(host, 'Waiting for your first EA report', 'Link an MT5 account to see its authenticated heartbeat and synchronization status.', 'Link MT5 account', () => window.CornGridUI.navigate('accounts')); window.CornGridUI.loaded(host); return;
+    }
     if (!state.accounts.length) {
       host.innerHTML = '<div class="panel empty-state"><span class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><h2>Waiting for EA data</h2><p>When an EA is linked, its heartbeat, last synchronization, and current positions will be shown here. An account record alone is not considered online.</p></div>';
       return;
     }
     host.innerHTML = `<div class="account-grid">${state.accounts.map(account => `<article class="account-card"><div class="account-card-top"><div><p class="eyebrow">${escapeHtml(account.brokerServer || 'MT5 ACCOUNT')}</p><h2 class="account-id">${escapeHtml(account.maskedAccount || '••••••')}</h2><span class="account-server">${escapeHtml(account.accountName || 'CornGrid EA')} · ${escapeHtml(account.eaVersion || 'Version N/A')}</span></div>${safeStatus(account.status)}</div><div class="account-meta"><div>Last heartbeat<strong>${escapeHtml(dateTime(account.lastHeartbeat))}</strong></div><div>Last synchronization<strong>${escapeHtml(dateTime(account.lastSync))}</strong></div><div>Open positions<strong>${escapeHtml(account.openPositions ?? 'N/A')}</strong></div><div>Linked on<strong>${escapeHtml(dateTime(account.linkedAt))}</strong></div></div><p class="method-note">${account.status === 'Online' ? 'A recent authenticated heartbeat was received.' : account.lastHeartbeat ? 'No authenticated heartbeat was received within the configured timeout.' : 'The account is paired, but its first heartbeat has not arrived.'}</p></article>`).join('')}</div>`;
+    window.CornGridUI?.loaded(host);
   }
 
   async function loadProfile() {
     try {
       const data = await request('/me');
       state.profile = data;
+      window.CornGridExperience?.setUser(data);
       $('#profile-username').value = data.username || '';
       $('#profile-email').value = data.email || '';
       $('#profile-bio').value = data.bio || '';

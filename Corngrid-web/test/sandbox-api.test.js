@@ -529,7 +529,9 @@ test('sandbox controls, deletion, and user isolation', async () => {
     });
     const running = await request('/api/sandbox/status', { token: userToken });
     assert.equal(running.body.sandbox.status, 'running');
-    assert.equal(running.body.mt5Connection, 'connected');
+    assert.equal(running.body.mt5Connection, 'unverified', 'process state alone does not establish a broker connection');
+    assert.equal(running.body.health.host.status, 'online');
+    assert.equal(running.body.health.ea.status, 'waiting', 'the node process report is separate from an authenticated EA heartbeat');
 
     // Pause / resume trading.
     const paused = await request('/api/sandbox/pause', { token: userToken, method: 'POST' });

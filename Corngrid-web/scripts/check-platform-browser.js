@@ -9,4 +9,4 @@ async function main(){
   const test=vm.runInThisContext('('+fs.readFileSync(path.join(__dirname,'../test/browser/platform.browser.js'),'utf8')+')',{filename:'platform.browser.js'});console.log(JSON.stringify(await test(page)));await context.close();
  }finally{if(browser)await browser.close();if(child.exitCode==null){const closed=new Promise(resolve=>child.once('exit',resolve));child.kill();await closed;}}
 }
-main().catch(()=>{console.error('Isolated browser checks failed. Install Chromium with: npx playwright install chromium');process.exitCode=1;});
+main().catch(error=>{console.error('Isolated browser checks failed:',error.message);process.exitCode=1;});

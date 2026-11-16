@@ -57,7 +57,7 @@ function createStripePayments(app,db,verifyUser,adminAuth,subscriptions,options=
   }catch(e){console.error('Stripe checkout failed:',{type:e.type||'CheckoutError',code:e.code||null,status:e.statusCode||null});res.status(409).json({error:'Unable to open card checkout. Retry the same purchase or contact support.'});}
  });
  app.get('/api/subscription/stripe/orders/:id',verifyUser,async(req,res)=>{
-  try{await init;const o=await get('SELECT o.id,o.status,o.review_status,o.amount_minor,o.currency,o.paid_at,o.activated_at,s.status AS subscription_status,s.expires_at FROM stripe_orders o JOIN subscription_payments p ON p.id=o.payment_id JOIN user_subscriptions s ON s.id=p.subscription_id WHERE o.id=? AND o.user_id=?',[req.params.id,req.user.id]);res.status(o?200:404).json(o||{error:'Order not found.'});}catch{res.status(503).json({error:'Payment status unavailable.'});}
+  try{await init;const o=await get('SELECT o.id,o.payment_id,o.status,o.review_status,o.amount_minor,o.currency,o.paid_at,o.activated_at,s.status AS subscription_status,s.expires_at FROM stripe_orders o JOIN subscription_payments p ON p.id=o.payment_id JOIN user_subscriptions s ON s.id=p.subscription_id WHERE o.id=? AND o.user_id=?',[req.params.id,req.user.id]);res.status(o?200:404).json(o||{error:'Order not found.'});}catch{res.status(503).json({error:'Payment status unavailable.'});}
  });
  app.get('/api/subscription/stripe/payment/:id',verifyUser,async(req,res)=>{try{await init;const o=await get('SELECT id,status FROM stripe_orders WHERE payment_id=? AND user_id=?',[req.params.id,req.user.id]);res.status(o?200:404).json(o||{error:'Order not found.'});}catch{res.sendStatus(503);}});
  app.post('/api/subscription/stripe/orders/:id/reconcile',verifyUser,async(req,res)=>{
@@ -70,7 +70,7 @@ function createStripePayments(app,db,verifyUser,adminAuth,subscriptions,options=
    await init;
    const result=await recovery.reconcile(req.params.id,{userId:req.user.id,force:true});
    if(result.missing)return res.status(404).json({error:'Order not found.'});
-   const order=await get('SELECT o.id,o.status,o.review_status,o.paid_at,o.activated_at,s.status AS subscription_status,s.expires_at FROM stripe_orders o JOIN subscription_payments p ON p.id=o.payment_id JOIN user_subscriptions s ON s.id=p.subscription_id WHERE o.id=? AND o.user_id=?',[req.params.id,req.user.id]);
+   const order=await get('SELECT o.id,o.payment_id,o.status,o.review_status,o.paid_at,o.activated_at,s.status AS subscription_status,s.expires_at FROM stripe_orders o JOIN subscription_payments p ON p.id=o.payment_id JOIN user_subscriptions s ON s.id=p.subscription_id WHERE o.id=? AND o.user_id=?',[req.params.id,req.user.id]);
    res.json({...order,reconciliationPending:Boolean(result.errorCode)});
   }catch{res.status(503).json({error:'Payment verification is temporarily unavailable. The server will retry automatically.'});}
  });

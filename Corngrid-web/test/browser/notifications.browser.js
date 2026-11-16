@@ -25,11 +25,11 @@ async (page) => {
       if (await p.locator('#notification-settings input[name="payment_status"]').isChecked()) throw Error('Saved preference lost on reload');
       if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw Error('Settings page overflows');
       await p.locator('.nc-bell').click(); await p.locator('.nc-item').first().waitFor();
-      await p.getByRole('button', { name: 'Mark all read', exact: true }).click(); await p.locator('.nc-badge[hidden]').waitFor({ state: 'attached' });
-      await p.getByRole('button', { name: 'Clear all', exact: true }).click(); await p.locator('.nc-dialog[open]').waitFor();
+      await p.getByRole('button', { name: 'More notification actions', exact: true }).click(); await p.getByRole('button', { name: 'Mark all read', exact: true }).click(); await p.locator('.nc-badge[hidden]').waitFor({ state: 'attached' });
+      await p.getByRole('button', { name: 'More notification actions', exact: true }).click(); await p.getByRole('button', { name: 'Clear all', exact: true }).click(); await p.locator('.nc-dialog[open]').waitFor();
       await p.getByRole('button', { name: 'Cancel', exact: true }).click(); if (await p.locator('.nc-item').count() !== 5) throw Error('Cancel removed history');
-      await p.getByRole('button', { name: 'Clear all', exact: true }).click(); await p.getByRole('button', { name: 'Clear notifications', exact: true }).click();
-      await p.getByText('No notifications to show.', { exact: true }).waitFor();
+      await p.getByRole('button', { name: 'More notification actions', exact: true }).click(); await p.getByRole('button', { name: 'Clear all', exact: true }).click(); await p.getByRole('button', { name: 'Clear notifications', exact: true }).click();
+      await p.getByRole('heading', { name: 'You’re all caught up', exact: true }).waitFor();
       if (errors.length) throw Error(errors.join('; '));
       results.push({ width, preferencesPersisted: true, badgeAndHistorySynchronized: true, horizontalOverflow: false });
       // Restore only isolated fixture preferences and history for the next width.

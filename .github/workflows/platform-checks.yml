@@ -95,3 +95,4 @@ jobs:
         run: |
           npm run test:browser
           npm run test:notifications:browser
+          npm run test:experience:browser

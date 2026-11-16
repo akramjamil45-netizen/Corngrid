@@ -92,6 +92,7 @@
     if (!region) return;
     const item = document.createElement('div');
     item.className = `toast ${type ? `toast-${type}` : ''}`;
+    item.setAttribute('role', type === 'error' ? 'alert' : 'status');
     item.textContent = message;
     region.append(item);
     window.setTimeout(() => item.remove(), 4500);
@@ -173,13 +174,21 @@
     if (sandbox.lastError) errorBox.textContent = `Last error: ${sandbox.lastError}`;
 
     const statusLabel = STATUS_LABELS[sandbox.status] || sandbox.status;
-    setPill($('sandbox-status-pill'), statusLabel, STATUS_PILL[sandbox.status]);
-    setPill($('sandbox-ea-status'), `EA: ${sandbox.tradingPaused ? 'Paused' : (sandbox.status === 'running' ? 'Trading' : 'Idle')}`,
-      sandbox.tradingPaused ? 'pill-delayed' : (sandbox.status === 'running' ? 'pill-live' : 'pill-muted'));
+    setPill($('sandbox-status-pill'), status.health?.terminal?.label || statusLabel, status.health?.terminal?.status === 'stale' ? 'pill-offline' : STATUS_PILL[sandbox.status]);
+    const ea = status.health?.ea;
+    setPill($('sandbox-ea-status'), `EA: ${ea?.label || 'Not verified'}${sandbox.tradingPaused ? ' · paused' : ''}`,
+      ea?.status === 'reporting' ? 'pill-live' : 'pill-muted');
+    window.CornGridUI?.signals($('sandbox-health'), status.health);
+    const next = status.health?.nextAction, nextHost = $('sandbox-next-action');
+    nextHost.hidden = !next;
+    if (next) window.CornGridUI?.feedback(nextHost, { title: next.title, body: next.body, label: next.label, onClick: () => {
+      if (next.page === 'sandbox') $('sandbox-detail-broker').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      else window.CornGridUI.navigate(next.page);
+    }});
 
-    $('sandbox-stat-status').textContent = statusLabel;
+    $('sandbox-stat-status').textContent = status.health?.terminal?.label || statusLabel;
     $('sandbox-stat-subscription').textContent = `Subscription: ${(status.subscription && status.subscription.status) || '—'}`;
-    $('sandbox-stat-connection').textContent = status.mt5Connection === 'connected' ? 'Connected' : status.mt5Connection === 'connecting' ? 'Connecting…' : 'Disconnected';
+    $('sandbox-stat-connection').textContent = status.health?.mt5?.label || 'Not verified';
     $('sandbox-stat-account').textContent = `Account: ${sandbox.mt5AccountNumber || '—'}`;
     $('sandbox-stat-cpu').textContent = typeof sandbox.cpuPercent === 'number' ? `${sandbox.cpuPercent.toFixed(1)}%` : '—';
     $('sandbox-stat-node').textContent = `Node: ${(status.node && status.node.name) || '—'}${status.node ? (status.node.online ? ' (online)' : ' (offline)') : ''}`;
@@ -210,6 +219,9 @@
 
   async function loadStatus() {
     const sequence = ++state.statusRequest;
+    if (state.selectedUid && state.status?.sandbox?.instanceUid !== state.selectedUid) state.status = null;
+    const loading = $('sandbox-loading'), feedback = $('sandbox-refresh-feedback');
+    if (!state.status) { window.CornGridUI?.skeleton(loading, 'Loading Sandbox status'); $('sandbox-activation-section').hidden = true; $('sandbox-live-section').hidden = true; }
     try {
       const query = state.selectedUid ? `?instanceUid=${encodeURIComponent(state.selectedUid)}` : '';
       let data;
@@ -220,10 +232,15 @@
       }
       if (sequence !== state.statusRequest) return;
       state.status = data;
+      loading.replaceChildren(); loading.removeAttribute('aria-busy'); feedback.hidden = true;
+      const checked = Date.now(); $('sandbox-last-checked').textContent = window.CornGridUI?.checked(checked) || 'Updated'; $('sandbox-last-checked').dateTime = new Date(checked).toISOString();
+      window.CornGridExperience?.setSandbox(data);
       state.selectedUid = data.sandbox?.instanceUid || null;
       render();
     } catch (error) {
-      if (state.pageOpen) toast(error.message, 'error');
+      if (sequence !== state.statusRequest) return;
+      loading.replaceChildren(); loading.removeAttribute('aria-busy');
+      if (state.pageOpen) window.CornGridUI?.feedback(feedback, { title: 'Sandbox status could not refresh', body: error.message + (state.status ? ' Previously received status is shown above.' : ''), label: 'Try again', onClick: loadStatus, tone: 'error' });
     }
   }
 

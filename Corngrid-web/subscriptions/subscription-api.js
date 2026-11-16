@@ -368,6 +368,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
           maxActivations: maxActivationsFor(subscription)
         } : null,
         latestPayment: payments[0] || null,
+        scheduledRenewal: current && latest && latest.id !== current.id && latest.status === 'active'
+          && latest.starts_at > now() && latest.starts_at <= current.expires_at && latest.expires_at > current.expires_at
+          ? { startsAt: latest.starts_at, expiresAt: latest.expires_at } : null,
         payments,
         activations: activations.map(row => ({
           id: row.id,
