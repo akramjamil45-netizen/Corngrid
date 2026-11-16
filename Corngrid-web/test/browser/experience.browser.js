@@ -12,6 +12,11 @@ async page => {
     try {
       await p.goto(origin + '/fixture#overview'); await scenario('normal'); await p.reload();
       await p.getByRole('heading', { name: 'No setup issues detected', exact: true }).waitFor();
+      const setupToggle = p.getByRole('button', { name: 'Setup details', exact: true });
+      if (await p.locator('#overview-setup-details').isVisible() || (await p.locator('.cg-attention').boundingBox()).height > 90) throw Error('Healthy Overview status is not compact');
+      await p.screenshot({ path:'../.playwright-mcp/experience-compact-overview-' + width + '.png' });
+      await setupToggle.focus(); await p.keyboard.press('Enter'); await p.locator('#overview-setup-details').waitFor();
+      if (await p.locator('#overview-setup-details .cg-checklist li').count() !== 4 || await setupToggle.getAttribute('aria-expanded') !== 'true') throw Error('Setup details did not expand accessibly');
       await p.waitForFunction(() => document.querySelectorAll('.cg-shortcut').length === 3);
       if (await p.locator('#sidebar .cg-shortcut,#sidebar .cg-shortcut-settings,#sidebar .cg-pinned').count()) throw Error('Pinned shortcuts must not appear in navigation');
       await noOverflow('Overview');
@@ -19,6 +24,8 @@ async page => {
       await p.route('**/api/portfolio?*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture portfolio refresh failed' }) }));
       await p.locator('#refresh-button').click(); await p.locator('#overview-refresh-feedback').getByText('Account data could not refresh', { exact: true }).waitFor();
       if (!(await p.locator('[data-stat=balance]').textContent()).includes('100')) throw Error('A same-account failed refresh removed its last balance');
+      if (await setupToggle.getAttribute('aria-expanded') !== 'true' || !await p.locator('#overview-setup-details').isVisible()) throw Error('A refresh closed setup details while being read');
+      await setupToggle.focus(); await p.keyboard.press('Space'); await p.locator('#overview-setup-details').waitFor({ state:'hidden' });
       await p.locator('#period-select').evaluate(select => { select.value = '7d'; select.dispatchEvent(new Event('change', { bubbles: true })); });
       await p.waitForFunction(() => document.querySelector('#live-label').textContent === 'STATUS UNKNOWN');
       if (await p.locator('[data-stat=balance]').textContent() !== 'N/A') throw Error('A different filter showed the previous balance');

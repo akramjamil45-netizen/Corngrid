@@ -66,16 +66,21 @@
     document.body.classList.toggle('cg-keyboard-open', !!editing && height < Math.max(viewportHeight, innerHeight) * .78);
   }
   window.visualViewport?.addEventListener('resize', keyboard); document.addEventListener('focusin', keyboard); document.addEventListener('focusout', () => setTimeout(keyboard, 80));
-  const summary = el('section', null, 'panel cg-attention'), heading = el('div', null, 'cg-attention-heading'), title = el('h2', 'Needs your attention'), stamp = el('time', 'Checking status…', 'cg-meta'); heading.append(title, stamp);
-  const attentionFeedback = el('div'), items = el('div', null, 'cg-attention-items'), checklist = el('ol', null, 'cg-checklist'); summary.append(heading, attentionFeedback, items, checklist); host.append(summary);
+  const summary = el('section', null, 'panel cg-attention'), heading = el('div', null, 'cg-attention-heading'), title = el('h2', 'Checking your setup'), stamp = el('time', 'Checking status…', 'cg-meta');
+  const attentionFeedback = el('div'), items = el('div', null, 'cg-attention-items'), checklist = el('ol', null, 'cg-checklist'), setupDetails = el('div', null, 'cg-attention-details');
+  setupDetails.id = 'overview-setup-details'; setupDetails.hidden = true; setupDetails.append(stamp, checklist);
+  const detailToggle = action('Details', () => { setupDetails.hidden = !setupDetails.hidden; detailToggle.setAttribute('aria-expanded', String(!setupDetails.hidden)); }, 'cg-attention-toggle');
+  detailToggle.setAttribute('aria-label', 'Setup details'); detailToggle.setAttribute('aria-expanded', 'false'); detailToggle.setAttribute('aria-controls', setupDetails.id);
+  detailToggle.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg>');
+  heading.append(title, detailToggle); summary.append(heading, attentionFeedback, items, setupDetails); host.append(summary);
   function renderAttention() {
     items.replaceChildren(); checklist.replaceChildren(); attentionFeedback.hidden = true;
     stamp.textContent = UI.checked(checkedAt); if (checkedAt) stamp.dateTime = new Date(checkedAt).toISOString();
     if (accounts === null || !subscription || !sandbox) {
-      UI.empty(items, attentionError ? 'Status could not be loaded' : 'Checking your setup', 'Account, subscription and Sandbox checks use your actual platform records.', attentionError ? 'Try again' : null, refreshAttention);
+      title.textContent = attentionError ? 'Status could not be loaded' : 'Checking your setup'; summary.dataset.state = attentionError ? 'error' : 'checking';
     } else {
       const updates = model.attentionItems({ accounts, subscription, sandbox });
-      if (!updates.length) UI.empty(items, 'No setup issues detected', 'Check the account-specific heartbeat and connection information below when monitoring your EA.');
+      title.textContent = attentionError ? 'Status could not refresh' : updates.length ? 'Needs your attention' : 'No setup issues detected'; summary.dataset.state = attentionError ? 'error' : updates.length ? 'attention' : 'clear';
       for (const update of updates) { const card = el('article', null, 'cg-attention-item'); card.append(el('h3', update.title), el('p', update.body), action(update.label, () => UI.navigate(update.page))); items.append(card); }
       for (const [complete, label] of [[subscription.subscription?.status === 'active', 'Subscription active'], [accounts.length > 0, 'MT5 account linked'], [(sandbox.sandboxes || []).length > 0, 'Sandbox set up'], [accounts.some(account => account.status === 'Online'), 'EA reporting']]) {
         const item = el('li', (complete ? '✓ ' : '○ ') + label); item.dataset.complete = String(complete); item.setAttribute('aria-label', (complete ? 'Complete: ' : 'Incomplete: ') + label); checklist.append(item);

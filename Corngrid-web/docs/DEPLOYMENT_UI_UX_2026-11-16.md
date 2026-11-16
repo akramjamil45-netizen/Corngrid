@@ -46,3 +46,11 @@ At 03:41:22 UTC (11:41:22 Malaysia time), the operator-authorized follow-up depl
 - Browser acceptance passed at 1440px, 375px and 320px. The layout checks assert the timestamp stays within its card and the gap to the first health card stays within 28 CSS pixels. Mobile screenshots were visually reviewed.
 - All eight API/readiness checks and 24 gateway/public asset checks passed. Both running Sandbox instances and all seven existing MT5 terminal processes were preserved. No service restart, backend, dependency, key or database change was required.
 - Original files and the reviewed candidate were saved in `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-034955`. This static-file release did not create or restore a database snapshot.
+
+## Compact Overview follow-up - 17:43 Malaysia time
+
+- Completed at 09:43:29 UTC on 16 November 2026. Deployed five changed UI/documentation files with matching `20261116-compact-attention1` dashboard references and service-worker cache v34.
+- Replaced the large healthy-state panel with a compact status strip. Details expands the last-check timestamp and setup checklist; actionable warnings and refresh errors remain visible. Refreshes preserve the user's expanded/collapsed choice.
+- Five focused model tests and browser acceptance at 1440px, 375px and 320px passed before deployment. Tests cover compact height, keyboard disclosure, checklist contents, refresh stability and existing navigation/payment flows. Desktop and mobile screenshots were reviewed.
+- Eight API/readiness checks and 24 gateway/public asset checks passed after deployment. Both running Sandbox instances and all seven pre-existing MT5 terminal processes were preserved. No service restart, database, backend, dependency or key change was required.
+- Rollback files are protected under `C:\ProgramData\CornGrid\WebsiteBackups\workplace-ux-20261116-094323`. No production test account or payment was created.
