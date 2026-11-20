@@ -10,7 +10,7 @@ async function main(){
   run('initdb',['-D',data,'-U','corngrid_fixture','-A','trust','--encoding=UTF8','--no-locale','-N']);
   run('pg_ctl',['-D',data,'-l',path.join(root,'server.log'),'-o','-h 127.0.0.1 -p '+port+' -c fsync=off -c synchronous_commit=off -c full_page_writes=off','-w','start']);
   const env={...process.env,DATABASE_URL:'',TEST_POSTGRES_URL:'postgresql://corngrid_fixture@127.0.0.1:'+port+'/postgres',PG_DUMP_BIN:exe('pg_dump'),PG_RESTORE_BIN:exe('pg_restore')};
-  for(const name of ['test/postgres-availability.test.js','test/platform-postgres.test.js','test/notifications-postgres.test.js']){
+  for(const name of ['test/postgres-availability.test.js','test/platform-postgres.test.js','test/notifications-postgres.test.js','test/subscription-promotions-postgres.test.js']){
    const output=execFileSync(process.execPath,['--test',name],{cwd:path.resolve(__dirname,'../..'),env,windowsHide:true,timeout:180000,maxBuffer:4*1024*1024,encoding:'utf8'});process.stdout.write(output);
   }
  }finally{

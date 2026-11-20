@@ -737,24 +737,26 @@
     }
   }
 
-  function renderSubscriptionPlans(plans) {
+  function renderSubscriptionPlans(plans, promotionClaim) {
     const grid = $('#subscription-plans-grid');
     if (!plans.length) {
       grid.innerHTML = '<p class="muted subscription-empty">No subscription plans are available right now. Please contact the administrator.</p>';
       return;
     }
-    grid.innerHTML = plans.map(plan => `
+    const promotionSummary = promotionClaim ? `<p class="muted small" style="grid-column: 1 / -1; margin: 0;" role="status">Your one-time promotion: ${escapeHtml(promotionClaim.planName)} · ${escapeHtml(new Date(promotionClaim.startsAt).toLocaleDateString())} – ${escapeHtml(new Date(promotionClaim.expiresAt).toLocaleDateString())}.</p>` : '';
+    grid.innerHTML = promotionSummary + plans.map(plan => `
       <article class="subscription-plan-card">
         <div class="subscription-plan-top">
-          <p class="eyebrow">${escapeHtml(subscriptionMoney(plan.price, plan.currency))}</p>
+          <p class="eyebrow">${plan.isPromotion ? 'Free promotion' : escapeHtml(subscriptionMoney(plan.price, plan.currency))}</p>
           <h3>${escapeHtml(plan.name)}</h3>
         </div>
         <p class="muted small subscription-plan-description">${escapeHtml(plan.description || 'CornGrid EA license')}</p>
         <ul class="subscription-plan-meta">
           <li>${escapeHtml(String(plan.durationDays))} days access</li>
           <li>${escapeHtml(String(plan.maxActivations))} EA activations</li>
+          ${plan.isPromotion ? '<li>One claim per user · no payment required</li>' : ''}
         </ul>
-        <button class="button button-primary subscription-plan-button" type="button" data-subscribe-plan="${escapeHtml(String(plan.id))}">Subscribe</button>
+        ${plan.isPromotion ? `<button class="button button-primary subscription-plan-button" type="button" data-claim-promotion="${escapeHtml(String(plan.id))}" ${plan.promotionClaimed ? 'disabled' : ''}>${plan.promotionClaimed ? 'Promotion already claimed' : 'Claim free access'}</button><p class="muted small">For active subscribers, free access starts after existing subscription periods.</p>` : `<button class="button button-primary subscription-plan-button" type="button" data-subscribe-plan="${escapeHtml(String(plan.id))}">Subscribe</button>`}
       </article>`).join('');
   }
 
@@ -905,7 +907,7 @@
       renderSubscriptionOverview(overview);
       overviewEl.dataset.loaded = 'true'; overviewEl.removeAttribute('aria-busy');
       const checked = Date.now(); $('#subscription-last-checked').textContent = window.CornGridUI?.checked(checked) || 'Updated'; $('#subscription-last-checked').dateTime = new Date(checked).toISOString();
-      renderSubscriptionPlans(plans.plans || []);
+      renderSubscriptionPlans(plans.plans || [], plans.promotionClaim);
       renderSubscriptionActivations(overview.activations || []);
       loadSubscriptionDownloads();
       loadSubscriptionNotifications();
@@ -917,6 +919,23 @@
   }
 
   $('#subscription-plans-grid').addEventListener('click', async event => {
+    const promotionButton = event.target.closest('[data-claim-promotion]');
+    if (promotionButton && !promotionButton.disabled) {
+      promotionButton.disabled = true;
+      promotionButton.textContent = 'Claiming…';
+      let claimed = false;
+      try {
+        const claim = await request('/subscription/promotions/claim', { method: 'POST', body: JSON.stringify({ planId: Number(promotionButton.dataset.claimPromotion) }) });
+        claimed = true;
+        toast(claim.message, 'success');
+      } catch (error) { toast(error.message, 'error'); }
+      await loadSubscription();
+      if (promotionButton.isConnected) {
+        promotionButton.disabled = claimed;
+        promotionButton.textContent = claimed ? 'Promotion already claimed' : 'Claim free access';
+      }
+      return;
+    }
     const button = event.target.closest('[data-subscribe-plan]');
     if (!button) return;
     button.disabled = true;

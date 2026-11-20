@@ -6,6 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const { exclusive } = require('../db-write');
 const { createNotificationCenter, registerNotificationRoutes } = require('../notification-center');
+const { createPromotions } = require('./promotions');
+const PROMOTION_SCHEMA = fs.readFileSync(path.join(__dirname, '../migrations/sqlite/0021_subscription_promotions.sql'), 'utf8');
+const PLAN_SELECT = `SELECT p.*, promo.plan_id IS NOT NULL AS is_promotion FROM subscription_plans p
+  LEFT JOIN subscription_plan_promotions promo ON promo.plan_id=p.id`;
 
 const DEFAULT_MAX_ACTIVATIONS = 5;
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -129,6 +133,7 @@ const SCHEMA = `
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_user_notifications_user ON user_notifications(user_id, read_at, created_at);
+  ${PROMOTION_SCHEMA}
 `;
 
 function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInstallation, options = {}) {
@@ -222,9 +227,12 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       price: Number(plan.price),
       currency: plan.currency,
       durationDays: plan.duration_days,
-      maxActivations: plan.max_activations
+      maxActivations: plan.max_activations,
+      isPromotion: Boolean(plan.is_promotion)
     };
   }
+
+  const promotions = createPromotions({ run, get, withTransaction, isPostgres, now });
 
   db.exec(SCHEMA, error => {
     if (error) console.error('Failed to initialize subscription tables:', error.message);
@@ -249,6 +257,8 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       console.error('Unable to verify subscription tables:', error.message);
     }
     await notificationCenter.ready();
+    await get('SELECT plan_id FROM subscription_plan_promotions LIMIT 0');
+    await get('SELECT user_id FROM subscription_promotion_claims LIMIT 0');
   }
 
   // ---------------------------------------------------------------------------
@@ -318,13 +328,29 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
   // User API
   // ---------------------------------------------------------------------------
 
-  app.get('/api/subscription/plans', verifyToken, async (_req, res) => {
+  app.get('/api/subscription/plans', verifyToken, async (req, res) => {
     try {
-      const plans = await all('SELECT * FROM subscription_plans WHERE is_active = TRUE ORDER BY price ASC, id ASC');
-      res.json({ plans: plans.map(publicPlan), duitnowConfigured: fs.existsSync(DUITNOW_QR_PATH) });
+      const plans = await all(PLAN_SELECT + ' WHERE p.is_active = TRUE ORDER BY p.price ASC, p.id ASC');
+      const claim = await get('SELECT plan_name,duration_days,starts_at,expires_at,claimed_at FROM subscription_promotion_claims WHERE user_id=?', [req.user.id]);
+      res.json({ plans: plans.map(plan => ({ ...publicPlan(plan), promotionClaimed: Boolean(claim) })),
+        promotionClaim: claim ? { planName: claim.plan_name, durationDays: claim.duration_days, startsAt: claim.starts_at, expiresAt: claim.expires_at, claimedAt: claim.claimed_at } : null,
+        duitnowConfigured: fs.existsSync(DUITNOW_QR_PATH) });
     } catch (error) {
       console.error('Failed to load subscription plans:', error.message);
       res.status(500).json({ error: 'Unable to load subscription plans.' });
+    }
+  });
+
+  app.post('/api/subscription/promotions/claim', verifyToken, async (req, res) => {
+    const planId = Number(req.body?.planId);
+    if (!Number.isSafeInteger(planId) || planId < 1) return res.status(400).json({ error: 'A valid promotional plan is required.' });
+    try {
+      const result = await promotions.claim(req.user.id, planId, req.ip);
+      if (result.http === 201) await notify(req.user.id, 'subscription_active', 'Promotion claimed', result.body.message);
+      res.status(result.http).json(result.body);
+    } catch (error) {
+      console.error('Promotion claim failed:', error.code || 'CLAIM_FAILED');
+      res.status(500).json({ error: 'Unable to claim the promotion. Please refresh and try again.' });
     }
   });
 
@@ -401,8 +427,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
         return res.status(400).json({ error: 'A valid subscription plan is required.' });
       }
 
-      const plan = await get('SELECT * FROM subscription_plans WHERE id = ? AND is_active = TRUE', [planId]);
+      const plan = await get(PLAN_SELECT + ' WHERE p.id = ? AND p.is_active = TRUE', [planId]);
       if (!plan) return res.status(404).json({ error: 'This subscription plan is not available.' });
+      if (plan.is_promotion) return res.status(409).json({ error: 'Claim this free plan using the one-time promotion action.' });
 
       return await withTransaction(async () => {
         const openPurchase = await get(
@@ -1399,9 +1426,10 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
   app.get('/api/admin/subscription-plans', adminAuth.verifyToken, async (_req, res) => {
     try {
       const plans = await all(`
-        SELECT p.*,
+        SELECT p.*, promo.plan_id IS NOT NULL AS is_promotion,
+          (SELECT COUNT(*) FROM subscription_promotion_claims c WHERE c.plan_id=p.id) AS promotion_claim_count,
           (SELECT COUNT(*) FROM user_subscriptions s WHERE s.plan_id = p.id AND s.deleted_at IS NULL) AS usage_count
-        FROM subscription_plans p ORDER BY p.id ASC
+        FROM subscription_plans p LEFT JOIN subscription_plan_promotions promo ON promo.plan_id=p.id ORDER BY p.id ASC
       `);
       res.json({ plans });
     } catch (error) {
@@ -1414,14 +1442,17 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       const body = req.body || {};
       const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
       const description = typeof body.description === 'string' ? body.description.trim().slice(0, 500) : null;
-      const price = Number(body.price);
-      const durationDays = Number.parseInt(body.duration_days, 10);
-      const maxActivations = Number.parseInt(body.max_activations, 10) || DEFAULT_MAX_ACTIVATIONS;
+      if (body.is_promotion !== undefined && typeof body.is_promotion !== 'boolean') return res.status(400).json({ error: 'Promotion must be true or false.' });
+      const isPromotion = body.is_promotion === true;
+      const price = Number(body.price === undefined && isPromotion ? 0 : body.price);
+      const durationDays = Number(body.duration_days === undefined && isPromotion ? 7 : body.duration_days);
+      const maxActivations = body.max_activations === undefined ? (isPromotion ? 1 : DEFAULT_MAX_ACTIVATIONS) : Number(body.max_activations);
       const currency = typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency.toUpperCase())
         ? body.currency.toUpperCase() : 'MYR';
 
       if (!name) return res.status(400).json({ error: 'Plan name is required.' });
       if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Price must be a non-negative number.' });
+      if (isPromotion && price !== 0) return res.status(400).json({ error: 'A free promotional plan must have a price of zero.' });
       if (!Number.isSafeInteger(durationDays) || durationDays < 1 || durationDays > 3650) {
         return res.status(400).json({ error: 'Duration must be between 1 and 3650 days.' });
       }
@@ -1430,15 +1461,19 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       }
 
       const timestamp = now();
-      const created = await run(
+      const created = await withTransaction(async () => {
+        const result = await run(
         `INSERT INTO subscription_plans
            (name, description, price, currency, duration_days, max_activations, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [name, description, price, currency, durationDays, maxActivations,
          body.is_active !== false, timestamp, timestamp]
       );
+        if (isPromotion) await run('INSERT INTO subscription_plan_promotions (plan_id,created_at) VALUES (?,?)', [result.lastID,timestamp]);
+        return result;
+      });
       await logAudit(req.admin?.id || null, 'admin', 'plan_created', 'plan', created.lastID,
-        { name, price, durationDays, maxActivations }, null, req.ip);
+        { name, price, durationDays, maxActivations, isPromotion }, null, req.ip);
       res.status(201).json({ id: created.lastID, message: 'Plan created.' });
     } catch (error) {
       console.error('Failed to create plan:', error.message);
@@ -1453,8 +1488,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       const result = await withTransaction(async () => {
         const plan = await get('SELECT * FROM subscription_plans WHERE id = ?', [id]);
         if (!plan) return { status: 404, error: 'Plan not found.' };
-        const usage = await get('SELECT (SELECT COUNT(*) FROM user_subscriptions WHERE plan_id = ?) + (SELECT COUNT(*) FROM subscription_payments WHERE plan_id = ?) AS count', [id, id]);
+        const usage = await get('SELECT (SELECT COUNT(*) FROM user_subscriptions WHERE plan_id = ?) + (SELECT COUNT(*) FROM subscription_payments WHERE plan_id = ?) + (SELECT COUNT(*) FROM subscription_promotion_claims WHERE plan_id = ?) AS count', [id, id, id]);
         if (Number(usage.count)) return { status: 409, error: 'This plan has subscription or payment history. Deactivate it to stop new purchases while retaining existing records.' };
+        await run('DELETE FROM subscription_plan_promotions WHERE plan_id = ?', [id]);
         await run('DELETE FROM subscription_plans WHERE id = ?', [id]);
         await logAudit(req.admin?.id || null, 'admin', 'plan_deleted', 'plan', id, { name: plan.name }, null, req.ip);
         return { status: 200 };
@@ -1465,23 +1501,26 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   app.put('/api/admin/subscription-plans/:id', adminAuth.verifyToken, async (req, res) => {
     try {
-      const planId = Number.parseInt(req.params.id, 10);
+      const planId = Number(req.params.id);
       if (!Number.isSafeInteger(planId) || planId < 1) return res.status(400).json({ error: 'Invalid plan.' });
-      const plan = await get('SELECT * FROM subscription_plans WHERE id = ?', [planId]);
+      const plan = await get(PLAN_SELECT + ' WHERE p.id = ?', [planId]);
       if (!plan) return res.status(404).json({ error: 'Plan not found.' });
 
       const body = req.body || {};
       const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : plan.name;
       const description = typeof body.description === 'string' ? body.description.trim().slice(0, 500) : plan.description;
-      const price = body.price === undefined ? Number(plan.price) : Number(body.price);
-      const durationDays = body.duration_days === undefined ? plan.duration_days : Number.parseInt(body.duration_days, 10);
-      const maxActivations = body.max_activations === undefined ? plan.max_activations : Number.parseInt(body.max_activations, 10);
+      if (body.is_promotion !== undefined && typeof body.is_promotion !== 'boolean') return res.status(400).json({ error: 'Promotion must be true or false.' });
+      const isPromotion = body.is_promotion === undefined ? Boolean(plan.is_promotion) : body.is_promotion;
+      const price = body.price === undefined ? (isPromotion ? 0 : Number(plan.price)) : Number(body.price);
+      const durationDays = body.duration_days === undefined ? plan.duration_days : Number(body.duration_days);
+      const maxActivations = body.max_activations === undefined ? plan.max_activations : Number(body.max_activations);
       const currency = typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency.toUpperCase())
         ? body.currency.toUpperCase() : plan.currency;
       const isActive = body.is_active === undefined ? Boolean(plan.is_active) : Boolean(body.is_active);
 
       if (!name) return res.status(400).json({ error: 'Plan name is required.' });
       if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Price must be a non-negative number.' });
+      if (isPromotion && price !== 0) return res.status(400).json({ error: 'A free promotional plan must have a price of zero.' });
       if (!Number.isSafeInteger(durationDays) || durationDays < 1 || durationDays > 3650) {
         return res.status(400).json({ error: 'Duration must be between 1 and 3650 days.' });
       }
@@ -1489,13 +1528,17 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
         return res.status(400).json({ error: 'Maximum activations must be between 1 and 100.' });
       }
 
-      await run(
+      await withTransaction(async () => {
+        await run(
         `UPDATE subscription_plans SET name = ?, description = ?, price = ?, currency = ?,
            duration_days = ?, max_activations = ?, is_active = ?, updated_at = ? WHERE id = ?`,
         [name, description, price, currency, durationDays, maxActivations, isActive, now(), planId]
       );
+        if (isPromotion) await run('INSERT INTO subscription_plan_promotions (plan_id,created_at) VALUES (?,?) ON CONFLICT(plan_id) DO NOTHING', [planId,now()]);
+        else await run('DELETE FROM subscription_plan_promotions WHERE plan_id=?', [planId]);
+      });
       await logAudit(req.admin?.id || null, 'admin', 'plan_updated', 'plan', planId,
-        { name, price, durationDays, maxActivations, isActive }, null, req.ip);
+        { name, price, durationDays, maxActivations, isActive, isPromotion }, null, req.ip);
       res.json({ message: 'Plan updated. Existing paid subscriptions keep their agreed terms.' });
     } catch (error) {
       console.error('Failed to update plan:', error.message);

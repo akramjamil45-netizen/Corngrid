@@ -1503,10 +1503,10 @@
       tbody.innerHTML = data.plans.map(plan => `
         <tr>
           <td data-label="ID" class="cell-extra">#${escapeHtml(String(plan.id))}</td>
-          <td data-label="Name" class="cell-primary">${escapeHtml(plan.name)}</td>
-          <td data-label="Price" class="cell-key">${formatMoney(plan.price, plan.currency)}</td>
+          <td data-label="Name" class="cell-primary">${escapeHtml(plan.name)}${plan.is_promotion ? '<span class="badge badge-promotion">One-time promotion</span>' : ''}</td>
+          <td data-label="Price" class="cell-key">${plan.is_promotion ? 'Free' : formatMoney(plan.price, plan.currency)}</td>
           <td data-label="Duration">${escapeHtml(String(plan.duration_days))} days</td>
-          <td data-label="Max activations" class="cell-extra">${escapeHtml(String(plan.max_activations))}</td>
+          <td data-label="Max activations" class="cell-extra">${escapeHtml(String(plan.max_activations))}${plan.is_promotion ? `<p class="muted small">${escapeHtml(String(plan.promotion_claim_count || 0))} claims · once per user</p>` : ''}</td>
           <td data-label="Active">${subStatusBadge(plan.is_active ? 'active' : 'inactive')}</td>
           <td class="cell-actions" data-label="Actions">
             <button class="button button-small button-secondary" type="button" data-sub-action="edit-plan" data-id="${escapeHtml(String(plan.id))}">Edit</button>
@@ -1581,10 +1581,23 @@
     ['#plan-name', '#plan-price', '#plan-duration', '#plan-desc'].forEach(selector => { $(selector).value = ''; });
     $('#plan-max-act').value = '5';
     $('#plan-currency').value = 'MYR';
+    $('#plan-promotion').checked = false;
+    syncPromotionFields(false);
     $('#plan-form').style.display = 'none';
     $('#admin-plan-create').textContent = 'Create Plan';
     $('#admin-plan-cancel').hidden = true;
   }
+
+  function syncPromotionFields(applyDefaults) {
+    const promotion = $('#plan-promotion').checked;
+    $('#plan-price').disabled = promotion;
+    $('#plan-promotion-help').hidden = !promotion;
+    if (promotion) {
+      $('#plan-price').value = '0';
+      if (applyDefaults) { $('#plan-duration').value = '7'; $('#plan-max-act').value = '1'; }
+    }
+  }
+  $('#plan-promotion').addEventListener('change', () => syncPromotionFields(true));
 
   function startPlanEdit(planId) {
     const plan = adminPlans.find(item => String(item.id) === String(planId));
@@ -1596,6 +1609,8 @@
     $('#plan-max-act').value = plan.max_activations ?? 5;
     $('#plan-currency').value = plan.currency || 'MYR';
     $('#plan-desc').value = plan.description || '';
+    $('#plan-promotion').checked = Boolean(plan.is_promotion);
+    syncPromotionFields(false);
     $('#plan-form').style.display = 'block';
     $('#admin-plan-create').textContent = 'Save Changes';
     $('#admin-plan-cancel').hidden = false;
@@ -1606,11 +1621,16 @@
     const payload = {
       name: $('#plan-name').value.trim(),
       price: Number($('#plan-price').value),
-      duration_days: Number.parseInt($('#plan-duration').value, 10),
-      max_activations: Number.parseInt($('#plan-max-act').value, 10) || 5,
+      duration_days: Number($('#plan-duration').value),
+      max_activations: Number($('#plan-max-act').value),
       currency: $('#plan-currency').value.trim().toUpperCase() || 'MYR',
       description: $('#plan-desc').value.trim()
     };
+    payload.is_promotion = $('#plan-promotion').checked;
+    const button = $('#admin-plan-create');
+    button.disabled = true;
+    const originalLabel = button.textContent;
+    button.textContent = 'Saving…';
     try {
       if (editingPlanId) {
         await api(`/api/admin/subscription-plans/${editingPlanId}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -1624,6 +1644,10 @@
       loadAdminSubscriptionSummary();
     } catch (error) {
       toast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+      if (editingPlanId) button.textContent = originalLabel;
+      else button.textContent = 'Create Plan';
     }
   }
 

@@ -99,7 +99,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261115-mobile-images1">
-<link rel="stylesheet" href="admin.css?v=20261116-health1">
+<link rel="stylesheet" href="admin.css?v=20261120-promotions1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout2">
   <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
   <link rel="stylesheet" href="marketplace.css?v=20261115-workspace-compact1">
@@ -111,7 +111,7 @@
 <script src="table-cards.js?v=20261029-2" defer></script>
 <script src="account-requests.js?v=20261113-account-requests1" defer></script>
 <script src="admin-health.js?v=20261116-health1" defer></script>
-<script src="admin.js?v=20261116-health1" defer></script>
+<script src="admin.js?v=20261120-promotions1" defer></script>
   <link rel="stylesheet" href="corngrid-select.css?v=20261115-menus1">
   <script src="corngrid-select.js?v=20261115-menus1" defer></script>
 <link rel="stylesheet" href="security.css?v=20261116-mfa1">
@@ -269,13 +269,15 @@
           <section class="panel" style="margin-top: 18px;">
             <div class="panel-header"><div><p class="eyebrow">PLANS</p><h2>Subscription Plans</h2></div><button class="button button-small" type="button" id="admin-plan-add">+ Add Plan</button></div>
             <div id="plan-form" style="display: none; padding: 16px; border-bottom: 1px solid var(--border);">
+              <label class="plan-promotion-choice"><input id="plan-promotion" type="checkbox"> Free promotional plan</label>
+              <p id="plan-promotion-help" class="muted small" style="margin: 8px 0 14px;" hidden>Free license access. Each user can claim one promotion in total. Default: 7 days and 1 EA activation; both limits are editable. Editing or recreating a plan does not reset previous claims.</p>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-                <input type="text" id="plan-name" class="input-control" placeholder="Plan Name">
-                <input type="number" id="plan-price" class="input-control" placeholder="Price">
-                <input type="number" id="plan-duration" class="input-control" placeholder="Duration (days)">
-                <input type="number" id="plan-max-act" class="input-control" placeholder="Max Activations" value="5">
-                <input type="text" id="plan-currency" class="input-control" placeholder="Currency" value="MYR">
-                <input type="text" id="plan-desc" class="input-control" placeholder="Description">
+                <label>Plan name <span class="muted small">(required)</span><input type="text" id="plan-name" class="input-control" placeholder="Plan name" maxlength="80" required></label>
+                <label>Price<input type="number" id="plan-price" class="input-control" placeholder="Price" min="0" step="0.01" aria-describedby="plan-promotion-help"></label>
+                <label>Duration (days)<input type="number" id="plan-duration" class="input-control" placeholder="Duration (days)" min="1" max="3650" step="1"></label>
+                <label>Maximum EA activations<input type="number" id="plan-max-act" class="input-control" placeholder="Max activations" value="5" min="1" max="100" step="1"></label>
+                <label>Currency<input type="text" id="plan-currency" class="input-control" placeholder="Currency" value="MYR" maxlength="3"></label>
+                <label>Description<input type="text" id="plan-desc" class="input-control" placeholder="Description" maxlength="500"></label>
               </div>
               <div style="display: flex; gap: 8px; margin-top: 12px;">
                 <button class="button button-primary" type="button" id="admin-plan-create">Create Plan</button>
