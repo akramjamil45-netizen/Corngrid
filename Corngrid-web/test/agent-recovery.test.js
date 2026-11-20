@@ -7,6 +7,20 @@ const { EventEmitter } = require('node:events');
 const WebSocket = require('ws');
 const { createTransport } = require('../agent/transport');
 
+test('an empty node authenticates without starting Windows process inventory', async t => {
+  const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'cg-empty-node-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../agent/mt5-manager.js'), 'utf8'), {
+    module, Date, setTimeout, clearTimeout, process: { platform: 'win32' },
+    require: name => name === 'child_process' ? { execFile() { throw new Error('No PowerShell is needed on an empty node'); } }
+      : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
+  });
+  const manager = module.exports.createMt5Manager({ config: { sandboxUsersDir: root }, logger: { info() {}, warn() {}, error() {} } });
+  await manager.reconcile();
+  assert.deepEqual(Array.from(manager.trackedPids()), []);
+});
+
 test('Windows adoption uses one process inventory for historical sandbox directories', async t => {
   const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'cg-inventory-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

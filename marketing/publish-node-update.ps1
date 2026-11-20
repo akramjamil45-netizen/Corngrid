@@ -1,8 +1,8 @@
-param([switch]$SkipTests,[string]$PythonPath='')
+param([switch]$SkipTests,[switch]$AgentTestsOnly,[string]$PythonPath='')
 $ErrorActionPreference='Stop'
 $principal=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
- $arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$PSCommandPath+'"'+$(if($SkipTests){' -SkipTests'}else{''})+$(if($PythonPath){' -PythonPath "'+$PythonPath+'"'}else{''})
+ $arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$PSCommandPath+'"'+$(if($SkipTests){' -SkipTests'}else{''})+$(if($AgentTestsOnly){' -AgentTestsOnly'}else{''})+$(if($PythonPath){' -PythonPath "'+$PythonPath+'"'}else{''})
  $child=Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait -PassThru
  if($child.ExitCode -ne 0){throw 'Central agent publication failed. Inspect the publication result/log.'};exit
 }
@@ -14,7 +14,15 @@ try{
  if(-not(Test-Path -LiteralPath (Join-Path $runtime 'signing-key.pem'))){throw 'Run initial auto-update deployment first.'}
  if(-not $SkipTests){
   Push-Location (Join-Path $source 'Corngrid-web')
-  try{$ErrorActionPreference='Continue';& node.exe --test --test-concurrency=1 'test/*.test.js' *> (Join-Path $runtime 'prepublication-tests.log');$testExit=$LASTEXITCODE;$ErrorActionPreference='Stop'}finally{Pop-Location}
+  try{
+   $ErrorActionPreference='Continue'
+   if($AgentTestsOnly){
+    $agentTests=@(Get-ChildItem -LiteralPath test -File|Where-Object{$_.Name -match '^(agent-|broker-|ipc-|linux-agent|mt5-startup|node-|sandbox-api|sandbox-realtime|source-compiler|partner-publication).*\.test\.js$'}|ForEach-Object{'test/'+$_.Name})
+    if($agentTests.Count -lt 10){throw 'Incomplete agent regression selection.'}
+    & node.exe --test --test-concurrency=1 $agentTests *> (Join-Path $runtime 'prepublication-tests.log')
+   }else{& node.exe --test --test-concurrency=1 'test/*.test.js' *> (Join-Path $runtime 'prepublication-tests.log')}
+   $testExit=$LASTEXITCODE;$ErrorActionPreference='Stop'
+  }finally{Pop-Location}
   if($testExit -ne 0){throw 'Pre-publication tests failed; no source was deployed.'}
   if(-not $PythonPath){$PythonPath=Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'}
   if(-not(Test-Path -LiteralPath $PythonPath -PathType Leaf)){throw 'Specify -PythonPath for the broker regression tests; no source was deployed.'}
@@ -23,6 +31,7 @@ try{
   $pythonExit=$LASTEXITCODE;$ErrorActionPreference='Stop'
   if($pythonExit -ne 0){throw 'Python broker regression tests failed; no source was deployed.'}
  }
+ $report.testsScope=$(if($SkipTests){'previously-verified'}elseif($AgentTestsOnly){'agent-and-sandbox-regressions'}else{'full-project'})
  & (Join-Path $source 'Corngrid-web\scripts\build-node-agent.ps1')
  & node.exe (Join-Path $source 'Corngrid-web\scripts\build-linux-node-agent.js')
  if($LASTEXITCODE -ne 0){throw 'Linux installer build failed; no source was deployed.'}

@@ -1,6 +1,18 @@
 # Signed automatic Sandbox Agent updates
 
-## Deployment hardening in 1.3.2
+## Deployment hardening in 1.3.3
+
+Version 1.3.3 skips process inventory entirely when there are no deployed
+sandbox directories. The two low-memory idle VPS nodes rolled back 1.3.2
+during startup; a subsequent read-only inventory on VPS80792 passed, so no
+permanent CIM/permission failure was established. Empty nodes need neither
+PowerShell nor access to unrelated manual terminals to connect. Startup
+inventory errors now persist a sanitized diagnostic in agent-recovery.log.
+The central publisher supports `-AgentTestsOnly` for an agent-only maintenance
+patch after the full platform suite has passed. This still runs all agent,
+broker, packaging, updater, sandbox API/realtime and compilation regression
+files plus the Python broker tests before deploying. Backend changes require
+the default full suite; this switch never skips a failed selected test.
 
 The 1.3.1 rollout exposed a startup timing regression on the central node with
 historical sandbox directories: repeated Windows CIM queries plus waiting for

@@ -457,11 +457,15 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
     const root = path.resolve(config.sandboxUsersDir);
     if (!fs.existsSync(root)) return;
     const entries = fs.readdirSync(root, { withFileTypes: true });
+    const candidates = entries.filter(entry => entry.isDirectory() && isValidInstanceUid(entry.name) && fs.existsSync(path.join(root, entry.name, 'terminal64.exe')));
+    // Fresh/idle nodes have nothing to adopt. Avoid starting PowerShell/CIM
+    // under memory pressure merely to inspect unrelated manual MT5 terminals.
+    if (!candidates.length) return;
     // Query Windows once rather than launching PowerShell for every historical
     // sandbox directory. Repeated CIM startups could exceed the update health
     // deadline even though all existing terminals continued running.
     const windowsPids = linux ? null : await terminalInventory();
-    for (const entry of entries) {
+    for (const entry of candidates) {
       if (!entry.isDirectory() || !isValidInstanceUid(entry.name)) continue;
       const dir = path.join(root, entry.name);
       const terminal = path.join(dir, 'terminal64.exe');

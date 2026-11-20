@@ -249,6 +249,8 @@ process.on('uncaughtException', error => {
 });
 
 main().catch(error => {
+  const detail = /^MT5 process inventory /.test(error.message || '') ? error.message : error.code || error.name || 'STARTUP_FAILED';
+  logger.error(null, 'Agent startup failed: ' + detail);
   console.error('Agent startup failed:', error);
   process.exit(1);
 });
