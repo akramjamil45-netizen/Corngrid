@@ -457,6 +457,10 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
     const root = path.resolve(config.sandboxUsersDir);
     if (!fs.existsSync(root)) return;
     const entries = fs.readdirSync(root, { withFileTypes: true });
+    // Query Windows once rather than launching PowerShell for every historical
+    // sandbox directory. Repeated CIM startups could exceed the update health
+    // deadline even though all existing terminals continued running.
+    const windowsPids = linux ? null : await terminalInventory();
     for (const entry of entries) {
       if (!entry.isDirectory() || !isValidInstanceUid(entry.name)) continue;
       const dir = path.join(root, entry.name);
@@ -464,7 +468,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
       if (!fs.existsSync(terminal)) continue;
       // Find a running terminal64.exe whose executable path is this one.
       let pid;
-      try { pid = await findTerminalPid(dir); }
+      try { pid = linux ? await findTerminalPid(dir) : windowsPids.get(path.join(dir, 'terminal64.exe').toLowerCase()); }
       catch { logger.warn(entry.name, 'Terminal adoption refused; verify this sandbox unit and Wine prefix before restarting it.'); continue; }
       if (pid) {
         running.set(entry.name, {
@@ -480,6 +484,30 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
         logger.info(entry.name, `Adopted running terminal (pid ${pid}) after agent restart.`);
       }
     }
+  }
+
+  function terminalInventory() {
+    return new Promise((resolve, reject) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        '$ErrorActionPreference=\'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'terminal64.exe\'" | Select-Object ProcessId,ExecutablePath | ConvertTo-Json -Compress'
+      ], { windowsHide: true, timeout: 15000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+        if (error) return reject(new Error('MT5 process inventory is unavailable. Existing terminals were left running.'));
+        try {
+          const parsed = JSON.parse(String(stdout).trim() || '[]');
+          const rows = Array.isArray(parsed) ? parsed : [parsed];
+          const result = new Map();
+          for (const row of rows) {
+            if (!row || typeof row.ExecutablePath !== 'string' || !Number.isInteger(row.ProcessId) || row.ProcessId <= 0) {
+              throw new Error('Uninspectable MT5 process.');
+            }
+            const key = path.resolve(row.ExecutablePath).toLowerCase();
+            if (result.has(key)) throw new Error('Duplicate MT5 terminal path.');
+            result.set(key, row.ProcessId);
+          }
+          resolve(result);
+        } catch (_) { reject(new Error('MT5 process inventory is incomplete. Check agent permissions; existing terminals were left running.')); }
+      });
+    });
   }
 
   function findTerminalPid(dir) {

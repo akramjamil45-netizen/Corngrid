@@ -204,12 +204,9 @@ async function main() {
   // Adopt terminals that survived an agent restart.
   await mt5.reconcile();
 
-  // Reuse an existing keeper across updates. Never interrupt a user's terminal
-  // to claim IPC ownership; a busy port produces an actionable deployment error.
-  if (ipcProbe) {
-    const probe = await ipcProbe.ensure({ allowTakeover: false, create: false });
-    if (!probe.ok && !probe.skipped) logger.warn(null, probe.error || 'IPC probe is unavailable.');
-  }
+  // Probe initialization belongs to the serialized deployment preflight. A
+  // missing/unresponsive keeper must not delay backend authentication or the
+  // launcher's health deadline on nodes that already host working terminals.
 
   transport.start();
 

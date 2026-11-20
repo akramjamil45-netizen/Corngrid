@@ -1,6 +1,16 @@
 # Signed automatic Sandbox Agent updates
 
-## Deployment hardening in 1.3.1
+## Deployment hardening in 1.3.2
+
+The 1.3.1 rollout exposed a startup timing regression on the central node with
+historical sandbox directories: repeated Windows CIM queries plus waiting for
+the IPC keeper exceeded the launcher's 120-second health deadline. Rollback
+preserved MT5 terminals and EA telemetry. Version 1.3.2 adopts terminals from
+one Windows process inventory and initializes the keeper only on deployment;
+backend authentication no longer waits for an unused broker probe. An invalid
+or incomplete process inventory aborts startup rather than guessing that user
+terminals are absent. Custom MT5 bases retain their sibling IpcProbe directory
+and the existing CORNGRID_IPC_PROBE_DIR override.
 
 The project source includes the Windows fixes previously published in 1.2.5,
 while retaining the Linux/Wine runtime. New deployments use credentials during

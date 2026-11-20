@@ -27,6 +27,7 @@ $files=@(
  'Corngrid-web\test\node-command-execution.test.js',
  'Corngrid-web\test\node-installation.test.js',
  'Corngrid-web\test\node-updates.test.js',
+ 'Corngrid-web\test\website-watchdog.test.js',
  'marketing\publish-node-update.ps1',
  'marketing\sync-node-release-review-files.ps1',
  'marketing\verify-sandbox-node-release.cjs'

@@ -7,7 +7,9 @@ const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
 
-test('watchdog recovers a disconnected tunnel after public timeout but leaves a healthy tunnel and transient failures alone', { skip: process.platform !== 'win32', timeout: 25000 }, async () => {
+// Five sequential PowerShell launches need headroom on shared Windows hosts;
+// the watchdog's probe timeouts and service recovery assertions stay unchanged.
+test('watchdog recovers a disconnected tunnel after public timeout but leaves a healthy tunnel and transient failures alone', { skip: process.platform !== 'win32', timeout: 90000 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'corngrid-watchdog-test-'));
   let ready = false;
   const server = http.createServer((req, res) => {

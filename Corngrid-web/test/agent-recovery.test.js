@@ -7,6 +7,65 @@ const { EventEmitter } = require('node:events');
 const WebSocket = require('ws');
 const { createTransport } = require('../agent/transport');
 
+test('Windows adoption uses one process inventory for historical sandbox directories', async t => {
+  const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'cg-inventory-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const rows = [];
+  for (let i = 0; i < 12; i++) {
+    const uid = 'sbx_' + i.toString(16).padStart(18, '0');
+    const dir = path.join(root, uid); fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'terminal64.exe'), 'fixture');
+    if (i < 3) rows.push({ ProcessId: 1000 + i, ExecutablePath: path.join(dir, 'terminal64.exe') });
+  }
+  let queries = 0, invalid = false, queryFailed = false;
+  const module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../agent/mt5-manager.js'), 'utf8'), {
+    module, Date, setTimeout, clearTimeout, process: { platform: 'win32', kill: process.kill.bind(process) },
+    require: name => name === 'child_process' ? {
+      execFile: (exe, args, _opts, done) => {
+        assert.equal(exe, 'powershell.exe'); queries++;
+        assert.match(args.at(-1), /ErrorActionPreference='Stop'/);
+        if (queryFailed) return done(new Error('Access denied'));
+        done(null, JSON.stringify(invalid ? [{ ProcessId: 1000, ExecutablePath: null }] : rows));
+      }
+    } : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
+  });
+  const manager = module.exports.createMt5Manager({ config: { sandboxUsersDir: root }, logger: { info() {}, warn() {}, error() {} } });
+  await manager.reconcile();
+  assert.equal(queries, 1); assert.deepEqual(Array.from(manager.trackedPids()).sort(), [1000, 1001, 1002]);
+  invalid = true;
+  await assert.rejects(manager.reconcile(), /inventory is incomplete/);
+  queryFailed = true;
+  await assert.rejects(manager.reconcile(), /inventory is unavailable/);
+});
+
+test('agent authenticates and reports healthy without waiting for a broker keeper', async () => {
+  let connected = false, healthy = false;
+  const config = { nodeUid: 'fixture', nodeToken: 'fixture', agentDataDir: 'fixture', sandboxUsersDir: 'fixture', heartbeatIntervalMs: 15000 };
+  const manager = { validateBase: () => ({ ok: true }), reconcile: async () => {}, statusReports: () => [], trackedPids: () => [], checkAdopted() {} };
+  const transport = {
+    httpRequest: async () => ({ instances: [] }), sendHeartbeat: async () => {}, sendLogs: async () => {},
+    stop() {}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../agent/agent.js'), 'utf8'), {
+    process: { platform: 'win32', env: {}, on() {}, send: message => { if (message.type === 'agent_healthy') healthy = true; } },
+    console: { log() {}, warn() {}, error: message => { throw new Error(String(message)); } },
+    setTimeout, clearTimeout, clearInterval() {}, setInterval: () => ({ unref() {} }), URL, Date,
+    require: name => name === 'fs' ? { mkdirSync() {}, appendFileSync() {} }
+      : name === './config' ? { loadConfig: () => config }
+      : name === './mt5-manager' ? { createMt5Manager: () => manager }
+      : name === './ipc-probe' ? { createIpcProbe: () => ({ ensure() { throw new Error('Unavailable keeper must not block agent startup'); } }) }
+      : name === './ea-tester' ? { createEaTester: () => ({}) }
+      : name === './transport' ? { createTransport: options => { transport.start = () => { connected = true; options.onOpen(); }; return transport; } }
+      : name === './system-monitor' ? { sampleCpuPercent: () => 0, memoryMb: () => ({}), processMemoryMb: async () => new Map(), diskFreeMb: () => 1000 }
+      : name === './auto-update' ? { createAutoUpdater: () => ({ start() {} }) }
+      : name === './package.json' ? { version: 'fixture' }
+      : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
+  });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(connected, true); assert.equal(healthy, true);
+});
+
 test('reconnect waits for the old terminal to exit after taskkill acknowledges close', async () => {
   let alive = true;
   let launches = 0;

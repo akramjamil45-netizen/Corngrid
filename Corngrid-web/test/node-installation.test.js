@@ -42,10 +42,11 @@ test('task installer plans interactive startup, preserves existing tasks and sup
 });
 test('node bundle contains matching runtime files and hashes, with no live configuration or runtime data',{skip:process.platform!=='win32'},t=>{
   const f=fixture(t),zip=path.join(f.root,'agent.zip');
-  execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(backend,'scripts/build-node-agent.ps1'),'-OutputPath',zip],{windowsHide:true,timeout:20000});
+  // Includes PowerShell startup and filesystem scanning on a shared MT5 host.
+  execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(backend,'scripts/build-node-agent.ps1'),'-OutputPath',zip],{windowsHide:true,timeout:60000});
   const output=path.join(f.root,'unpacked');fs.mkdirSync(output);
   const extractor=path.join(f.root,'extract.ps1');fs.writeFileSync(extractor,"param($Zip,$Output)\n$ErrorActionPreference='Stop'\nExpand-Archive -LiteralPath $Zip -DestinationPath $Output\n");
-  execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',extractor,'-Zip',zip,'-Output',output],{windowsHide:true,timeout:20000});
+  execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',extractor,'-Zip',zip,'-Output',output],{windowsHide:true,timeout:60000});
   const manifest=JSON.parse(fs.readFileSync(path.join(output,'MANIFEST.json'),'utf8'));assert.ok(manifest.files.length>=RUNTIME_FILES.length);
   for(const item of manifest.files){assert.equal(item.path.includes('..'),false);const bytes=fs.readFileSync(path.join(output,item.path));assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),item.sha256);assert.equal(bytes.length,item.bytes);}
   for(const name of RUNTIME_FILES){const file=path.join(output,'agent',name);assert.ok(fs.existsSync(file),name);assert.deepEqual(fs.readFileSync(file),fs.readFileSync(path.join(backend,'agent',name)));}

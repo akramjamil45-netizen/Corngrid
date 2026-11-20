@@ -14,7 +14,7 @@ try{
  if(-not(Test-Path -LiteralPath (Join-Path $runtime 'signing-key.pem'))){throw 'Run initial auto-update deployment first.'}
  if(-not $SkipTests){
   Push-Location (Join-Path $source 'Corngrid-web')
-  try{$ErrorActionPreference='Continue';& node.exe --test --test-concurrency=2 'test/*.test.js' *> (Join-Path $runtime 'prepublication-tests.log');$testExit=$LASTEXITCODE;$ErrorActionPreference='Stop'}finally{Pop-Location}
+  try{$ErrorActionPreference='Continue';& node.exe --test --test-concurrency=1 'test/*.test.js' *> (Join-Path $runtime 'prepublication-tests.log');$testExit=$LASTEXITCODE;$ErrorActionPreference='Stop'}finally{Pop-Location}
   if($testExit -ne 0){throw 'Pre-publication tests failed; no source was deployed.'}
   if(-not $PythonPath){$PythonPath=Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'}
   if(-not(Test-Path -LiteralPath $PythonPath -PathType Leaf)){throw 'Specify -PythonPath for the broker regression tests; no source was deployed.'}
