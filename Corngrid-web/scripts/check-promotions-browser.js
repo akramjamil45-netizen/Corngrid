@@ -16,7 +16,7 @@ async function main() {
   let browser;
   try {
     browser = await require('playwright').chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_BROWSER_CHANNEL ? { channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL } : {}) });
-    const context = await browser.newContext(); let saved = null, claimed = false, claimCalls = 0;
+    const context = await browser.newContext(); let saved = null, claimed = false, claimCalls = 0, paidDownloads = false;
     const starts = Date.now(), expires = starts + 14 * 86400000;
     await context.route('**/api/**', async route => {
       const req = route.request(), url = new URL(req.url()), p = url.pathname;
@@ -33,7 +33,7 @@ async function main() {
       else if (p === '/api/subscription/overview') data = { subscription:claimed ? {id:1,status:'active',planName:'Free trial',startsAt:starts,expiresAt:expires,maxActivations:2} : null, activations:[],payments:[],activationCount:0,maxActivations:claimed?2:0,daysRemaining:claimed?14:null };
       else if (p === '/api/me') data = {id:1,username:'UI fixture',email:'fixture@example.test',preferences:{theme:'dark'}};
       else if (p === '/api/mt5/accounts') data = {accounts:[]};
-      else if (p === '/api/subscription/downloads') data = {versions:[]};
+      else if (p === '/api/subscription/downloads') data = claimed && !paidDownloads ? {canDownload:false,reason:'promotion',versions:[]} : {canDownload:true,versions:[{id:77,version:'fixture',filename:'UI-fixture.ex5',releasedAt:starts}]};
       else if (p.includes('notifications')) data = {notifications:[],items:[],unreadCount:0};
       else if (p.includes('conversations')) data = {conversations:[]};
       else if (p.includes('unread')) data = {unreadCount:0};
@@ -66,12 +66,15 @@ async function main() {
     const user = await context.newPage(); await user.setViewportSize({width:375,height:812});
     await user.goto(origin + '/fixture/dashboard#subscription');
     const claim = user.locator('[data-claim-promotion="9"]'); await claim.waitFor();
+    await user.locator('[data-ea-download="77"]').waitFor();
     assert.match(await claim.textContent(),/Claim free access/);
     await claim.click(); await user.waitForFunction(() => document.querySelector('[data-claim-promotion]')?.textContent === 'Promotion already claimed');
     assert.equal(claimCalls,1); assert.equal(await claim.isDisabled(),true);
+    await user.waitForFunction(() => document.getElementById('subscription-downloads-section').hidden && !document.querySelector('[data-ea-download]'));
     assert.equal(await user.locator('[data-subscribe-plan="10"]').isEnabled(),true);
     await user.reload(); await user.locator('[data-claim-promotion="9"]').waitFor();
     assert.equal(await user.locator('[data-claim-promotion="9"]').isDisabled(),true);
+    assert.equal(await user.locator('#subscription-downloads-section').isVisible(),false);
     for (const width of [320,375,1280]) {
       await user.setViewportSize({width,height:900});
       assert.equal(await user.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true,'user overflow at '+width);
@@ -81,7 +84,9 @@ async function main() {
     await admin.screenshot({path:path.join(out,'admin-mobile.png')});
     await user.setViewportSize({width:375,height:812}); await claim.scrollIntoViewIfNeeded();
     await user.screenshot({path:path.join(out,'user-mobile.png')});
-    console.log(JSON.stringify({passed:true,widths:[320,375,1280],adminDefaults:true,editableDuration:true,claimPersistsOnReload:true,paidButtonPreserved:true,screenshots:out}));
+    paidDownloads = true; await user.reload(); await user.locator('[data-ea-download="77"]').waitFor();
+    assert.equal(await user.locator('#subscription-downloads-section').isVisible(),true);
+    console.log(JSON.stringify({passed:true,widths:[320,375,1280],adminDefaults:true,editableDuration:true,claimPersistsOnReload:true,paidButtonPreserved:true,promotionDownloadsHidden:true,paidDownloadsPreserved:true,screenshots:out}));
     await context.close();
   } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
 }

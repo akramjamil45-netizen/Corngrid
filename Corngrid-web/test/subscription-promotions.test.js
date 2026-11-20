@@ -25,7 +25,7 @@ async function fixture(t) {
       ...(role ? {Authorization:'Bearer '+(role === 'admin' ? adminToken : tokens[role])} : {}),
       ...(installation ? { Authorization:'Bearer '+installation } : {}),
       ...(body ? {'Content-Type':'application/json'} : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
-    return { status: response.status, data: await response.json() };
+    return { status: response.status, data: response.headers.get('content-type')?.includes('application/json') ? await response.json() : await response.text() };
   }
   async function plan(body = {}) {
     const result = await request('/api/admin/subscription-plans', { role:'admin',method:'POST',body:{ name:'Free access',is_promotion:true,...body } });
@@ -73,6 +73,42 @@ test('concurrent clicks and different promotional plans converge on one lifetime
   assert.equal((await get(f.db,'SELECT COUNT(*) n FROM subscription_promotion_claims')).n,1);
   assert.equal((await get(f.db,"SELECT COUNT(*) n FROM subscription_audit_logs WHERE action='promotion_claimed'")).n,1);
   assert.equal((await f.claim(a,2)).status,201,'other users retain their own entitlement');
+});
+
+test('promotional licences never expose protected EA builds, even after their plan is converted',async t => {
+  const f=await fixture(t), id=await f.plan(), grant=await f.claim(id), time=Date.now();
+  const build=await run(f.db,"INSERT INTO ea_downloads(version,filename,file_path,is_active,created_at,updated_at) VALUES('fixture','fixture.ex5','fixture.ex5',1,?,?)",[time,time]);
+  const listing=await f.request('/api/subscription/downloads');
+  assert.equal(listing.status,200); assert.equal(listing.data.canDownload,false); assert.deepEqual(listing.data.versions,[]);
+  assert.equal((await f.request('/api/subscription/download/'+build.lastID)).status,403);
+  assert.equal((await f.request('/api/subscription/overview')).data.subscription.status,'active','download policy must not revoke the licence');
+  await f.request('/api/admin/subscription-plans/'+id,{role:'admin',method:'PUT',body:{is_promotion:false,price:59}});
+  assert.equal((await f.request('/api/subscription/downloads')).data.canDownload,false,'original grant provenance survives plan edits');
+  assert.equal((await f.request('/api/subscription/download/'+build.lastID)).status,403);
+  assert.equal((await get(f.db,'SELECT status FROM user_subscriptions WHERE id=?',[grant.data.subscriptionId])).status,'active');
+});
+
+test('active paid periods retain downloads; future and expired paid periods cannot unlock trial downloads',async t => {
+  const f=await fixture(t), free=await f.plan(), paid=await f.plan({name:'Paid plan',is_promotion:false,price:59,duration_days:30}), time=Date.now();
+  const buildName='promotion-policy-'+crypto.randomBytes(12).toString('hex')+'.ex5';
+  const buildPath=require('node:path').join(__dirname,'../storage/ea-downloads',buildName);
+  require('node:fs').writeFileSync(buildPath,'fixture-compiled-ea');
+  t.after(()=>require('node:fs').unlinkSync(buildPath));
+  const build=await run(f.db,'INSERT INTO ea_downloads(version,filename,file_path,is_active,created_at,updated_at) VALUES(?,?,?,1,?,?)',['fixture',buildName,buildName,time,time]);
+  const current=await run(f.db,"INSERT INTO user_subscriptions(user_id,plan_id,status,purchase_price,currency,duration_days,max_activations,starts_at,expires_at,created_at,updated_at) VALUES(1,?,'active',59,'MYR',30,5,?,?,?,?)",[paid,time-1000,time+86400000,time,time]);
+  const grant=await f.claim(free); assert.equal(grant.data.scheduled,true);
+  assert.equal((await f.request('/api/subscription/downloads')).data.canDownload,true);
+  assert.equal((await f.request('/api/subscription/download/'+build.lastID)).data,'fixture-compiled-ea');
+  await run(f.db,'UPDATE user_subscriptions SET starts_at=?,expires_at=? WHERE id=?',[time-86400000,time-1,current.lastID]);
+  await run(f.db,'UPDATE user_subscriptions SET starts_at=?,expires_at=? WHERE id=?',[time-1,time+7*86400000,grant.data.subscriptionId]);
+  await run(f.db,"INSERT INTO user_subscriptions(user_id,plan_id,status,purchase_price,currency,starts_at,expires_at,created_at,updated_at) VALUES(1,?,'active',59,'MYR',?,?,?,?)",[paid,time+7*86400000,time+37*86400000,time,time]);
+  assert.equal((await f.request('/api/subscription/downloads')).data.canDownload,false);
+  assert.equal((await f.request('/api/subscription/download/'+build.lastID)).status,403);
+  // Independent overlapping paid access must still count, regardless of which
+  // period the licensing API selects as the longest current entitlement.
+  await run(f.db,'UPDATE user_subscriptions SET starts_at=?,expires_at=? WHERE id=?',[time-1000,time+86400000,current.lastID]);
+  assert.equal((await f.request('/api/subscription/downloads')).data.canDownload,true);
+  assert.equal((await f.request('/api/subscription/download/'+build.lastID)).status,200);
 });
 
 test('editing, disabling, recreating and removing subscription records never reset claim history',async t => {

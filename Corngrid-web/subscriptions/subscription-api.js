@@ -298,7 +298,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
     `, [userId, now()]);
   }
 
-  async function eligibleSubscription(userId) {
+  async function eligibleSubscription(userId, { allowPromotions = true } = {}) {
     const row = await get(`
       SELECT s.*, p.name AS plan_name, p.max_activations AS plan_max_activations
       FROM user_subscriptions s
@@ -306,6 +306,7 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       WHERE s.user_id = ? AND s.deleted_at IS NULL AND s.status = 'active'
         AND s.starts_at IS NOT NULL AND s.starts_at <= ?
         AND (s.expires_at IS NULL OR s.expires_at > ?)
+        ${allowPromotions ? '' : 'AND NOT EXISTS (SELECT 1 FROM subscription_promotion_claims c WHERE c.user_id = s.user_id AND c.subscription_id = s.id)'}
       ORDER BY s.expires_at DESC, s.id DESC
       LIMIT 1
     `, [userId, now(), now()]);
@@ -659,14 +660,18 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
 
   app.get('/api/subscription/downloads', verifyToken, async (req, res) => {
     try {
-      const subscription = await eligibleSubscription(req.user.id);
+      const subscription = await eligibleSubscription(req.user.id, { allowPromotions: false });
       if (!subscription) {
+        if (await eligibleSubscription(req.user.id)) {
+          return res.json({ canDownload: false, reason: 'promotion', versions: [] });
+        }
         return res.status(403).json({ error: 'An active subscription is required to download the EA.' });
       }
       const versions = await all(
         'SELECT id, version, filename, release_notes, created_at FROM ea_downloads WHERE is_active = TRUE ORDER BY id DESC LIMIT 20'
       );
       res.json({
+        canDownload: true,
         subscriptionStatus: 'active',
         versions: versions.map(row => ({
           id: row.id,
@@ -688,9 +693,9 @@ function createSubscriptionApi(app, db, verifyToken, adminAuth, authenticateInst
       if (!Number.isSafeInteger(downloadId) || downloadId < 1) {
         return res.status(400).json({ error: 'Invalid download identifier.' });
       }
-      const subscription = await eligibleSubscription(req.user.id);
+      const subscription = await eligibleSubscription(req.user.id, { allowPromotions: false });
       if (!subscription) {
-        return res.status(403).json({ error: 'An active subscription is required to download the EA.' });
+        return res.status(403).json({ error: 'Protected EA downloads require an active non-promotional subscription.', code: 'EA_DOWNLOAD_NOT_INCLUDED' });
       }
       const record = await get('SELECT * FROM ea_downloads WHERE id = ? AND is_active = TRUE', [downloadId]);
       if (!record) return res.status(404).json({ error: 'This EA version is not available.' });

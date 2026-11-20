@@ -21,6 +21,13 @@ claim creates a normal active subscription period with a zero purchase price.
 Existing licence, MT5 account activation, expiry, and Sandbox entitlement checks
 still apply; a claim does not automatically start a trading session.
 
+Promotional periods do **not** include protected EA downloads. The Subscription
+page hides the download section for promotion-only access, and the direct file
+endpoint rejects it server-side. Eligibility uses the original claim's
+subscription ID, so editing or converting its plan does not unlock downloads.
+An existing active non-promotional subscription retains its download entitlement;
+a future or expired paid subscription does not unlock downloads during a trial.
+
 The limit is **one promotion per user account in total**, across all promotional
 plans. Editing, deactivating, reactivating, or recreating an offer does not reset
 eligibility. Expiry and subscription record removal do not reset it either.

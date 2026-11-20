@@ -67,7 +67,7 @@ async function apply(value){
  return {phase:'applied',files:files.length,migration:path.basename(migration),environmentPreserved:true};
 }
 async function verify(){
- const db=await client();let user,adminVersion,mfaVersion,database;
+ const db=await client();let user,adminVersion,mfaVersion,database,downloadAccess;
  try{
   database=(await db.query(`SELECT (SELECT COUNT(*) FROM users)::int AS users,
    (SELECT COUNT(*) FROM user_subscriptions)::int AS subscriptions,(SELECT COUNT(*) FROM subscription_payments)::int AS payments,
@@ -76,7 +76,12 @@ async function verify(){
   user=(await db.query(`SELECT u.id,COALESCE(v.version,0) AS version,COALESCE(f.version,0) AS mfa_version FROM users u
    LEFT JOIN user_auth_versions v ON v.user_id=u.id LEFT JOIN auth_factors f ON f.subject='user:'||u.id::text
    LEFT JOIN account_archives a ON a.user_id=u.id WHERE u.email_verified::text IN ('1','true','t') AND a.archived_at IS NULL
-   AND NOT EXISTS(SELECT 1 FROM user_account_access x WHERE x.user_id=u.id AND x.suspended_until>$1) ORDER BY u.id LIMIT 1`,[Date.now()])).rows[0];
+   AND NOT EXISTS(SELECT 1 FROM user_account_access x WHERE x.user_id=u.id AND x.suspended_until>$1)
+   ORDER BY EXISTS(SELECT 1 FROM subscription_promotion_claims c WHERE c.user_id=u.id) DESC,u.id LIMIT 1`,[Date.now()])).rows[0];
+  if(user)downloadAccess=(await db.query(`SELECT
+   EXISTS(SELECT 1 FROM user_subscriptions s WHERE s.user_id=$1 AND s.status='active' AND s.deleted_at IS NULL AND s.starts_at<=$2 AND (s.expires_at IS NULL OR s.expires_at>$2)) AS active,
+   EXISTS(SELECT 1 FROM user_subscriptions s WHERE s.user_id=$1 AND s.status='active' AND s.deleted_at IS NULL AND s.starts_at<=$2 AND (s.expires_at IS NULL OR s.expires_at>$2)
+    AND NOT EXISTS(SELECT 1 FROM subscription_promotion_claims c WHERE c.user_id=s.user_id AND c.subscription_id=s.id)) AS allowed`,[user.id,Date.now()])).rows[0];
   const email=env.ADMIN_EMAIL.trim().toLowerCase();adminVersion=crypto.createHash('sha256').update(email+'\0'+env.ADMIN_PASSWORD_HASH.trim()).digest('hex');
   const subject='admin:'+crypto.createHash('sha256').update(email).digest('hex');mfaVersion=Number((await db.query('SELECT version FROM auth_factors WHERE subject=$1',[subject])).rows[0]?.version||0);
  }finally{await db.end();}
@@ -91,6 +96,11 @@ async function verify(){
   if(route==='/api/admin/subscription-plans')assert(data.plans.every(p=>Object.hasOwn(p,'is_promotion')&&Object.hasOwn(p,'promotion_claim_count')));
   routes.push({route,status:response.status});
  }
+ const downloads=await fetch(base+'/api/subscription/downloads',{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)}),downloadData=await downloads.json();
+ assert.equal(downloads.status,downloadAccess.active?200:403,'Unexpected protected download eligibility');
+ if(downloadAccess.active){assert.equal(downloadData.canDownload,downloadAccess.allowed);if(!downloadAccess.allowed){assert.deepEqual(downloadData.versions,[]);assert.equal(downloadData.reason,'promotion');}}
+ if(!downloadAccess.allowed){const direct=await fetch(base+'/api/subscription/download/2147483647',{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});assert.equal(direct.status,403,'Direct protected download allowed');assert.equal((await direct.json()).code,'EA_DOWNLOAD_NOT_INCLUDED');}
+ routes.push({route:'/api/subscription/downloads',status:downloads.status,downloadAllowed:downloadAccess.allowed});
  for(const route of ['/api/subscription/plans','/api/admin/subscription-plans','/api/subscription/promotions/claim']){
   const response=await fetch(base+route,{method:route.endsWith('/claim')?'POST':'GET',signal:AbortSignal.timeout(10000)});assert.equal(response.status,401,'Unauthenticated route allowed');
  }
@@ -100,7 +110,7 @@ async function verify(){
 async function publicSmoke(){
  const checks=[];
  for(const origin of ['http://127.0.0.1:8080','https://corngrid.com'])for(const name of ['admin.css','admin.js','admin.html','dashboard.js','dashboard.html']){
-  const local=contained(backend,'public/'+name),response=await fetch(origin+'/'+name+'?v=20261120-promotions1',{headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(20000)});assert.equal(response.status,200,'Public asset missing '+name);const bytes=Buffer.from(await response.arrayBuffer());
+  const local=contained(backend,'public/'+name),response=await fetch(origin+'/'+name+'?v='+hash(local).slice(0,16),{headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(20000)});assert.equal(response.status,200,'Public asset missing '+name);const bytes=Buffer.from(await response.arrayBuffer());
   assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),hash(local),'Stale public asset '+name);checks.push({origin,name,status:response.status});
  }
  return {phase:'public-smoke-passed',checks};

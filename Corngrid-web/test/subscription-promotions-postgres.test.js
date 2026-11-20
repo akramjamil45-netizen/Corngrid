@@ -28,6 +28,13 @@ test('PostgreSQL promotions serialize cross-worker claims and preserve lifetime 
     assert.equal((await dbGet(a,'SELECT COUNT(*) n FROM user_subscriptions')).n,1);
     assert.equal((await dbGet(a,'SELECT COUNT(*) n FROM subscription_payments')).n,0);
     assert.equal((await dbGet(a,"SELECT COUNT(*) n FROM subscription_audit_logs WHERE action='promotion_claimed'")).n,1);
+    const pass=(_req,_res,next)=>next();
+    const subscriptions=require('../subscriptions/subscription-api')(require('express')(),a,pass,{verifyToken:pass},pass);
+    assert.ok(await subscriptions.eligibleSubscription(user.lastID),'promotional licence remains valid');
+    assert.equal(await subscriptions.eligibleSubscription(user.lastID,{allowPromotions:false}),null,'promotion cannot unlock downloads');
+    const paid=await dbRun(a,"INSERT INTO user_subscriptions(user_id,status,purchase_price,currency,starts_at,expires_at,created_at,updated_at) VALUES(?,'active',59,'MYR',?,?,?,?)",[user.lastID,time-1000,time+86400000,time,time]);
+    assert.equal((await subscriptions.eligibleSubscription(user.lastID,{allowPromotions:false})).id,paid.lastID,'independent paid access is preserved');
+    await dbRun(a,'DELETE FROM user_subscriptions WHERE id=?',[paid.lastID]);
     await dbRun(a,'UPDATE subscription_plans SET duration_days=21,max_activations=3 WHERE id=?',[plan.lastID]);
     let claim = await dbGet(a,'SELECT * FROM subscription_promotion_claims WHERE user_id=?',[user.lastID]);
     assert.equal(claim.duration_days,7); assert.equal(claim.max_activations,1);

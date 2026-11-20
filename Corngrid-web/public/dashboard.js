@@ -777,8 +777,13 @@
 
   async function loadSubscriptionDownloads() {
     const list = $('#ea-download-list');
+    const section = $('#subscription-downloads-section');
+    section.hidden = true;
+    list.replaceChildren();
     try {
       const data = await request('/subscription/downloads');
+      if (data.canDownload === false) return;
+      section.hidden = false;
       $('#ea-download-help').textContent = 'Download the latest compiled CornGrid EA. Your license activates when the EA first connects.';
       if (!data.versions.length) {
         list.innerHTML = '<p class="muted subscription-empty">No EA build has been published yet.</p>';
@@ -794,6 +799,7 @@
           <button class="button button-primary button-small" type="button" data-ea-download="${escapeHtml(String(version.id))}" data-ea-filename="${escapeHtml(version.filename)}">Download</button>
         </div>`).join('');
     } catch (error) {
+      section.hidden = false;
       list.innerHTML = `<p class="muted subscription-empty">${escapeHtml(error.message)}</p>`;
     }
   }
