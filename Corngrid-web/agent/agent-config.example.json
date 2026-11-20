@@ -5,6 +5,7 @@
   "mt5BaseDir": "C:\\CornGrid\\Sandbox\\MT5",
   "sandboxUsersDir": "C:\\CornGrid\\Sandbox\\Users",
   "agentDataDir": "C:\\CornGrid\\Sandbox\\AgentData",
+  "ipcProbeDir": "C:\\CornGrid\\Sandbox\\IpcProbe",
   "brokerCacheDir": "C:\\CornGrid\\Sandbox\\BrokerCaches",
   "mt5PythonPath": "C:\\Python313\\python.exe",
   "brokerSymbolMaps": {},

@@ -1,5 +1,46 @@
 # Signed automatic Sandbox Agent updates
 
+## Deployment hardening in 1.3.1
+
+The project source includes the Windows fixes previously published in 1.2.5,
+while retaining the Linux/Wine runtime. New deployments use credentials during
+MT5 initialization and validate the returned account, server, trading permission
+and live symbol list before downloading/starting the EA. The entire shared
+Windows IPC probe transaction is serialized, including broker cache reloads;
+different accounts cannot change its login in the middle of another preflight.
+Linux probes retain independent Wine prefixes and also use the preflight queue.
+
+An exact XAUUSD match takes precedence, followed by the complete GOLD alias.
+Prefix-only alternatives remain ambiguous unless configured explicitly. Account
+and broker symbol mappings override automatic resolution and must refer to a
+tradable symbol actually returned by that account.
+
+Per-instance controls and recovery are serialized. WebSocket/HTTPS redelivery
+with the same command ID reuses its in-memory outcome (bounded to 256 entries);
+an intentional retry must receive a new backend command ID. This is not a
+persistent exactly-once guarantee across agent restarts. Interrupted deployments
+leave an incomplete marker until successful launch. Failed deployments attempt
+cleanup with bounded file-lock retries. Start rejects incomplete environments
+with a redeploy instruction, including legacy directories missing their licence.
+
+The Windows IPC keeper has its own directory and starts with EA/live trading
+disabled. It survives child-agent updates. A new deployment never stops a
+running user terminal to acquire IPC port 22346. If a legacy terminal owns the
+port, schedule a node maintenance handover before enabling new deployments.
+Do not fix this by killing all terminal64.exe processes. The keeper directory
+must not overlap the MT5 base or sandbox users directory.
+
+Error -10005 is an internal/IPC timeout, not proof of an incorrect password;
+-6 indicates authorization failure. Only transient IPC failures retry (at most
+three attempts). See the [MetaQuotes error definitions](https://www.mql5.com/en/docs/python_metatrader5/mt5lasterror_py).
+Broker outages, invalid credentials, missing server seeds and insufficient node
+resources can still block deployment safely; these checks must not be bypassed.
+
+Regression coverage: `broker-deploy.test.js`, `broker-resolution.test.js`,
+`ipc-probe.test.js`, `node-command-execution.test.js`, `mt5-startup.test.js`,
+`agent-recovery.test.js`, `linux-agent.test.js`, and `broker_probe_test.py`.
+The Python tests use a fake MT5 API and never connect to a real account.
+
 The protocol-v1 launcher keeps the Windows scheduled task or Linux systemd agent service alive while replacing
 its agent child. Agent releases live in separate, immutable directories under
 `agentDataDir\node-releases`. An atomic pointer selects the active version.

@@ -46,6 +46,7 @@ function loadConfig() {
     sandboxUsersDir: env.CORNGRID_SANDBOX_USERS_DIR || file.sandboxUsersDir || (linux ? '/var/lib/corngrid/instances' : 'C:\\CornGrid\\Sandbox\\Users'),
     // Local working directory for downloaded EA binaries and agent logs.
     agentDataDir: env.CORNGRID_AGENT_DATA_DIR || file.agentDataDir || (linux ? '/var/lib/corngrid/agent-data' : 'C:\\CornGrid\\Sandbox\\AgentData'),
+    ipcProbeDir: file.ipcProbeDir || 'C:\\CornGrid\\Sandbox\\IpcProbe',
     linuxWineEnabled: env.CORNGRID_LINUX_WINE !== undefined ? env.CORNGRID_LINUX_WINE === 'true' : file.linuxWineEnabled === true,
     wineBinary: env.CORNGRID_WINE_BINARY || file.wineBinary || '/usr/bin/wine',
     wineTemplateDir: env.CORNGRID_WINE_TEMPLATE_DIR || file.wineTemplateDir || '/var/lib/corngrid/wine-template',

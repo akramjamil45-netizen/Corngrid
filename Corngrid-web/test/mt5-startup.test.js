@@ -5,6 +5,34 @@ const os = require('node:os');
 const path = require('node:path');
 const { prepareStartup } = require('../agent/mt5-startup');
 
+test('restart validates the configured partner EA even when the base contains another executable', t => {
+  const { loadStartupPayload } = require('../agent/mt5-startup');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-partner-restart-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const payload = { symbol: 'GOLD', accountNumber: '123', brokerServer: 'Broker-Demo', password: 'fixture', installationSecret: 'a'.repeat(64), strategy: { code: 'partner-1', eaFileName: 'Partner.ex5' } };
+  prepareStartup(dir, payload, { backendUrl: 'https://example.test' });
+  fs.mkdirSync(path.join(dir, 'MQL5/Experts/CornGrid'), { recursive: true });
+  for (const name of ['CornGrid.ex5', 'Partner.ex5']) fs.writeFileSync(path.join(dir, 'MQL5/Experts/CornGrid', name), 'fixture');
+  fs.writeFileSync(path.join(dir, 'MQL5/Files/corngrid_sandbox.ini'), '[License]\nAccount=123\nServer=Broker-Demo\nSecret=' + payload.installationSecret);
+  assert.equal(loadStartupPayload(dir).strategy.eaFileName, 'Partner.ex5');
+  fs.unlinkSync(path.join(dir, 'MQL5/Experts/CornGrid/Partner.ex5'));
+  assert.throws(() => loadStartupPayload(dir), /executable is missing/);
+});
+
+test('WebRequest startup updates preserve MT5 account environment and unrelated settings', t => {
+  const { mergeIni } = require('../agent/mt5-startup');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-ini-merge-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const encoding of ['utf8', 'utf16le']) {
+    const file = path.join(dir, encoding + '.ini');
+    fs.writeFileSync(file, (encoding === 'utf16le' ? '\ufeff' : '') + '[Common]\r\nEnvironment=preserved\r\nLogin=123\r\n[Experts]\r\nEnabled=1\r\nWebRequestUrl=https://old.example\r\n', encoding);
+    mergeIni(file, { Experts: { WebRequestUrl: 'https://example.test', WebRequest: '1' } });
+    const ini = fs.readFileSync(file, encoding);
+    assert.match(ini, /Environment=preserved/); assert.match(ini, /Login=123/); assert.match(ini, /Enabled=1/);
+    assert.match(ini, /WebRequestUrl=https:\/\/example.test/); assert.equal((ini.match(/WebRequestUrl=/g) || []).length, 1);
+  }
+});
+
 test('verified broker identity seeds matching credentials and takes priority over a stale symbol map', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-canonical-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

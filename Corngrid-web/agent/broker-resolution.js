@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
+const enqueueProbe = require('./operation-queue').createOperationQueue();
 
 function lookup(object, key) {
   const found = Object.keys(object || {}).find(name => name.toLowerCase() === String(key).toLowerCase());
@@ -19,6 +20,10 @@ function resolveSymbol(requested, symbols, override) {
   const exact = available.find(item => item.name === requested);
   if (exact) return exact.name;
   const aliases = requested.toUpperCase() === 'XAUUSD' ? ['XAUUSD', 'GOLD'] : [requested.toUpperCase()];
+  // Prefer a complete contract name over prefix matches such as GoldmSachs
+  // or GOLD24-7. Explicit account/server mappings still take precedence.
+  const alias = available.find(item => aliases.includes(item.name.toUpperCase()));
+  if (alias) return alias.name;
   const matches = available.filter(item => aliases.some(base => {
     const name = item.name.toUpperCase();
     return name === base || (name.startsWith(base) && /^[A-Z0-9._-]{1,12}$/.test(name.slice(base.length))) ||
@@ -53,7 +58,14 @@ function validateProbe(result, payload, config) {
   return { brokerServer: result.server, resolvedSymbol: resolveSymbol(requested, result.symbols, accountMappings?.[requested] || mappings?.[requested]) };
 }
 
-async function resolveBroker(dir, payload, config, run = execFile) {
+function resolveBroker(dir, payload, config, run = execFile, ipcProbe = null) {
+  // Include cache refresh, keeper restart, login and symbol validation in one
+  // lock. Serializing initialize() alone still lets another login change the
+  // shared terminal before the first account_info()/symbols_get() completes.
+  return enqueueProbe('broker-preflight', () => verifyBroker(dir, payload, config, run, ipcProbe));
+}
+
+async function verifyBroker(dir, payload, config, run, ipcProbe) {
   for (const field of ['brokerServer', 'accountNumber', 'password']) {
     if (typeof payload[field] !== 'string' || !payload[field] || /[\r\n\0]/.test(payload[field])) throw new Error(`Invalid ${field} for broker preflight.`);
   }
@@ -65,18 +77,28 @@ async function resolveBroker(dir, payload, config, run = execFile) {
     '[Common]', `Login=${payload.accountNumber}`, `Password=${payload.password}`, `Server=${payload.brokerServer}`, 'KeepPrivate=1',
     '', '[Experts]', 'Enabled=0', 'AllowLiveTrading=0', '', '[StartUp]', ''
   ].join('\r\n'), 'utf16le');
+  let probeTerminal = null;
+  if (ipcProbe) {
+    const ensured = await ipcProbe.ensure({ allowTakeover: false });
+    if (!ensured.ok) throw new Error(ensured.error || 'The MT5 IPC probe terminal is not available.');
+    await ipcProbe.prepareForServer(payload.brokerServer, config);
+    const ready = await ipcProbe.ensure({ allowTakeover: false });
+    if (!ready.ok) throw new Error(ready.error || 'The MT5 IPC probe terminal is not available.');
+    probeTerminal = ipcProbe.dir;
+  }
   const requestId = require('node:crypto').randomUUID();
   const resultPath = path.join(dir, 'config', 'broker-preflight-result.json');
   fs.rmSync(resultPath, { force: true });
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'resolve-broker.ps1'),
     '-InstanceDir', path.resolve(dir), '-Search', brokerSearch(payload.brokerServer), '-PythonPath', config.mt5PythonPath || 'python.exe', '-RequestId', requestId];
+  if (probeTerminal) args.push('-ProbeTerminal', path.resolve(probeTerminal));
   if(process.platform==='linux'){
     if(!fs.existsSync(path.join(dir,'config','servers.dat')))throw new Error('Linux broker preflight requires a prepared broker servers.dat seed. See the Linux installation guide.');
     fs.writeFileSync(path.join(dir,'config','common.ini'),fs.readFileSync(path.join(dir,'config','broker-preflight.ini')),{mode:0o600});
     const runtime=require('./linux-runtime').createLinuxRuntime({config});
-    await runtime.runProgram(dir,config.mt5PythonPath,[runtime.toWinePath(path.join(__dirname,'broker-probe.py')),runtime.toWinePath(path.resolve(dir)),requestId],{kind:'probe',timeout:240000});
+    await runtime.runProgram(dir,config.mt5PythonPath,[runtime.toWinePath(path.join(__dirname,'broker-probe.py')),runtime.toWinePath(path.resolve(dir)),requestId],{kind:'probe',timeout:600000});
   }else await new Promise((resolve, reject) => run('powershell.exe', args,
-    { timeout: 240000, windowsHide: true, maxBuffer: 64 * 1024 }, error => {
+    { timeout: 600000, windowsHide: true, maxBuffer: 64 * 1024 }, error => {
       if (error) return reject(new Error('MT5 broker preflight could not run. Check the node Python/MetaTrader5 installation and broker discovery log.'));
       resolve();
     }));

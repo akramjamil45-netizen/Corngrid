@@ -14,8 +14,8 @@ test('reconnect waits for the old terminal to exit after taskkill acknowledges c
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../agent/mt5-manager.js'), 'utf8'), {
     module, Date, setTimeout, clearTimeout,
     process: { kill() { if (!alive) throw Object.assign(new Error('exited'), { code: 'ESRCH' }); } },
-    require: name => name === 'fs' ? { existsSync: () => true }
-      : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini' }
+    require: name => name === 'fs' ? { existsSync: file => !file.endsWith('.corngrid-deployment-incomplete') }
+      : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini', loadStartupPayload: () => ({strategy:{eaFileName:'CornGrid.ex5'}}) }
         : name === './broker-resolution' ? require('../agent/broker-resolution')
         : name === './broker-server-cache' ? {} : name === 'child_process' ? {
           spawn: () => {
@@ -27,7 +27,7 @@ test('reconnect waits for the old terminal to exit after taskkill acknowledges c
             done(null);
             setTimeout(() => { alive = false; }, 30);
           }
-        } : require(name)
+        } : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
   });
   const manager = module.exports.createMt5Manager({ config: { sandboxUsersDir: 'C:/test', stopGraceMs: 1000 },
     logger: { info() {}, warn() {}, error() {} } });
@@ -80,12 +80,12 @@ test('terminal failures preserve retry history and explicit stop cancels recover
     module, Date, process: { kill() {} },
     setTimeout: (fn, delay) => { timers.set(++counter, { fn, delay }); return counter; },
     clearTimeout: id => timers.delete(id),
-    require: name => name === 'fs' ? { existsSync: () => true }
-      : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini' }
+    require: name => name === 'fs' ? { existsSync: file => !file.endsWith('.corngrid-deployment-incomplete') }
+      : name === './mt5-startup' ? { ensureStartup: () => 'startup.ini', loadStartupPayload: () => ({strategy:{eaFileName:'CornGrid.ex5'}}) }
         : name === './broker-resolution' ? require('../agent/broker-resolution')
         : name === './broker-server-cache' ? {} : name === 'child_process' ? {
           spawn: () => { const child = new EventEmitter(); child.pid = 100 + children.length; children.push(child); return child; }
-        } : require(name)
+        } : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
   });
   const manager = module.exports.createMt5Manager({ config: {
     sandboxUsersDir: 'C:/test', restartWindowMs: 600000, restartMaxAttempts: 2
@@ -94,7 +94,7 @@ test('terminal failures preserve retry history and explicit stop cancels recover
   await manager.start(payload);
   for (let i = 0; i < 2; i++) {
     children[i].emit('exit', 0);
-    const [id, timer] = [...timers][0]; timers.delete(id); timer.fn();
+    const [id, timer] = [...timers][0]; timers.delete(id); await timer.fn();
   }
   children[2].emit('exit', 0);
   assert.equal(children.length, 3);

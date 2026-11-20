@@ -9,6 +9,41 @@ function iniValue(value, label) {
   return text;
 }
 
+function iniEscape(key) {
+  return String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Merge values into an existing MT5 ini. The terminal keeps its own state
+// (Environment, licence, WebRequest allowlist) in common.ini, so replacing the
+// file would throw away what a saved account depends on.
+function mergeIni(file, updates) {
+  let text = '';
+  let utf16 = true;
+  if (fs.existsSync(file)) {
+    const bytes = fs.readFileSync(file);
+    utf16 = bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe;
+    text = bytes.toString(utf16 ? 'utf16le' : 'utf8').replace(/^\ufeff/, '');
+  }
+  const lines = text.length ? text.split(/\r?\n/) : [];
+  for (const [section, entries] of Object.entries(updates)) {
+    let start = lines.findIndex(line => new RegExp(`^\\[${iniEscape(section)}\\]\\s*$`, 'i').test(line.trim()));
+    if (start < 0) {
+      if (lines.length && lines[lines.length - 1] !== '') lines.push('');
+      lines.push(`[${section}]`);
+      start = lines.length - 1;
+    }
+    let end = lines.findIndex((line, index) => index > start && /^\s*\[[^\]]+\]\s*$/.test(line));
+    if (end < 0) end = lines.length;
+    for (const [key, value] of Object.entries(entries)) {
+      const pattern = new RegExp(`^\\s*${iniEscape(key)}\\s*=`, 'i');
+      const index = lines.findIndex((line, position) => position > start && position < end && pattern.test(line));
+      if (index >= 0) lines[index] = `${key}=${value}`;
+      else { lines.splice(end, 0, `${key}=${value}`); end += 1; }
+    }
+  }
+  fs.writeFileSync(file, (utf16 ? '\ufeff' : '') + lines.join('\r\n'), utf16 ? 'utf16le' : 'utf8');
+}
+
 function prepareStartup(dir, payload, config) {
   const selectedPair = payload.symbol || config.startupSymbol || 'XAUUSD';
   const symbol = iniValue(payload.resolvedSymbol || require('./broker-resolution').lookup(config.brokerSymbolMaps, payload.brokerServer)?.[selectedPair] || selectedPair, 'sandbox chart symbol');
@@ -56,8 +91,16 @@ function prepareStartup(dir, payload, config) {
   ].join('\r\n');
   const startupPath = path.join(configDir, 'sandbox-startup.ini');
   fs.writeFileSync(startupPath, '\ufeff' + startup, 'utf16le');
-  // MT5 persists its WebRequest allowlist in common.ini too.
-  if (webRequest.length) fs.writeFileSync(path.join(configDir, 'common.ini'), '\ufeff' + startup, 'utf16le');
+  // MT5 persists its WebRequest allowlist in common.ini too. Merge only those
+  // keys so the terminal keeps the rest of its own configuration.
+  if (webRequest.length) {
+    const entries = {};
+    for (const line of webRequest) {
+      const equals = line.indexOf('=');
+      entries[line.slice(0, equals)] = line.slice(equals + 1);
+    }
+    mergeIni(path.join(configDir, 'common.ini'), { Experts: entries });
+  }
   return startupPath;
 }
 function loadStartupPayload(dir) {
@@ -76,13 +119,27 @@ function loadStartupPayload(dir) {
   }
   const startup = path.join(dir, 'config', 'sandbox-startup.ini');
   const source = fs.existsSync(startup) ? startup : path.join(dir, 'config', 'common.ini');
+  if (!fs.existsSync(source)) throw new Error('Sandbox startup configuration is missing; redeploy the sandbox.');
+  const licensePath = path.join(dir, 'MQL5', 'Files', 'corngrid_sandbox.ini');
+  if (!fs.existsSync(licensePath)) throw new Error('Sandbox licence bundle is missing; redeploy the sandbox.');
   const common = readIni(source, 'Common');
-  const license = readIni(path.join(dir, 'MQL5', 'Files', 'corngrid_sandbox.ini'), 'License');
+  const license = readIni(licensePath, 'License');
   if (String(common.Login) !== String(license.Account) || String(common.Server).toLowerCase() !== String(license.Server).toLowerCase()) {
     throw new Error('Legacy sandbox login does not match its installation credential.');
   }
-  const binaries = fs.readdirSync(path.join(dir, 'MQL5', 'Experts', 'CornGrid')).filter(name => name.endsWith('.ex5'));
-  if (binaries.length !== 1) throw new Error('Cannot determine the legacy sandbox EA binary.');
+  const binaries = fs.readdirSync(path.join(dir, 'MQL5', 'Experts', 'CornGrid')).filter(name => /\.ex5$/i.test(name));
+  const configuredExpert = readIni(source, 'StartUp').Expert;
+  let binary;
+  if (configuredExpert) {
+    const match = /^CornGrid[\\/]([A-Za-z0-9._ -]+)$/.exec(configuredExpert);
+    if (!match) throw new Error('Sandbox EA startup path is invalid; redeploy the sandbox.');
+    const expected = /\.ex5$/i.test(match[1]) ? match[1] : match[1] + '.ex5';
+    binary = binaries.find(name => name.toLowerCase() === expected.toLowerCase());
+    if (!binary) throw new Error('Sandbox EA executable is missing; redeploy the sandbox.');
+  } else {
+    if (binaries.length !== 1) throw new Error('Cannot determine the legacy sandbox EA binary.');
+    binary = binaries[0];
+  }
   const presetFile = path.join(dir, 'MQL5', 'Presets', 'corngrid-sandbox.set');
   let preset;
   if (fs.existsSync(presetFile)) {
@@ -93,7 +150,7 @@ function loadStartupPayload(dir) {
     accountNumber: common.Login, brokerServer: common.Server, password: common.Password,
     installationSecret: license.Secret, apiBaseUrl: license.ApiBaseUrl,
     symbol: readIni(source, 'StartUp').Symbol || 'XAUUSD', preset,
-    strategy: { eaFileName: binaries[0] }
+    strategy: { eaFileName: binary }
   };
 }
 function ensureStartup(dir, config) {
@@ -101,4 +158,4 @@ function ensureStartup(dir, config) {
   if (fs.existsSync(startupPath)) return startupPath;
   return prepareStartup(dir, loadStartupPayload(dir), config);
 }
-module.exports = { prepareStartup, ensureStartup, loadStartupPayload };
+module.exports = { prepareStartup, ensureStartup, loadStartupPayload, mergeIni };

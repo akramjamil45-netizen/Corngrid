@@ -11,10 +11,12 @@ const os = require('os');
 const fs = require('fs');
 const { loadConfig } = require('./config');
 const { createMt5Manager } = require('./mt5-manager');
+const { createIpcProbe } = require('./ipc-probe');
 const { createEaTester } = require('./ea-tester');
 const { createTransport } = require('./transport');
 const systemMonitor = require('./system-monitor');
 const { createAutoUpdater } = require('./auto-update');
+const executeCommand = require('./command-execution').createCommandExecution();
 
 const AGENT_VERSION = require('./package.json').version;
 const LOG_BUFFER_MAX = 200;
@@ -46,6 +48,7 @@ const logger = {
 // Command handling
 // ---------------------------------------------------------------------------
 let mt5;
+let ipcProbe;
 let transport;
 let tester;
 let recoveryInProgress = false;
@@ -103,7 +106,7 @@ async function handleCommand(message, channel) {
   logger.info(payload && payload.instanceUid, `Executing command "${command}" (${commandUid}) via ${channel}.`);
   activeCommands++;
   try {
-    const result = await handler(payload || {});
+    const result = await executeCommand(commandUid, command, () => handler(payload || {}));
     await transport.sendCommandResult(commandUid, { success: true, result: result || {} });
   } catch (error) {
     logger.error(payload && payload.instanceUid, `Command "${command}" failed: ${error.message}`);
@@ -181,7 +184,8 @@ async function main() {
     onClose: () => logger.warn(null, 'WebSocket disconnected; HTTPS fallback active, reconnecting...')
   });
 
-  mt5 = createMt5Manager({ config, logger, downloadFile: (urlPath, target) => {
+  ipcProbe = process.platform === 'win32' ? createIpcProbe({ config, logger }) : null;
+  mt5 = createMt5Manager({ config, logger, ipcProbe, downloadFile: (urlPath, target) => {
     // downloadFile receives a full URL from the manager; convert to a path.
     const parsed = new URL(urlPath);
     return transport.downloadFile(parsed.pathname, target);
@@ -199,6 +203,13 @@ async function main() {
 
   // Adopt terminals that survived an agent restart.
   await mt5.reconcile();
+
+  // Reuse an existing keeper across updates. Never interrupt a user's terminal
+  // to claim IPC ownership; a busy port produces an actionable deployment error.
+  if (ipcProbe) {
+    const probe = await ipcProbe.ensure({ allowTakeover: false, create: false });
+    if (!probe.ok && !probe.skipped) logger.warn(null, probe.error || 'IPC probe is unavailable.');
+  }
 
   transport.start();
 

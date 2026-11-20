@@ -34,7 +34,7 @@ test('Windows terminals launched by the real manager survive the exit of their a
   try{require('node:child_process').execFileSync('taskkill.exe',['/PID',String(terminalPid),'/T','/F'],{windowsHide:true,stdio:'ignore'});}catch{}
   await until(()=>{try{process.kill(terminalPid,0);return false;}catch{return true;}},5000);
  }});
- const message=new Promise(resolve=>worker.once('message',resolve)),exit=new Promise(resolve=>worker.once('exit',resolve));
+ const message=new Promise((resolve,reject)=>{worker.once('message',resolve);worker.once('error',reject);worker.once('exit',code=>reject(Error('Detachment worker exited before reporting its terminal: '+code)));}),exit=new Promise(resolve=>worker.once('exit',resolve));
  terminalPid=(await message).terminalPid;assert.ok(Number.isInteger(terminalPid));assert.equal(await exit,0);await sleep(300);
  assert.doesNotThrow(()=>process.kill(terminalPid,0),'The actual Windows launch options must preserve the terminal across agent exit.');
 });

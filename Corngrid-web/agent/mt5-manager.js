@@ -32,11 +32,25 @@ function isValidInstanceUid(value) {
   return typeof value === 'string' && (INSTANCE_UID_PATTERN.test(value) || EA_UID_PATTERN.test(value));
 }
 
-function createMt5Manager({ config, logger, downloadFile }) {
+function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
   const linux = process.platform === 'linux' ? require('./linux-runtime').createLinuxRuntime({config}) : null;
   // instanceUid -> { child, pid, startedAt, restarts: [timestamps], sandboxPath, meta }
   const running = new Map();
   const pendingRestarts = new Map();
+  const enqueueInstance = require('./operation-queue').createOperationQueue();
+
+  function serialized(operation) {
+    return payload => {
+      if (!isValidInstanceUid(payload && payload.instanceUid)) return Promise.reject(new Error('Invalid instance identifier.'));
+      return enqueueInstance(payload.instanceUid, () => operation(payload));
+    };
+  }
+
+  async function removeEnvironment(dir) {
+    // Windows may hold file handles briefly after the process has exited.
+    // instanceDir() validates these paths before they reach this function.
+    await fs.promises.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+  }
 
   function instanceDir(instanceUid) {
     if (!isValidInstanceUid(instanceUid)) {
@@ -138,26 +152,41 @@ function createMt5Manager({ config, logger, downloadFile }) {
     const dir = instanceDir(instanceUid);
     logger.info(instanceUid, `Deploying sandbox environment at ${dir}`);
 
+    if (!payload.installationSecret) throw new Error('Deploy payload is missing installationSecret.');
     // Clean slate for a redeploy.
     if(linux){await stopInstanceProcesses(instanceUid);linux.removePrefix(dir);}
     if (fs.existsSync(dir)) {
       if(!linux)await stopInstanceProcesses(instanceUid);
-      fs.rmSync(dir, { recursive: true, force: true });
+      await removeEnvironment(dir);
     }
     fs.mkdirSync(dir, { recursive: true });
+    const incompleteMarker = path.join(dir, '.corngrid-deployment-incomplete');
+    fs.writeFileSync(incompleteMarker, 'Deployment in progress. Redeploy if interrupted.', 'utf8');
 
-    await robocopy(path.resolve(config.mt5BaseDir), dir);
-    copyBrokerServerCache(dir, payload.brokerServer, config);
-    logger.info(instanceUid, 'Verifying broker login and resolving the account trading symbol before starting EA.');
-    payload = await resolveBroker(dir, payload, config);
-    logger.info(instanceUid, `Broker verified: ${payload.brokerServer}; chart symbol: ${payload.resolvedSymbol}.`);
-    writeAutoLoginConfig(dir, payload);
-    writeLicenseBundle(dir, payload);
-    await deployEa(dir, payload.strategy);
-    prepareStartup(dir, payload, config);
+    try {
+      await robocopy(path.resolve(config.mt5BaseDir), dir);
+      copyBrokerServerCache(dir, payload.brokerServer, config);
+      logger.info(instanceUid, 'Verifying broker login and resolving the account trading symbol before starting EA.');
+      payload = await resolveBroker(dir, payload, config, execFile, ipcProbe);
+      logger.info(instanceUid, `Broker verified: ${payload.brokerServer}; chart symbol: ${payload.resolvedSymbol}.`);
+      writeAutoLoginConfig(dir, payload);
+      writeLicenseBundle(dir, payload);
+      await deployEa(dir, payload.strategy);
+      prepareStartup(dir, payload, config);
 
-    const child = await launch(dir, instanceUid, payload);
-    return { sandboxPath: dir, pid: child.pid };
+      const child = await launch(dir, instanceUid, payload);
+      fs.rmSync(incompleteMarker, { force: true });
+      return { sandboxPath: dir, pid: child.pid };
+    } catch (error) {
+      try {
+        await stopInstanceProcesses(instanceUid);
+        if (linux) linux.removePrefix(dir);
+        await removeEnvironment(dir);
+      } catch (_) {
+        logger.warn(instanceUid, 'Incomplete sandbox cleanup deferred; redeploy is required before starting.');
+      }
+      throw error;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -233,7 +262,8 @@ function createMt5Manager({ config, logger, downloadFile }) {
     record.restarts.push(nowTs);
     const delayMs = Math.min(30000, 2000 * record.restarts.length);
     logger.info(instanceUid, `Restarting terminal in ${delayMs}ms (attempt ${record.restarts.length}).`);
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => enqueueInstance(instanceUid, async () => {
+      if (pendingRestarts.get(instanceUid) !== timer) return;
       pendingRestarts.delete(instanceUid);
       if (running.has(instanceUid)) return;
       try {
@@ -242,7 +272,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
         logger.error(instanceUid, `Restart failed: ${error.message}`);
         scheduleRestart(instanceUid, record);
       }
-    }, delayMs);
+    }), delayMs);
     pendingRestarts.set(instanceUid, timer);
   }
 
@@ -293,6 +323,23 @@ function createMt5Manager({ config, logger, downloadFile }) {
     if (!await waitForExit(10000)) throw new Error(`MT5 process ${pid} did not stop; replacement was not launched.`);
   }
 
+  function assertDeployed(dir) {
+    if (fs.existsSync(path.join(dir, '.corngrid-deployment-incomplete'))) {
+      throw new Error('Sandbox deployment did not finish. Redeploy the sandbox to restore it.');
+    }
+    const missing = [];
+    if (!fs.existsSync(path.join(dir, 'MQL5', 'Files', 'corngrid_sandbox.ini'))) missing.push('licence bundle');
+    if (!fs.existsSync(path.join(dir, 'MQL5', 'Experts', 'CornGrid'))) missing.push('EA directory');
+    if (!fs.existsSync(path.join(dir, 'config', 'common.ini')) && !fs.existsSync(path.join(dir, 'config', 'sandbox-startup.ini'))) missing.push('startup configuration');
+    // A download can fail after the directory and licence were written. Verify
+    // the selected executable too, rather than accepting an empty EA directory.
+    if (missing.length) throw new Error(`Sandbox environment is incomplete (${missing.join(', ')} missing). Redeploy the sandbox to restore it.`);
+    const startup = loadStartupPayload(dir);
+    if (!fs.existsSync(path.join(dir, 'MQL5', 'Experts', 'CornGrid', startup.strategy.eaFileName))) {
+      throw new Error('Sandbox EA executable is missing. Redeploy the sandbox to restore it.');
+    }
+  }
+
   async function start(payload) {
     const { instanceUid } = payload || {};
     checkAdopted();
@@ -301,9 +348,10 @@ function createMt5Manager({ config, logger, downloadFile }) {
     const dir = instanceDir(instanceUid);
     const terminal = path.join(dir, 'terminal64.exe');
     if (!fs.existsSync(terminal)) throw new Error('Sandbox environment is not deployed.');
+    assertDeployed(dir);
     if (!fs.existsSync(path.join(dir, 'config', 'broker-resolution.json'))) {
       logger.info(instanceUid, 'Verifying the existing sandbox broker and symbol before restart.');
-      const verified = await resolveBroker(dir, loadStartupPayload(dir), config);
+      const verified = await resolveBroker(dir, loadStartupPayload(dir), config, execFile, ipcProbe);
       writeLicenseBundle(dir, verified);
       prepareStartup(dir, verified, config);
     }
@@ -331,7 +379,7 @@ function createMt5Manager({ config, logger, downloadFile }) {
     await stopInstanceProcesses(instanceUid);
     const dir = instanceDir(instanceUid);
     if (fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
+      await removeEnvironment(dir);
     }
     if(linux)linux.removePrefix(dir);
     logger.info(instanceUid, `Sandbox environment removed (${dir}).`);
@@ -451,14 +499,14 @@ function createMt5Manager({ config, logger, downloadFile }) {
 
   return {
     validateBase,
-    deploy,
-    start,
-    stop,
-    restart,
-    destroy,
-    pauseTrading,
-    resumeTrading,
-    reconnect,
+    deploy: serialized(deploy),
+    start: serialized(start),
+    stop: serialized(stop),
+    restart: serialized(restart),
+    destroy: serialized(destroy),
+    pauseTrading: serialized(pauseTrading),
+    resumeTrading: serialized(resumeTrading),
+    reconnect: serialized(reconnect),
     statusReports,
     trackedPids,
     checkAdopted,

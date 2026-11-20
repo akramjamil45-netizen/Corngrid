@@ -38,7 +38,8 @@ class BrokerProbeTests(unittest.TestCase):
         self.assertNotIn('fixture-only', str(result))
 
     def test_ipc_failure_has_no_password(self):
-        with patch.dict(sys.modules, MetaTrader5=self.fake(initialize=lambda *a, **kw: False)):
+        with patch.dict(sys.modules, MetaTrader5=self.fake(initialize=lambda *a, **kw: False,
+                        last_error=lambda: (-10005, 'timeout'))), patch.object(worker.time, 'sleep'):
             result = worker.probe(self.root, 'nonce')
         self.assertFalse(result['ok'])
         self.assertIn('IPC', result['error'])
@@ -49,13 +50,45 @@ class BrokerProbeTests(unittest.TestCase):
         with patch.dict(sys.modules, MetaTrader5=fake):
             result = worker.probe(self.root, 'nonce')
         self.assertFalse(result['ok'])
-        self.assertIn('Broker login failed', result['error'])
+        self.assertIn('authorization failed', result['error'])
 
     def test_investor_password_is_identified_for_agent_to_reject(self):
         fake = self.fake(account_info=lambda: types.SimpleNamespace(login=123456, server='JustMarkets-Demo6', trade_allowed=False))
         with patch.dict(sys.modules, MetaTrader5=fake):
             result = worker.probe(self.root, 'nonce')
         self.assertFalse(result['tradeAllowed'])
+
+    def test_fresh_install_passes_credentials_to_initialize_on_the_keeper(self):
+        received = []
+        def initialize(*args, **kwargs):
+            received.append((args, kwargs))
+            return kwargs.get('login') == 123456 and kwargs.get('password') == 'fixture-only'
+        keeper = self.root / 'keeper'
+        with patch.dict(sys.modules, MetaTrader5=self.fake(initialize=initialize)):
+            result = worker.probe(self.root, 'nonce', keeper)
+        self.assertTrue(result['ok'])
+        self.assertEqual(received[0][0][0], str(keeper.resolve() / 'terminal64.exe'))
+        self.assertEqual(received[0][1]['server'], 'JustMarkets-DEMO6')
+
+    def test_transient_ipc_timeout_retries_but_wrong_password_does_not(self):
+        for code, count in [(-10005, 3), (-6, 1)]:
+            calls = []
+            def initialize(*args, **kwargs):
+                calls.append(kwargs)
+                return False
+            with patch.dict(sys.modules, MetaTrader5=self.fake(initialize=initialize,
+                            last_error=lambda: (code, 'fixture'))), patch.object(worker.time, 'sleep'):
+                result = worker.probe(self.root, 'nonce')
+            self.assertFalse(result['ok'])
+            self.assertEqual(len(calls), count)
+            self.assertNotIn('fixture-only', str(result))
+
+    def test_transient_failure_can_recover_and_revalidates_identity(self):
+        outcomes = iter([False, True])
+        with patch.dict(sys.modules, MetaTrader5=self.fake(initialize=lambda *a, **kw: next(outcomes),
+                        last_error=lambda: (-10005, 'timeout'))), patch.object(worker.time, 'sleep'):
+            result = worker.probe(self.root, 'nonce')
+        self.assertTrue(result['ok'])
 
 
 if __name__ == '__main__':
