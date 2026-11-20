@@ -16,6 +16,7 @@ const SCHEMA = `
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','disabled')),
     is_test_node INTEGER NOT NULL DEFAULT 0 CHECK(is_test_node IN (0,1)),
     max_instances INTEGER NOT NULL DEFAULT 10,
+    placement_priority INTEGER NOT NULL DEFAULT 100 CHECK(placement_priority BETWEEN 1 AND 1000),
     agent_version TEXT,
     machine_name TEXT,
     os_version TEXT,
@@ -288,10 +289,18 @@ const DEFAULT_STRATEGY = {
   description: 'The official CornGrid grid trading expert advisor.'
 };
 
-function ensureSchema(db) {
-  return new Promise((resolve, reject) => {
+async function ensureSchema(db) {
+  await new Promise((resolve, reject) => {
     db.exec(SCHEMA + PARTNER_EXTENSIONS_SCHEMA, error => (error ? reject(error) : resolve()));
   });
+  const columns = await new Promise((resolve, reject) => db.all('PRAGMA table_info(sandbox_nodes)', [],
+    (error, rows) => error ? reject(error) : resolve(rows)));
+  if (!columns.some(column => column.name === 'placement_priority')) {
+    await new Promise((resolve, reject) => db.exec('ALTER TABLE sandbox_nodes ADD COLUMN placement_priority INTEGER NOT NULL DEFAULT 100 CHECK(placement_priority BETWEEN 1 AND 1000)',
+      error => error ? reject(error) : resolve()));
+  }
+  await new Promise((resolve, reject) => db.exec('CREATE INDEX IF NOT EXISTS idx_sandbox_nodes_placement ON sandbox_nodes(status, is_test_node, placement_priority, id)',
+    error => error ? reject(error) : resolve()));
 }
 
 function seedDefaultStrategy(db, { now = () => Date.now() } = {}) {

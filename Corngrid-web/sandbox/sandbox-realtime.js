@@ -83,11 +83,11 @@ function createSandboxRealtime({ db, nodes, events, adminAuth } = {}) {
       FROM sandbox_instances WHERE deleted_at IS NULL
     `);
     const nodeList = await all(`
-      SELECT n.id, n.node_uid, n.name, n.status, n.is_test_node, n.os_version, n.cpu_percent, n.memory_used_mb, n.ram_mb,
+      SELECT n.id, n.node_uid, n.name, n.placement_priority, n.status, n.is_test_node, n.os_version, n.cpu_percent, n.memory_used_mb, n.ram_mb,
              n.disk_free_mb, n.running_instances, n.max_instances, n.last_heartbeat_at, n.agent_version,
              (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
                AND i.status IN ('requested','allocating','deploying','starting','running','stopping')) AS allocated_instances
-      FROM sandbox_nodes n ORDER BY n.id ASC
+      FROM sandbox_nodes n ORDER BY n.placement_priority ASC, n.id ASC
     `);
     return {
       type: 'snapshot',

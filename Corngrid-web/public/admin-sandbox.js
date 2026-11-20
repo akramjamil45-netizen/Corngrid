@@ -9,6 +9,8 @@
     nodes: [],
     capacityNodeId: null,
     capacitySaving: false,
+    nodeSettings: null,
+    nodeSettingsSaving: false,
     instances: { page: 1, pageSize: 20, total: 0, search: '', status: '' },
     logs: { page: 1, pageSize: 20, total: 0, level: '' },
     events: { page: 1, pageSize: 20, total: 0 },
@@ -100,6 +102,46 @@
     }
   }
 
+  async function saveNodeSettings(node, name, placementPriority, progress) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await api(`/api/admin/sandbox/nodes/${node.id}/settings`, {
+          method: 'PATCH', timeoutMs: 10000,
+          body: JSON.stringify({ name, placementPriority, expectedName: node.name, expectedPlacementPriority: node.placementPriority })
+        });
+      } catch (error) {
+        if (!error.retryable) throw error;
+        progress('Checking saved settings…');
+        try {
+          const data = await api('/api/admin/sandbox/nodes', { timeoutMs: 5000 });
+          const current = data.nodes.find(item => item.id === node.id);
+          if (!current) throw new Error('Node no longer exists. Refresh the node list.');
+          if (current.name === name && current.placementPriority === placementPriority) return { node: current };
+          if (current.name !== node.name || current.placementPriority !== node.placementPriority) {
+            throw new Error('Node settings were changed by another administrator. Close this dialog, refresh and try again.');
+          }
+        } catch (verificationError) {
+          if (!verificationError.retryable) throw verificationError;
+        }
+        if (attempt === 1) throw new Error('The save could not be confirmed. Check your connection, refresh the node list and try again.');
+        progress('Reconnecting…');
+        await new Promise(resolve => window.setTimeout(resolve, 750));
+      }
+    }
+  }
+
+  function openNodeSettings(nodeId) {
+    const node = state.nodes.find(item => item.id === nodeId);
+    if (!node || state.nodeSettingsSaving) return;
+    state.nodeSettings = { id: node.id, name: node.name, placementPriority: node.placementPriority ?? 100 };
+    $('sb-settings-name').value = node.name;
+    $('sb-settings-priority').value = String(node.placementPriority ?? 100);
+    $('sb-settings-error').hidden = true;
+    $('sb-settings-dialog').showModal();
+    $('sb-settings-name').focus();
+    $('sb-settings-name').select();
+  }
+
   function fmtTime(value) {
     if (!value) return '—';
     const date = new Date(value);
@@ -165,14 +207,15 @@
       body.innerHTML = '<tr><td class="table-empty" colspan="6">No sandbox nodes registered. Add one to get started.</td></tr>';
       return;
     }
-    body.innerHTML = state.nodes.map(node => `
+    body.innerHTML = [...state.nodes].sort((a, b) => (a.placementPriority ?? 100) - (b.placementPriority ?? 100) || a.id - b.id).map(node => `
       <tr>
-        <td><strong>${escapeHtml(node.name)}</strong><br><small class="muted">${escapeHtml(node.nodeUid)}${node.isTestNode ? ' · test node' : ''}</small></td>
+        <td><strong>${escapeHtml(node.name)}</strong><br><small class="muted">${escapeHtml(node.nodeUid)}${node.isTestNode ? ' · test node' : ''}</small><br><small class="muted">Priority ${Number(node.placementPriority ?? 100)} · lower first</small></td>
         <td>${statusPill(node.online ? 'online' : 'offline')} ${node.status === 'disabled' ? pill('disabled', 'pill-offline') : ''}</td>
         <td><small>${node.cpuPercent != null ? `${Number(node.cpuPercent).toFixed(0)}% CPU` : '—'} · ${node.memoryUsedMb != null && node.ramMb ? `${Math.round(node.memoryUsedMb / 1024)}/${Math.round(node.ramMb / 1024)} GB` : '—'}<br>${node.diskFreeMb != null ? `${Math.round(node.diskFreeMb / 1024)} GB free` : ''}</small></td>
         <td>${node.usedSlots ?? node.runningInstances} / ${node.maxInstances}${node.placement&&!node.placement.eligible?`<br><small class="muted">Placement blocked: ${escapeHtml(node.placement.reasons.map(reason=>({RAM_LOW:'low RAM',DISK_LOW:'low disk',CPU_BUSY:'CPU busy',TELEMETRY_UNAVAILABLE:'waiting for resource report',PLATFORM_UNSUPPORTED:'platform not enabled'}[reason]||'check resources')).join(', '))}</small>`:''}</td>
         <td><small>${fmtTime(node.lastHeartbeatAt)}</small></td>
         <td class="admin-actions">
+          <button class="button button-small" type="button" data-node-settings="${node.id}" aria-label="Edit name and priority for ${escapeHtml(node.name)}">Edit node</button>
           <button class="button button-small" type="button" data-node-capacity="${node.id}" aria-label="Edit capacity for ${escapeHtml(node.name)}">Edit capacity</button>
           ${node.status === 'active'
             ? `<button class="button button-small" data-node-disable="${node.id}">Disable</button>`
@@ -446,6 +489,7 @@
     if (Array.isArray(snapshot.nodes)) {
       state.nodes = snapshot.nodes.map(node => ({
         id: node.id, nodeUid: node.node_uid, name: node.name, status: node.status,
+        placementPriority: node.placement_priority,
         isTestNode: Boolean(node.is_test_node), maxInstances: node.max_instances, usedSlots: Number(node.allocated_instances ?? node.running_instances ?? 0),
         cpuPercent: node.cpu_percent, memoryUsedMb: node.memory_used_mb, ramMb: node.ram_mb,
         diskFreeMb: node.disk_free_mb, runningInstances: node.running_instances,
@@ -925,6 +969,39 @@
     $$('[data-commission-tab]').forEach(tab => tab.addEventListener('click', () => switchTab('commission', tab.dataset.commissionTab)));
 
     // Node actions
+    $('sb-settings-dialog').addEventListener('cancel', event => {
+      if (state.nodeSettingsSaving) event.preventDefault();
+    });
+    $('sb-settings-form').addEventListener('input', () => { $('sb-settings-error').hidden = true; });
+    $('sb-settings-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (state.nodeSettingsSaving || !$('sb-settings-form').reportValidity()) return;
+      state.nodeSettingsSaving = true;
+      $('sb-settings-save').disabled = true;
+      $('sb-settings-cancel').disabled = true;
+      $('sb-settings-save').textContent = 'Saving…';
+      $('sb-settings-form').setAttribute('aria-busy', 'true');
+      try {
+        const result = await saveNodeSettings(state.nodeSettings, $('sb-settings-name').value.trim(), Number($('sb-settings-priority').value),
+          message => { $('sb-settings-save').textContent = message; });
+        const index = state.nodes.findIndex(node => node.id === result.node.id);
+        if (index >= 0) state.nodes[index] = { ...state.nodes[index], ...result.node };
+        renderNodes();
+        $('sb-settings-dialog').close();
+        toast('Node name and placement priority saved.', 'success');
+        void loadNodes();
+      } catch (error) {
+        $('sb-settings-error').textContent = error.message;
+        $('sb-settings-error').hidden = false;
+        $('sb-settings-error').focus();
+      } finally {
+        state.nodeSettingsSaving = false;
+        $('sb-settings-save').disabled = false;
+        $('sb-settings-cancel').disabled = false;
+        $('sb-settings-save').textContent = 'Save node';
+        $('sb-settings-form').removeAttribute('aria-busy');
+      }
+    });
     $('sb-capacity-max').addEventListener('input', () => {
       $('sb-capacity-max').removeAttribute('aria-invalid');
       $('sb-capacity-error').hidden = true;
@@ -979,6 +1056,7 @@
           body: JSON.stringify({
             name: $('sb-node-name').value.trim(),
             maxInstances: Number($('sb-node-max').value) || 10,
+            placementPriority: Number($('sb-node-priority').value),
             isTestNode: $('sb-node-test').checked
           })
         });
@@ -997,6 +1075,7 @@
     $('sb-nodes-body').addEventListener('click', async event => {
       const target = event.target.closest('button');
       if (!target) return;
+      if (target.dataset.nodeSettings) { openNodeSettings(Number(target.dataset.nodeSettings)); return; }
       if (target.dataset.nodeCapacity) { openCapacityDialog(Number(target.dataset.nodeCapacity)); return; }
       try {
         if (target.dataset.nodeDisable) {

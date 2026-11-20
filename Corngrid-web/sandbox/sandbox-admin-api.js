@@ -6,6 +6,7 @@
 
 const crypto = require('crypto');
 const { exclusive } = require('../db-write');
+const { normalizeNodeSettings } = require('./sandbox-nodes');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -43,6 +44,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
       id: node.id,
       nodeUid: node.node_uid,
       name: node.name,
+      placementPriority: node.placement_priority,
       status: node.status,
       isTestNode: Boolean(node.is_test_node),
       maxInstances: node.max_instances,
@@ -140,7 +142,7 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
         const rows = await all(`SELECT n.*,
           (SELECT COUNT(*) FROM sandbox_instances i WHERE i.node_id = n.id AND i.deleted_at IS NULL
             AND i.status IN ('requested','allocating','deploying','starting','running','stopping')) AS allocated_instances
-          FROM sandbox_nodes n ORDER BY n.id ASC`);
+          FROM sandbox_nodes n ORDER BY n.placement_priority ASC, n.id ASC`);
         res.json({ nodes: rows.map(publicNode) });
       } catch (error) {
         console.error('Failed to list nodes:', error.message);
@@ -154,20 +156,63 @@ function createSandboxAdminApi({ db, nodes, events, manager, subscriptions, cryp
         const maxInstances = Number.isInteger(body.maxInstances) ? Math.min(200, Math.max(1, body.maxInstances)) : 10;
         const node = await nodes.createNode({
           name: body.name,
+          placementPriority: body.placementPriority === undefined ? 100 : body.placementPriority,
           isTestNode: body.isTestNode === true,
           maxInstances
         });
         await subscriptions.logAudit(null, 'admin', 'sandbox_node_created', 'sandbox_node', node.id,
-          { name: node.name, nodeUid: node.nodeUid }, null, req.ip);
+          { name: node.name, nodeUid: node.nodeUid, placementPriority: node.placementPriority }, null, req.ip);
         // The plaintext token is returned exactly once.
         res.status(201).json({
           message: 'Sandbox node created. Store the authentication token securely — it is shown only once.',
-          node: { id: node.id, nodeUid: node.nodeUid, name: node.name },
+          node: { id: node.id, nodeUid: node.nodeUid, name: node.name, placementPriority: node.placementPriority },
           token: node.token
         });
       } catch (error) {
         console.error('Failed to create node:', error.message);
         res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Unable to create the sandbox node.' });
+      }
+    });
+
+    app.patch('/api/admin/sandbox/nodes/:id/settings', verifyAdminToken, async (req, res) => {
+      const nodeId = Number(req.params.id);
+      const body = req.body || {};
+      if (!Number.isSafeInteger(nodeId) || nodeId < 1) return res.status(400).json({ error: 'Invalid node.' });
+      if (Object.keys(body).some(key => !['name', 'placementPriority', 'expectedName', 'expectedPlacementPriority'].includes(key))) {
+        return res.status(400).json({ error: 'Only the node name and placement priority can be changed here.' });
+      }
+      try {
+        if (body.placementPriority === undefined) return res.status(400).json({ error: 'Specify a placement priority.' });
+        const desired = normalizeNodeSettings(body);
+        const expected = normalizeNodeSettings({ name: body.expectedName, placementPriority: body.expectedPlacementPriority });
+        if (body.expectedPlacementPriority === undefined) return res.status(400).json({ error: 'Refresh the node list before editing.' });
+        const outcome = await exclusive(db, async () => {
+          const node = await get('SELECT * FROM sandbox_nodes WHERE id = ?' +
+            (typeof db.transaction === 'function' ? ' FOR UPDATE' : ''), [nodeId]);
+          if (!node) return { http: 404, body: { error: 'Node not found.' } };
+          const same = node.name === desired.name && node.placement_priority === desired.placementPriority;
+          if (!same && (node.name !== expected.name || node.placement_priority !== expected.placementPriority)) {
+            return { http: 409, body: { error: 'Node settings were changed by another administrator. Close this dialog, refresh and try again.' } };
+          }
+          if (!same) {
+            await run('UPDATE sandbox_nodes SET name = ?, placement_priority = ?, updated_at = ? WHERE id = ?',
+              [desired.name, desired.placementPriority, now(), nodeId]);
+            await subscriptions.logAudit(null, 'admin', 'sandbox_node_settings_updated', 'sandbox_node', nodeId,
+              { nodeUid: node.node_uid, previousName: node.name, previousPlacementPriority: node.placement_priority, ...desired }, null, req.ip);
+          }
+          const usage = await get(`SELECT COUNT(*) AS count FROM sandbox_instances WHERE node_id = ? AND deleted_at IS NULL
+            AND status IN ('requested','allocating','deploying','starting','running','stopping')`, [nodeId]);
+          return { http: 200, body: { message: 'Node settings saved.', node: publicNode({ ...node, name: desired.name,
+            placement_priority: desired.placementPriority, allocated_instances: Number(usage.count) }) } };
+        });
+        return res.status(outcome.http).json(outcome.body);
+      } catch (error) {
+        if (error.statusCode === 400) return res.status(400).json({ error: error.message });
+        console.error('Failed to update node settings:', error.message);
+        const busy = ['55P03', '57014', 'ETIMEOUT'].includes(error.code) || error.statusCode === 503;
+        if (busy) res.set('Retry-After', '5');
+        return res.status(busy ? 503 : 500).json({ error: busy
+          ? 'The server is busy. Refresh to check the saved settings, then try again.' : 'Unable to update node settings.' });
       }
     });
 

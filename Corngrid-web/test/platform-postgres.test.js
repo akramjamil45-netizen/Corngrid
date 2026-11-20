@@ -16,6 +16,13 @@ test('PostgreSQL migrations, health queries and concurrent MFA verification work
   const nodes=createSandboxNodes({db:a,events:{emit:async()=>{}},now:()=>stamp}),registered=await nodes.createNode({name:'Isolated fixture node',maxInstances:10});await dbRun(a,"UPDATE sandbox_nodes SET status='active' WHERE id=?",[registered.id]);const node={id:registered.id,last_heartbeat_at:stamp};
   await nodes.recordHeartbeat(node,{osVersion:'Windows_NT fixture',ramMb:1024,memoryUsedMb:1000,diskFreeMb:20000,cpuPercent:10,runningInstances:0});assert.equal(await withTransaction(a,()=>nodes.allocateNode()),null,'PostgreSQL row-lock path enforces RAM admission');
   await nodes.recordHeartbeat(node,{osVersion:'Windows_NT fixture',ramMb:8192,memoryUsedMb:1024,diskFreeMb:20000,cpuPercent:10,runningInstances:0});assert.equal((await withTransaction(a,()=>nodes.allocateNode())).id,registered.id);
+  const preferred=await nodes.createNode({name:'Preferred isolated node',maxInstances:1,placementPriority:1});
+  await dbRun(a,"UPDATE sandbox_nodes SET status='active' WHERE id=?",[preferred.id]);
+  await nodes.recordHeartbeat({id:preferred.id},{osVersion:'Windows_NT fixture',ramMb:8192,memoryUsedMb:1024,diskFreeMb:20000,cpuPercent:10,runningInstances:0});
+  assert.equal((await withTransaction(a,()=>nodes.allocateNode())).id,preferred.id,'PostgreSQL chooses priority before spare slots');
+  await nodes.recordHeartbeat({id:preferred.id},{osVersion:'Windows_NT fixture',ramMb:8192,memoryUsedMb:8100,diskFreeMb:20000,cpuPercent:10,runningInstances:0});
+  assert.equal((await withTransaction(a,()=>nodes.allocateNode())).id,registered.id,'PostgreSQL safely skips low-resource preferred node');
+  await control.query(await fs.readFile(path.join(folder,'0022_sandbox_node_preferences.sql'),'utf8'));
   const owner=await dbRun(a,"INSERT INTO users(username,email,password) VALUES('sandbox-ui-fixture','sandbox-ui@example.test','fixture-password')");
   await dbRun(a,"INSERT INTO mt5_accounts(user_id,account_number,broker_server,currency,linked_at,last_heartbeat) VALUES(?,'fixture1234','Fixture-Demo','USDc',?,?)",[owner.lastID,stamp,stamp]);
   await dbRun(a,"INSERT INTO sandbox_instances(instance_uid,user_id,node_id,status,mt5_account_number,broker_server,last_heartbeat_at,created_at,updated_at) VALUES('fixture-status',?,?,'running','fixture1234','Fixture-Demo',?,?,?)",[owner.lastID,registered.id,stamp,stamp,stamp]);

@@ -381,6 +381,37 @@ test('admin node capacity validates limits, protects occupied slots and enables 
   } finally { server.close(); }
 });
 
+test('admin can rename and prioritize nodes without changing identity, tokens or running sandboxes', async t => {
+  const f = await createFixture();
+  t.after(async () => { await new Promise(resolve => f.server.close(resolve)); await new Promise(resolve => f.db.close(resolve)); });
+  const created = await f.request('/api/admin/sandbox/nodes', { token: f.adminToken, method: 'POST', body: { name: 'Original node', placementPriority: 200 } });
+  const id = created.body.node.id, route = `/api/admin/sandbox/nodes/${id}/settings`;
+  const { dbGet } = require('../db-async');
+  const before = await dbGet(f.db, 'SELECT * FROM sandbox_nodes WHERE id=?', [id]);
+  await run(f.db, "INSERT INTO sandbox_instances(instance_uid,user_id,node_id,status,created_at,updated_at) VALUES('rename-fixture',1,?,'running',1,1)", [id]);
+  const desired = { name: '  Preferred host  ', placementPriority: 1, expectedName: 'Original node', expectedPlacementPriority: 200 };
+  assert.equal((await f.request(route, { token: f.userToken, method: 'PATCH', body: desired })).status, 403);
+  assert.equal((await f.request(route, { method: 'PATCH', body: desired })).status, 403);
+  for (const patch of [{ name: '' }, { name: 'x'.repeat(81) }, { name: 'bad\nname' }, { placementPriority: 0 }, { placementPriority: 1001 }, { placementPriority: 1.5 }, { placementPriority: '1' }, { status: 'active' }, { maxInstances: 200 }, { expectedName: null }]) {
+    assert.equal((await f.request(route, { token: f.adminToken, method: 'PATCH', body: { ...desired, ...patch } })).status, 400, JSON.stringify(patch));
+  }
+  assert.equal((await f.request('/api/admin/sandbox/nodes/999999/settings', { token: f.adminToken, method: 'PATCH', body: desired })).status, 404);
+  const result = await f.request(route, { token: f.adminToken, method: 'PATCH', body: desired });
+  assert.equal(result.status, 200); assert.equal(result.body.node.name, 'Preferred host'); assert.equal(result.body.node.placementPriority, 1);
+  assert.equal(result.body.node.usedSlots, 1); assert.equal(result.body.node.nodeUid, before.node_uid);
+  assert.equal((await dbGet(f.db, 'SELECT auth_token_hash FROM sandbox_nodes WHERE id=?', [id])).auth_token_hash, before.auth_token_hash);
+  assert.equal((await dbGet(f.db, "SELECT status FROM sandbox_instances WHERE instance_uid='rename-fixture'")).status, 'running');
+  assert.equal((await dbGet(f.db, 'SELECT COUNT(*) AS count FROM sandbox_deployments')).count, 0);
+  assert.equal((await f.request(route, { token: f.adminToken, method: 'PATCH', body: desired })).status, 200, 'lost response retry is idempotent');
+  assert.equal((await dbGet(f.db, "SELECT COUNT(*) AS count FROM subscription_audit_logs WHERE action='sandbox_node_settings_updated'")).count, 1);
+  assert.equal((await f.request(route, { token: f.adminToken, method: 'PATCH', body: { ...desired, name: 'Stale overwrite' } })).status, 409);
+  await f.request('/api/admin/sandbox/nodes', { token: f.adminToken, method: 'POST', body: { name: 'Later priority', placementPriority: 300 } });
+  const list = await f.request('/api/admin/sandbox/nodes', { token: f.adminToken });
+  assert.deepEqual(list.body.nodes.map(node => node.placementPriority), [1, 300]);
+  assert.ok(!JSON.stringify(list.body).includes('auth_token_hash'));
+  assert.equal((await f.request('/api/admin/sandbox/nodes', { token: f.adminToken, method: 'POST', body: { name: 'Invalid priority', placementPriority: -1 } })).status, 400);
+});
+
 test('capacity lock contention returns a retryable error and a later edit succeeds', async t => {
   const f = await createFixture();
   t.after(async () => { await new Promise(resolve => f.server.close(resolve)); await new Promise(resolve => f.db.close(resolve)); });

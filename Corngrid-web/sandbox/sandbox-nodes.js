@@ -13,6 +13,16 @@ const crypto = require('crypto');
 const NODE_OFFLINE_AFTER_MS = 90 * 1000;
 const COMMAND_EXPIRE_AFTER_MS = 5 * 60 * 1000;
 
+function normalizeNodeSettings({ name, placementPriority = 100 } = {}) {
+  if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 80 || /[\u0000-\u001f\u007f]/.test(name)) {
+    throw Object.assign(new Error('Node name must be 2–80 characters without control characters.'), { statusCode: 400 });
+  }
+  if (!Number.isInteger(placementPriority) || placementPriority < 1 || placementPriority > 1000) {
+    throw Object.assign(new Error('Placement priority must be a whole number from 1 to 1000.'), { statusCode: 400 });
+  }
+  return { name: name.trim(), placementPriority };
+}
+
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
@@ -49,23 +59,19 @@ function createSandboxNodes({ db, events, now = () => Date.now(), resourcePolicy
   // Node registration & authentication
   // -------------------------------------------------------------------------
 
-  async function createNode({ name, isTestNode = false, maxInstances = 10 }) {
-    if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 80) {
-      const error = new Error('Node name must be between 2 and 80 characters.');
-      error.statusCode = 400;
-      throw error;
-    }
+  async function createNode({ name, isTestNode = false, maxInstances = 10, placementPriority = 100 }) {
+    ({ name, placementPriority } = normalizeNodeSettings({ name, placementPriority }));
     const timestamp = now();
     const nodeUid = `node_${crypto.randomBytes(9).toString('hex')}`;
     // The plaintext token is returned exactly once to the administrator.
     const token = `cgn_${crypto.randomBytes(32).toString('hex')}`;
     const result = await run(
-      `INSERT INTO sandbox_nodes (node_uid, name, auth_token_hash, status, is_test_node, max_instances, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [nodeUid, name.trim(), hashToken(token), Boolean(isTestNode), maxInstances, timestamp, timestamp]
+      `INSERT INTO sandbox_nodes (node_uid, name, auth_token_hash, status, is_test_node, max_instances, placement_priority, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+      [nodeUid, name, hashToken(token), Boolean(isTestNode), maxInstances, placementPriority, timestamp, timestamp]
     );
     await events.emit('NODE_REGISTERED', { actorType: 'admin', nodeId: result.lastID, payload: { name: name.trim(), nodeUid } });
-    return { id: result.lastID, nodeUid, name: name.trim(), token };
+    return { id: result.lastID, nodeUid, name, placementPriority, token };
   }
 
   async function rotateNodeToken(nodeId) {
@@ -368,8 +374,9 @@ function createSandboxNodes({ db, events, now = () => Date.now(), resourcePolicy
   // Allocation (load balancing)
   // -------------------------------------------------------------------------
 
-  // Pick the active, non-test node with the most free capacity. Manual
-  // assignment passes preferredNodeId; the node must still have capacity.
+  // Lower priority numbers are tried first; equal priorities retain capacity/
+  // CPU balancing with a stable id tie-break. Manual assignments still pass
+  // all health and capacity checks. Existing instances are never moved here.
   async function allocateNode({ preferredNodeId = null, excludeInstanceId = null } = {}) {
     const cutoff = now() - NODE_OFFLINE_AFTER_MS;
     const candidates = await all(
@@ -380,10 +387,11 @@ function createSandboxNodes({ db, events, now = () => Date.now(), resourcePolicy
        FROM sandbox_nodes n
        WHERE n.status = 'active' AND n.is_test_node = FALSE
          AND n.last_heartbeat_at IS NOT NULL AND n.last_heartbeat_at >= ?
-       ORDER BY (n.max_instances - (SELECT COUNT(*) FROM sandbox_instances i
+       ORDER BY n.placement_priority ASC,
+               (n.max_instances - (SELECT COUNT(*) FROM sandbox_instances i
                WHERE i.node_id = n.id AND i.deleted_at IS NULL
                  AND i.status IN ('requested','allocating','deploying','starting','running','stopping'))) DESC,
-               COALESCE(n.cpu_percent, 9999) ASC`,
+               COALESCE(n.cpu_percent, 9999) ASC, n.id ASC`,
       [cutoff]
     );
 
@@ -447,4 +455,4 @@ function createSandboxNodes({ db, events, now = () => Date.now(), resourcePolicy
   };
 }
 
-module.exports = { createSandboxNodes };
+module.exports = { createSandboxNodes, normalizeNodeSettings };

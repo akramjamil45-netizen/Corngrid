@@ -160,6 +160,7 @@ test('end-to-end: node connects over WebSocket, receives deploy, reports running
   await new Promise((resolve, reject) => { adminWs.on('open', resolve); adminWs.on('error', reject); });
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.ok(adminMessages.some(message => message.type === 'snapshot'), 'admin received a snapshot');
+  assert.equal(adminMessages.find(message => message.type === 'snapshot').nodes.find(node => node.node_uid === nodeUid).placement_priority, 100, 'live snapshots preserve priority metadata');
 
   // A bad node token is rejected.
   const impostor = openSocket(`${wsBase}/ws/sandbox/node`);

@@ -2,6 +2,35 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),sqlite=require('sqlite3').verbose();
 const {nodeAdmission,loadPolicy}=require('../sandbox/node-admission'),{createSandboxNodes}=require('../sandbox/sandbox-nodes'),{ensureSchema}=require('../sandbox/sandbox-schema'),{dbRun,dbGet,withTransaction}=require('../db-async');
 const policy=loadPolicy({}),healthy={os_version:'Windows_NT 10',ram_mb:8192,memory_used_mb:2048,disk_free_mb:20000,cpu_percent:10,running_instances:0};
+
+test('priority beats free slots, falls back safely, and equal priorities keep deterministic load balancing',async t=>{
+ const f=await fixture(t),large=await f.add('Large default host',50),preferred=await f.add('Preferred small host',1);
+ await dbRun(f.db,'UPDATE sandbox_nodes SET placement_priority=1 WHERE id=?',[preferred.id]);
+ const pick=()=>withTransaction(f.db,()=>f.nodes.allocateNode());
+ assert.equal((await pick()).id,preferred.id);
+ await dbRun(f.db,"INSERT INTO sandbox_instances(instance_uid,user_id,node_id,status,created_at,updated_at) VALUES('priority-fixture',1,?,'running',?,?)",[preferred.id,f.stamp,f.stamp]);
+ assert.equal((await pick()).id,large.id,'full preferred node is skipped');
+ assert.equal((await dbGet(f.db,"SELECT node_id FROM sandbox_instances WHERE instance_uid='priority-fixture'")).node_id,preferred.id,'existing sandbox stays assigned');
+ await dbRun(f.db,"UPDATE sandbox_instances SET status='stopped'");
+ for(const[sql,params]of [["UPDATE sandbox_nodes SET status='disabled' WHERE id=?",[preferred.id]],["UPDATE sandbox_nodes SET status='active',is_test_node=1 WHERE id=?",[preferred.id]],["UPDATE sandbox_nodes SET is_test_node=0,last_heartbeat_at=? WHERE id=?",[f.stamp-120000,preferred.id]],["UPDATE sandbox_nodes SET last_heartbeat_at=?,memory_used_mb=8100 WHERE id=?",[f.stamp,preferred.id]]]){
+  await dbRun(f.db,sql,params);assert.equal((await pick()).id,large.id);
+ }
+ await dbRun(f.db,'UPDATE sandbox_nodes SET memory_used_mb=2048,placement_priority=100 WHERE id=?',[preferred.id]);
+ assert.equal((await pick()).id,large.id,'equal priorities choose more free slots');
+ await dbRun(f.db,'UPDATE sandbox_nodes SET max_instances=50,cpu_percent=5 WHERE id=?',[preferred.id]);assert.equal((await pick()).id,preferred.id,'CPU breaks equal-capacity ties');
+ await dbRun(f.db,'UPDATE sandbox_nodes SET cpu_percent=10 WHERE id=?',[preferred.id]);assert.equal((await pick()).id,large.id,'id is the final stable tie-break');
+ assert.equal((await withTransaction(f.db,()=>f.nodes.allocateNode({preferredNodeId:preferred.id}))).id,preferred.id,'explicit assignment remains supported');
+});
+
+test('existing SQLite nodes receive default priority once without losing metadata',async t=>{
+ const db=new sqlite.Database(':memory:');t.after(()=>new Promise(r=>db.close(r)));
+ const {SCHEMA}=require('../sandbox/sandbox-schema');
+ await new Promise((resolve,reject)=>db.exec(SCHEMA.replace('    placement_priority INTEGER NOT NULL DEFAULT 100 CHECK(placement_priority BETWEEN 1 AND 1000),\n',''),error=>error?reject(error):resolve()));
+ await dbRun(db,"INSERT INTO sandbox_nodes(node_uid,name,created_at,updated_at) VALUES('migration-fixture','Original name',1,1)");
+ await ensureSchema(db);await ensureSchema(db);
+ assert.equal((await dbGet(db,"SELECT placement_priority FROM sandbox_nodes WHERE node_uid='migration-fixture'")).placement_priority,100);
+ assert.equal((await dbGet(db,"SELECT name FROM sandbox_nodes WHERE node_uid='migration-fixture'")).name,'Original name');
+});
 test('admission rejects unknown/malformed metrics, unsupported platforms and exhausted resources',()=>{
  assert.equal(nodeAdmission(healthy,0,policy).eligible,true);for(const change of [{ram_mb:null},{memory_used_mb:9000},{cpu_percent:Infinity},{disk_free_mb:-1},{running_instances:null}])assert.equal(nodeAdmission({...healthy,...change},0,policy).eligible,false);
  for(const[change,reason]of [[{ram_mb:1024,memory_used_mb:800},'RAM_LOW'],[{disk_free_mb:100},'DISK_LOW'],[{cpu_percent:95},'CPU_BUSY'],[{os_version:'Darwin 24'},'PLATFORM_UNSUPPORTED']])assert.ok(nodeAdmission({...healthy,...change},0,policy).reasons.includes(reason));
