@@ -99,7 +99,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css?v=20261115-mobile-images1">
-<link rel="stylesheet" href="admin.css?v=20261120-promotions1">
+<link rel="stylesheet" href="admin.css?v=20261121-proxy1">
   <link rel="stylesheet" href="partner-payouts.css?v=20261111-payout2">
   <link rel="stylesheet" href="account-requests.css?v=20261113-account-requests1">
   <link rel="stylesheet" href="marketplace.css?v=20261115-workspace-compact1">
@@ -504,6 +504,7 @@
           <div class="settings-tabs sandbox-admin-tabs" role="tablist" aria-label="Sandbox management sections">
             <button class="settings-tab is-active" data-sandbox-tab="nodes" type="button">Sandbox Nodes</button>
             <button class="settings-tab" data-sandbox-tab="instances" type="button">User Instances</button>
+            <button class="settings-tab" data-sandbox-tab="proxies" type="button">Proxy Servers</button>
             <button class="settings-tab" data-sandbox-tab="logs" type="button">Deployment Logs</button>
             <button class="settings-tab" data-sandbox-tab="events" type="button">System Events</button>
           </div>
@@ -512,6 +513,13 @@
             <div class="panel-header"><div><p class="eyebrow">REMOTE SERVERS</p><h2>Sandbox nodes</h2></div><button class="button button-primary button-small" id="sb-add-node" type="button">+ Add node</button></div>
             <p class="muted small" style="padding: 0 20px;">Placement priority: lower numbers are tried first. Equal priorities balance by free slots, then CPU usage. Full, offline or resource-limited nodes are skipped.</p>
             <div class="table-scroll"><table><thead><tr><th>Node</th><th>Status</th><th>Resources</th><th>Instances</th><th>Last heartbeat</th><th>Actions</th></tr></thead><tbody id="sb-nodes-body"><tr><td class="table-empty" colspan="6">Loading nodes…</td></tr></tbody></table></div>
+          </section>
+
+          <section class="panel" id="sandbox-tab-proxies" hidden>
+            <div class="panel-header"><div><p class="eyebrow">MT5 BROKER NETWORK</p><h2>Proxy servers</h2></div><div class="admin-actions"><button class="button button-small" type="button" id="proxy-refresh">Refresh</button><button class="button button-primary button-small" type="button" id="proxy-add">+ Add proxy</button></div></div>
+            <div class="proxy-intro"><p>Multiple sandboxes can share a proxy VPS public IP. Nodes without a proxy use their own public connection. This routes MT5 broker traffic only.</p><p class="muted small">Node assignment changes apply on the next sandbox start/restart. Disabling a proxy closes its broker connections; assigned sandboxes do not silently fall back to direct.</p><p id="proxy-feedback" role="status" aria-live="polite"></p></div>
+            <div id="proxy-servers" class="proxy-server-grid"></div>
+            <div class="panel-header"><h3>Node assignments</h3></div><div id="proxy-assignments" class="proxy-assignment-list"></div>
           </section>
 
           <section class="panel" id="sandbox-tab-instances" hidden>
@@ -663,6 +671,26 @@
     </form>
   </dialog>
 
+  <dialog class="admin-dialog sb-capacity-dialog" id="proxy-create-dialog" aria-labelledby="proxy-create-title">
+    <form id="proxy-create-form"><div class="admin-dialog-content"><p class="eyebrow">WINDOWS VPS</p><h2 id="proxy-create-title">Register proxy server</h2>
+      <label class="admin-field">Name<input class="input-control" id="proxy-name" minlength="2" maxlength="80" required></label>
+      <label class="admin-field">Public hostname or IPv4<input class="input-control" id="proxy-host" maxlength="253" required placeholder="proxy.example.com"></label>
+      <label class="admin-field">TLS port<input class="input-control" id="proxy-port" type="number" min="1" max="65535" step="1" value="24443" required></label>
+      <p class="muted small">The server starts disabled. Download its private bootstrap JSON, then run the Windows installer on that VPS.</p>
+      <p class="sb-capacity-error" id="proxy-create-error" role="alert" hidden></p><div class="admin-dialog-actions"><button class="button" type="button" data-proxy-close="proxy-create-dialog">Cancel</button><button class="button button-primary" type="submit">Register</button></div>
+    </div></form>
+  </dialog>
+  <dialog class="admin-dialog sb-capacity-dialog" id="proxy-bootstrap-dialog" aria-labelledby="proxy-bootstrap-title">
+    <div class="admin-dialog-content"><p class="eyebrow">PRIVATE INSTALLATION FILE</p><h2 id="proxy-bootstrap-title">Save bootstrap JSON</h2><p>This file contains the proxy server credential and is available once. Transfer it privately to the proxy VPS, then run Install-CornGridProxy.ps1. Keep it out of chat and Git.</p><div class="admin-dialog-actions"><button class="button" type="button" data-proxy-close="proxy-bootstrap-dialog">Close</button><button class="button button-primary" type="button" id="proxy-download-bootstrap">Download JSON</button></div></div>
+  </dialog>
+  <dialog class="admin-dialog sb-capacity-dialog" id="proxy-ip-dialog" aria-labelledby="proxy-ip-title">
+    <form id="proxy-ip-form"><div class="admin-dialog-content"><h2 id="proxy-ip-title">Add proxy IP</h2><label class="admin-field">Public egress IPv4<input class="input-control" id="proxy-public-ip" maxlength="15" required></label><label class="admin-field">Source IPv4 on the VPS<input class="input-control" id="proxy-source-ip" maxlength="15" required></label><p class="muted small">Use an address shown by Get-NetIPAddress on the VPS. On a NAT VPS this may be a private IPv4. The daemon verifies the observed public IP before it can be used.</p><p class="sb-capacity-error" id="proxy-ip-error" role="alert" hidden></p><div class="admin-dialog-actions"><button class="button" type="button" data-proxy-close="proxy-ip-dialog">Cancel</button><button class="button button-primary" type="submit">Add IP</button></div></div></form>
+  </dialog>
+  <dialog class="admin-dialog sb-capacity-dialog" id="proxy-assign-dialog" aria-labelledby="proxy-assign-title">
+    <form id="proxy-assign-form"><div class="admin-dialog-content"><h2 id="proxy-assign-title">Assign node proxy</h2><p id="proxy-assign-node"></p><label class="admin-field">Connection<select class="select-control" id="proxy-assign-server"></select></label><p class="muted small">Requires Sandbox Agent 1.4.0+. Applies on the next sandbox start/restart. Running terminals are not restarted here.</p><p class="sb-capacity-error" id="proxy-assign-error" role="alert" hidden></p><div class="admin-dialog-actions"><button class="button" type="button" data-proxy-close="proxy-assign-dialog">Cancel</button><button class="button button-primary" type="submit">Save assignment</button></div></div></form>
+  </dialog>
+  <dialog class="admin-dialog sb-capacity-dialog" id="proxy-confirm-dialog" aria-labelledby="proxy-confirm-title"><div class="admin-dialog-content"><h2 id="proxy-confirm-title">Confirm proxy change</h2><p id="proxy-confirm-text"></p><div class="admin-dialog-actions"><button class="button" type="button" data-proxy-close="proxy-confirm-dialog">Cancel</button><button class="button button-danger" type="button" id="proxy-confirm-action">Confirm</button></div></div></dialog>
+
   <dialog class="admin-dialog" id="sb-token-dialog" aria-labelledby="sb-token-dialog-title">
     <form method="dialog">
       <div class="admin-dialog-content"><p class="eyebrow">NODE CREDENTIALS</p><h2 id="sb-token-dialog-title">Save this token</h2>
@@ -720,5 +748,6 @@
     </form>
   </dialog>
   <script src="admin-sandbox.js?v=20261121-node-priority1" defer></script>
+  <script src="admin-proxy.js?v=20261121-proxy1" defer></script>
 </body>
 </html>

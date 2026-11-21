@@ -412,6 +412,29 @@ test('admin can rename and prioritize nodes without changing identity, tokens or
   assert.equal((await f.request('/api/admin/sandbox/nodes', { token: f.adminToken, method: 'POST', body: { name: 'Invalid priority', placementPriority: -1 } })).status, 400);
 });
 
+test('proxy administration and node routes enforce existing roles and ownership', async t => {
+  const f=await createFixture();t.after(async()=>{await new Promise(r=>f.server.close(r));await new Promise(r=>f.db.close(r));});
+  assert.equal((await f.request('/api/admin/sandbox/proxies',{token:f.userToken})).status,403);
+  assert.equal((await f.request('/api/admin/sandbox/proxies')).status,403);
+  const created=await f.request('/api/admin/sandbox/proxies',{token:f.adminToken,method:'POST',body:{name:'Proxy fixture',host:'proxy.example.test'}});
+  assert.equal(created.status,201);assert.equal(created.body.server.enabled,false);assert.ok(created.body.bootstrap.serverToken);
+  const list=await f.request('/api/admin/sandbox/proxies',{token:f.adminToken});assert.equal(list.status,200);assert.equal(list.body.servers.length,1);assert.ok(!JSON.stringify(list.body).includes(created.body.bootstrap.serverToken));
+  const registration=await f.request('/api/admin/sandbox/nodes',{token:f.adminToken,method:'POST',body:{name:'Proxy node'}}),nodeId=registration.body.node.id;
+  await f.request(`/api/admin/sandbox/nodes/${nodeId}/status`,{token:f.adminToken,method:'POST',body:{status:'active'}});
+  const headers={'X-Node-Id':registration.body.node.nodeUid,'X-Node-Token':registration.body.token};
+  await run(f.db,"INSERT INTO sandbox_instances(instance_uid,user_id,node_id,status,created_at,updated_at) VALUES('sbx_111111111111111111',1,?,'stopped',1,1)",[nodeId]);
+  const route='/api/sandbox/node/network/sbx_111111111111111111';
+  assert.equal((await f.request(route,{token:f.userToken})).status,401);
+  assert.deepEqual((await f.request(route+'/prepare',{headers,method:'POST',body:{}})).body,{mode:'direct'});
+  assert.equal((await f.request('/api/sandbox/node/network/sbx_222222222222222222',{headers})).status,404);
+  assert.equal((await f.request(`/api/admin/sandbox/nodes/${nodeId}/proxy`,{token:f.userToken,method:'PATCH',body:{serverId:created.body.server.id}})).status,403);
+  assert.equal((await f.request(`/api/admin/sandbox/nodes/${nodeId}/proxy`,{token:f.adminToken,method:'PATCH',body:{serverId:created.body.server.id}})).status,409,'older agents cannot be assigned a proxy');
+  await run(f.db,'UPDATE sandbox_nodes SET agent_version=? WHERE id=?',['1.4.0',nodeId]);
+  assert.equal((await f.request(`/api/admin/sandbox/nodes/${nodeId}/proxy`,{token:f.adminToken,method:'PATCH',body:{serverId:created.body.server.id}})).status,200);
+  const blocked=await f.request(route+'/prepare',{headers,method:'POST',body:{}});assert.equal(blocked.status,503);assert.equal(blocked.body.code,'PROXY_UNAVAILABLE');
+  assert.equal((await f.request('/api/sandbox/proxy/heartbeat',{method:'POST',body:{certificateFingerprint:'a'.repeat(64)}})).status,401);
+});
+
 test('capacity lock contention returns a retryable error and a later edit succeeds', async t => {
   const f = await createFixture();
   t.after(async () => { await new Promise(resolve => f.server.close(resolve)); await new Promise(resolve => f.db.close(resolve)); });

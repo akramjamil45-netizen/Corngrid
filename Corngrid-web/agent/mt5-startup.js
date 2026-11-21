@@ -84,7 +84,7 @@ function prepareStartup(dir, payload, config) {
     if (!webRequest.some(line => line.startsWith('WebRequestUrl='))) throw new Error('Configured WebRequest source has no allowed URL list.');
   }
   const startup = [
-    '[Common]', `Login=${account}`, `Password=${password}`, `Server=${server}`, 'KeepPrivate=1', '',
+    '[Common]', `Login=${account}`, `Password=${password}`, `Server=${server}`, 'KeepPrivate=1', ...require('./proxy-protocol').proxyLines(payload.proxyCommon), '',
     '[Experts]', 'Enabled=1', 'AllowLiveTrading=1', 'AllowDllImport=0', 'Account=0', 'Profile=0', ...webRequest, '',
     '[StartUp]', `Expert=CornGrid\\${fileName.slice(0, -4)}`, 'ExpertParameters=corngrid-sandbox.set',
     `Symbol=${symbol}`, 'Period=M1', ''

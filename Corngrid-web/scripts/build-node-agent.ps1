@@ -7,6 +7,7 @@ $workspace=Split-Path -Parent $backend
 if($LASTEXITCODE -ne 0){throw 'Could not build the agent deployment manifest.'}
 if([string]::IsNullOrWhiteSpace($OutputPath)){$OutputPath=Join-Path $workspace 'CornGrid-Node-Agent.zip'}
 $agentFiles=@('agent.js','config.js','transport.js','system-monitor.js','mt5-manager.js','mt5-startup.js',
+ 'proxy-protocol.js','proxy-tunnel.js','proxy-network.js','proxy-bridge-worker.js',
  'broker-resolution.js','broker-server-cache.js','broker-probe.py','ipc-probe.js','operation-queue.js','command-execution.js','resolve-broker.ps1','setup-broker-tools.ps1',
  'ea-tester.js','source-compiler.js','linux-runtime.js','check-installation.js','package.json','package-lock.json',
  'agent-config.example.json','install-service.ps1','uninstall-service.ps1',

@@ -74,11 +74,13 @@ async function verifyBroker(dir, payload, config, run, ipcProbe) {
   fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
   fs.rmSync(path.join(dir, 'config', 'accounts.dat'), { force: true });
   fs.writeFileSync(path.join(dir, 'config', 'broker-preflight.ini'), '\ufeff' + [
-    '[Common]', `Login=${payload.accountNumber}`, `Password=${payload.password}`, `Server=${payload.brokerServer}`, 'KeepPrivate=1',
+    '[Common]', `Login=${payload.accountNumber}`, `Password=${payload.password}`, `Server=${payload.brokerServer}`, 'KeepPrivate=1', ...require('./proxy-protocol').proxyLines(payload.proxyCommon),
     '', '[Experts]', 'Enabled=0', 'AllowLiveTrading=0', '', '[StartUp]', ''
   ].join('\r\n'), 'utf16le');
   let probeTerminal = null;
   if (ipcProbe) {
+    if (ipcProbe.prepareNetwork) await ipcProbe.prepareNetwork(payload.proxyCommon);
+    else if (payload.proxyCommon?.ProxyEnable) throw new Error('Proxy-aware IPC preflight support is required.');
     const ensured = await ipcProbe.ensure({ allowTakeover: false });
     if (!ensured.ok) throw new Error(ensured.error || 'The MT5 IPC probe terminal is not available.');
     await ipcProbe.prepareForServer(payload.brokerServer, config);

@@ -1,6 +1,6 @@
 {
   "name": "corngrid-sandbox-agent",
-  "version": "1.3.3",
+  "version": "1.4.1",
   "description": "CornGrid Sandbox Agent - Windows and Linux/Wine MT5 hosting",
   "os": ["win32", "linux"],
   "main": "agent.js",

@@ -14,6 +14,9 @@ const { createSandboxAdminApi } = require('./sandbox-admin-api');
 const { createSandboxNodeApi } = require('./sandbox-node-api');
 const { createSandboxRealtime } = require('./sandbox-realtime');
 const { createNodeUpdates } = require('./node-updates');
+const { createProxyService } = require('./proxy-service');
+const { registerProxyApi } = require('./proxy-api');
+const { ensureProxySchema } = require('./proxy-schema');
 
 function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi, rateLimit, jwtSecret, strategyStorageDir }) {
   const crypto = createSandboxCrypto();
@@ -25,6 +28,7 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
   const adminApi = createSandboxAdminApi({ db, nodes, events, manager, subscriptions: subscriptionApi, crypto, updates });
   const nodeApi = createSandboxNodeApi({ db, nodes, events, manager, rateLimit, strategyStorageDir, updates });
   const realtime = createSandboxRealtime({ db, nodes, events, adminAuth });
+  const proxyService = createProxyService({ db, crypto, audit: (action,id,metadata,ip) => subscriptionApi.logAudit(null,'admin',action,'sandbox_proxy',id,metadata,null,ip) });
 
   // SQLite: self-apply the schema (idempotent). PostgreSQL: migrations are
   // applied by scripts/apply-postgres-migrations.js; verify presence instead.
@@ -45,6 +49,7 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
       await seedDefaultStrategy(db);
     } else {
       await ensureSchema(db);
+      await ensureProxySchema(db);
       await seedDefaultStrategy(db);
     }
   })();
@@ -52,8 +57,9 @@ function createSandboxSystem(app, db, { verifyToken, adminAuth, subscriptionApi,
   api.registerRoutes(app, verifyToken);
   adminApi.registerRoutes(app, adminAuth.verifyToken);
   nodeApi.registerRoutes(app);
+  registerProxyApi(app, { service: proxyService, nodes, verifyAdminToken: adminAuth.verifyToken, rateLimit });
 
-  return { ready, crypto, events, nodes, manager, realtime, nodeApi, updates };
+  return { ready, crypto, events, nodes, manager, realtime, nodeApi, updates, proxyService };
 }
 
 module.exports = { createSandboxSystem };

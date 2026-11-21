@@ -6,6 +6,21 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createIpcProbe } = require('../agent/ipc-probe');
 
+test('keeper route changes write local proxy settings and reset them for the next direct preflight', async t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cg-keeper-network-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const calls=[],module={exports:{}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../agent/ipc-probe.js'),'utf8'),{
+    require(name){if(name==='node:child_process')return {spawn(){throw Error('unexpected terminal launch');},execFile(command,args,options,callback){calls.push(command);callback(null,'');}};
+      if(name==='./broker-server-cache')return require('../agent/broker-server-cache');if(name==='./proxy-protocol')return require('../agent/proxy-protocol');return require(name);},
+    module,exports:module.exports,process,setTimeout,clearTimeout,Buffer
+  });
+  const probe=module.exports.createIpcProbe({config:{ipcProbeDir:path.join(root,'probe'),sandboxUsersDir:path.join(root,'users'),mt5BaseDir:path.join(root,'base')},logger:{}});
+  await probe.prepareNetwork({ProxyEnable:1,ProxyType:1,ProxyAddress:'127.0.0.1:32123',ProxyLogin:'keeper',ProxyPassword:'private-fixture'});
+  const file=path.join(root,'probe/config/probe-startup.ini');assert.match(fs.readFileSync(file,'utf16le'),/ProxyEnable=1[\s\S]*ProxyAddress=127\.0\.0\.1:32123/);
+  await probe.prepareNetwork(null);const direct=fs.readFileSync(file,'utf16le');assert.match(direct,/ProxyEnable=0/);assert.ok(!direct.includes('private-fixture'));assert.ok(!calls.includes('taskkill.exe'),'no user terminal is stopped');
+});
+
 test('IPC keeper refuses directories overlapping MT5 base or sandbox data', () => {
   for (const ipcProbeDir of ['C:/sandbox', 'C:/sandbox/users', 'C:/sandbox/users/probe', 'C:/base']) {
     assert.throws(() => createIpcProbe({ config: { ipcProbeDir, sandboxUsersDir: 'C:/sandbox/users', mt5BaseDir: 'C:/base' } }), /must be separate/);

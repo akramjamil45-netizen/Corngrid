@@ -1,5 +1,7 @@
 # CornGrid Dashboard
 
+Optional MT5 broker routing: [Windows proxy server installation](docs/PROXY_SERVER_WINDOWS.md).
+
 Adding a hosting/test VPS: [Windows node installation](docs/VPS_NODE_INSTALLATION.md)
 and [English agent setup](docs/WINDOWS_AGENT_SETUP.md). A node needs the agent,
 MT5 and Python tooling; it does not need this backend, its database or `.env`.

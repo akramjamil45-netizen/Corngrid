@@ -72,5 +72,11 @@ marketing/stripe-live-verification.json
 *.cgb
 .corngrid-backup-*/
 .env.staging
+**/proxy-config.json
+**/proxy.pfx
+/.proxy-install-private/
+/marketing/proxy-vps-*-result.json
+/marketing/proxy-vps-*.png
+/CornGrid-Proxy-cgp_*.json
 Corngrid-web/.env.staging
 *.staging.sqlite

@@ -1,0 +1,4 @@
+'use strict';
+const https=require('node:https'),fs=require('node:fs'),path=require('node:path'),net=require('node:net');
+function request(host){return new Promise((resolve,reject)=>{const req=https.get({host,path:'/',family:4,timeout:12000},res=>{let body='';res.on('data',chunk=>{body+=chunk;if(body.length>100)req.destroy();});res.on('end',()=>net.isIP(body.trim())===4?resolve(body.trim()):reject(Error('Invalid IP response')));});req.on('error',reject);req.on('timeout',()=>req.destroy(Error('timeout')));});}
+Promise.any(['checkip.amazonaws.com','api.ipify.org'].map(request)).then(ip=>{fs.writeFileSync(path.join(__dirname,'../.proxy-install-private/main-source-ip.txt'),ip);console.log(JSON.stringify({publicSourceIp:ip}));}).catch(()=>{console.error('Unable to determine public source IPv4.');process.exitCode=1;});

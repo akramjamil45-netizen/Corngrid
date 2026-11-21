@@ -2,7 +2,7 @@
 // Read-only diagnostics: never start MT5, send a heartbeat, poll commands or
 // attach a node WebSocket (which would take over its existing live channel).
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const RUNTIME_FILES=['agent.js','config.js','transport.js','system-monitor.js','mt5-manager.js','mt5-startup.js','broker-resolution.js','broker-server-cache.js','broker-probe.py','ipc-probe.js','operation-queue.js','command-execution.js','resolve-broker.ps1','ea-tester.js','source-compiler.js','auto-update.js','update-protocol.js'];
+const RUNTIME_FILES=['agent.js','config.js','transport.js','system-monitor.js','mt5-manager.js','mt5-startup.js','broker-resolution.js','broker-server-cache.js','broker-probe.py','ipc-probe.js','operation-queue.js','command-execution.js','proxy-protocol.js','proxy-tunnel.js','proxy-network.js','proxy-bridge-worker.js','resolve-broker.ps1','ea-tester.js','source-compiler.js','auto-update.js','update-protocol.js'];
 function checkLocal({config,agentDir=__dirname,platform=process.platform,arch=process.arch,nodeVersion=process.versions.node,testNode=false,run=execFileSync,resolveModule=(name)=>require.resolve(name,{paths:[agentDir]})}={}){
   const checks=[],add=(name,status,message)=>checks.push({name,status,message});
   const linux=platform==='linux';

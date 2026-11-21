@@ -5,6 +5,19 @@ const os = require('node:os');
 const path = require('node:path');
 const { prepareStartup } = require('../agent/mt5-startup');
 
+test('MT5 startup applies authenticated local SOCKS5 and explicitly resets direct mode', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-proxy-startup-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const payload = { symbol:'XAUUSD', accountNumber:'123', brokerServer:'Broker-Demo', password:'fixture', installationSecret:'a'.repeat(64), strategy:{eaFileName:'CornGrid.ex5'},
+    proxyCommon:{ProxyEnable:1,ProxyType:1,ProxyAddress:'127.0.0.1:32123',ProxyLogin:'bridge',ProxyPassword:'private-fixture'} };
+  const file = prepareStartup(dir, payload, {backendUrl:'https://example.test'});
+  let ini = fs.readFileSync(file, 'utf16le');
+  assert.match(ini, /\[Common\][\s\S]*ProxyEnable=1\r\n/);assert.match(ini, /ProxyType=1\r\n/);
+  assert.match(ini, /ProxyAddress=127\.0\.0\.1:32123\r\n/);assert.match(ini, /ProxyPassword=private-fixture\r\n/);
+  delete payload.proxyCommon;prepareStartup(dir, payload, {backendUrl:'https://example.test'});ini=fs.readFileSync(file,'utf16le');
+  assert.match(ini,/ProxyEnable=0\r\n/);assert.match(ini,/ProxyAddress=\r\n/);assert.ok(!ini.includes('private-fixture'));
+});
+
 test('restart validates the configured partner EA even when the base contains another executable', t => {
   const { loadStartupPayload } = require('../agent/mt5-startup');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-partner-restart-'));

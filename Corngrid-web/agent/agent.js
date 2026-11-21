@@ -185,7 +185,8 @@ async function main() {
   });
 
   ipcProbe = process.platform === 'win32' ? createIpcProbe({ config, logger }) : null;
-  mt5 = createMt5Manager({ config, logger, ipcProbe, downloadFile: (urlPath, target) => {
+  const network = require('./proxy-network').createProxyNetwork({ config, httpRequest: (...args) => transport.httpRequest(...args) });
+  mt5 = createMt5Manager({ config, logger, ipcProbe, network, downloadFile: (urlPath, target) => {
     // downloadFile receives a full URL from the manager; convert to a path.
     const parsed = new URL(urlPath);
     return transport.downloadFile(parsed.pathname, target);

@@ -32,7 +32,7 @@ function isValidInstanceUid(value) {
   return typeof value === 'string' && (INSTANCE_UID_PATTERN.test(value) || EA_UID_PATTERN.test(value));
 }
 
-function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
+function createMt5Manager({ config, logger, downloadFile, ipcProbe = null, network = null }) {
   const linux = process.platform === 'linux' ? require('./linux-runtime').createLinuxRuntime({config}) : null;
   // instanceUid -> { child, pid, startedAt, restarts: [timestamps], sandboxPath, meta }
   const running = new Map();
@@ -165,6 +165,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
 
     try {
       await robocopy(path.resolve(config.mt5BaseDir), dir);
+      if (network && INSTANCE_UID_PATTERN.test(instanceUid)) payload = { ...payload, proxyCommon: (await network.prepare(instanceUid)).common };
       copyBrokerServerCache(dir, payload.brokerServer, config);
       logger.info(instanceUid, 'Verifying broker login and resolving the account trading symbol before starting EA.');
       payload = await resolveBroker(dir, payload, config, execFile, ipcProbe);
@@ -180,6 +181,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
     } catch (error) {
       try {
         await stopInstanceProcesses(instanceUid);
+        if (network && INSTANCE_UID_PATTERN.test(instanceUid)) await network.stopWorker(instanceUid);
         if (linux) linux.removePrefix(dir);
         await removeEnvironment(dir);
       } catch (_) {
@@ -195,6 +197,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
   async function launch(dir, instanceUid, meta = {}, restarts = []) {
     const terminal = path.join(dir, 'terminal64.exe');
     const startupPath = ensureStartup(dir, config);
+    if (network && INSTANCE_UID_PATTERN.test(instanceUid)) network.apply(dir, await network.prepare(instanceUid));
     if (linux) {
       const child=await linux.startTerminal(dir,startupPath);
       running.set(instanceUid,{child:null,pid:child.pid,startedAt:Date.now(),restarts,sandboxPath:dir,meta,intentionallyStopped:false,adopted:true});
@@ -351,7 +354,13 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
     assertDeployed(dir);
     if (!fs.existsSync(path.join(dir, 'config', 'broker-resolution.json'))) {
       logger.info(instanceUid, 'Verifying the existing sandbox broker and symbol before restart.');
-      const verified = await resolveBroker(dir, loadStartupPayload(dir), config, execFile, ipcProbe);
+      const startupPayload = loadStartupPayload(dir);
+      if (network && INSTANCE_UID_PATTERN.test(instanceUid)) {
+        const connection = await network.prepare(instanceUid);
+        network.apply(dir, connection);
+        startupPayload.proxyCommon = connection.common;
+      }
+      const verified = await resolveBroker(dir, startupPayload, config, execFile, ipcProbe);
       writeLicenseBundle(dir, verified);
       prepareStartup(dir, verified, config);
     }
@@ -362,6 +371,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
   async function stop(payload) {
     const { instanceUid } = payload || {};
     await stopInstanceProcesses(instanceUid);
+    if (network && INSTANCE_UID_PATTERN.test(instanceUid)) await network.stopWorker(instanceUid);
     return { stopped: true };
   }
 
@@ -377,6 +387,7 @@ function createMt5Manager({ config, logger, downloadFile, ipcProbe = null }) {
     const { instanceUid } = payload || {};
     if (!isValidInstanceUid(instanceUid)) throw new Error('Invalid instance identifier.');
     await stopInstanceProcesses(instanceUid);
+    if (network && INSTANCE_UID_PATTERN.test(instanceUid)) await network.release(instanceUid);
     const dir = instanceDir(instanceUid);
     if (fs.existsSync(dir)) {
       await removeEnvironment(dir);

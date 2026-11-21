@@ -181,7 +181,10 @@ function createIpcProbe({ config, logger }) {
   }
 
   function writeProbeStartup() {
+    let proxySettings=null;
+    try { proxySettings=JSON.parse(fs.readFileSync(path.join(probeDir,'config','probe-proxy-settings.json'),'utf8')); } catch {}
     fs.writeFileSync(path.join(probeDir, 'config', 'probe-startup.ini'), '\ufeff' + [
+      '[Common]', ...require('./proxy-protocol').proxyLines(proxySettings), '',
       '[Experts]', 'Enabled=0', 'AllowLiveTrading=0', 'AllowDllImport=0', '', '[StartUp]', ''
     ].join('\r\n'), 'utf16le');
   }
@@ -331,7 +334,16 @@ function createIpcProbe({ config, logger }) {
     };
   }
 
-  return { dir: probeDir, port: IPC_PORT, terminalPath, prepare, prepareForServer, ensure, stop, owner, status };
+  async function prepareNetwork(settings) {
+    const value=require('./proxy-protocol').proxyCommon(settings),file=path.join(probeDir,'config','probe-proxy-settings.json');
+    let previous=null;try{previous=JSON.parse(fs.readFileSync(file,'utf8'));}catch{}
+    if(JSON.stringify(previous)!==JSON.stringify(value)){
+      await stop();
+      if((await owner(true)).isProbe)throw new Error('IPC keeper did not stop; proxy configuration was not changed.');
+      fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value),{mode:0o600});writeProbeStartup();
+    }
+  }
+  return { dir: probeDir, port: IPC_PORT, terminalPath, prepare, prepareForServer, prepareNetwork, ensure, stop, owner, status };
 }
 
 module.exports = { createIpcProbe, IPC_PORT };
