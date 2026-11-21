@@ -88,6 +88,17 @@ async function verifyBroker(dir, payload, config, run, ipcProbe) {
     if (!ready.ok) throw new Error(ready.error || 'The MT5 IPC probe terminal is not available.');
     probeTerminal = ipcProbe.dir;
   }
+  if (process.platform !== 'linux') {
+    // Persist direct routing before MT5 starts; an old protected proxy login
+    // must not survive a deliberate switch back to the node's own connection.
+    if (ipcProbe?.stop) await ipcProbe.stop();
+    const network=require('./proxy-protocol').proxyCommon(payload.proxyCommon);
+    fs.mkdirSync(path.join(probeTerminal||dir,'config'),{recursive:true});
+    require('./mt5-startup').mergeIni(path.join(probeTerminal||dir,'config','common.ini'),{
+      Common:{Login:payload.accountNumber,Password:payload.password,Server:payload.brokerServer,KeepPrivate:1,...network,...(network.ProxyEnable===0?{ProxyAuth:''}:{})},
+      Experts:{Enabled:0,AllowLiveTrading:0,AllowDllImport:0},StartUp:{Expert:'',Script:'',ExpertParameters:''}
+    });
+  }
   const requestId = require('node:crypto').randomUUID();
   const resultPath = path.join(dir, 'config', 'broker-preflight-result.json');
   fs.rmSync(resultPath, { force: true });

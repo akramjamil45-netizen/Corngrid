@@ -33,9 +33,9 @@ def probe(root, request_id, terminal_root=None):
     except ImportError:
         return dict(result, error='MetaTrader5 Python package is missing. Run agent/setup-broker-tools.ps1 on this node.')
     # Credentials still live in the instance directory. The terminal that anchors
-    # the IPC pipe may be the dedicated probe keeper, which is outside every
-    # sandbox: only one terminal can own port 22346, so a preflight must reuse
-    # whichever one already owns it instead of starting a competing terminal.
+    # the Python session may be the dedicated probe keeper, outside every
+    # sandbox. Port 22346 is an unrelated MCP listener; the explicit terminal
+    # path and the authenticated account result determine this connection.
     terminal = Path(terminal_root).resolve() if terminal_root else root
     config = configparser.ConfigParser(interpolation=None)
     config.read(root / 'config/broker-preflight.ini', encoding='utf-16')
@@ -44,23 +44,22 @@ def probe(root, request_id, terminal_root=None):
     expected_server = common['Server']
     password = common['Password']
     try:
-        # initialize() with credentials performs the login itself and creates the
-        # account record the terminal needs. A bare initialize() on a fresh copy
-        # never answers on the IPC pipe (code -10005), which blocked every new
-        # sandbox until the login was supplied here.
+        # Supply the requested account explicitly rather than relying on an
+        # empty or previously saved terminal account. Retry transient IPC
+        # startup failures once, with a bounded deadline.
         connected = False
         last_code = 0
-        for attempt in range(3):
+        for attempt in range(2):
             if mt5.initialize(str(terminal / 'terminal64.exe'), portable=True,
                               login=expected_login, password=password,
-                              server=expected_server, timeout=90000):
+                              server=expected_server, timeout=30000):
                 connected = True
                 break
             last_code = mt5.last_error()[0]
             _shutdown(mt5)
             if last_code not in (-10000, -10001, -10002, -10003, -10004, -10005):
                 break
-            if attempt < 2:
+            if attempt < 1:
                 time.sleep(3)
         if not connected:
             return dict(result, error=_login_error(last_code))

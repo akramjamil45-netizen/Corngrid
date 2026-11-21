@@ -27,28 +27,41 @@ test('IPC keeper refuses directories overlapping MT5 base or sandbox data', () =
   }
 });
 
-test('busy port never stops an existing user terminal even if a legacy config requests takeover', async t => {
+for(const inventory of [null,'invalid-json',JSON.stringify([{pid:12,path:'C:/unrelated/terminal64.exe'}])]){
+ test('unverified preflight inventory fails closed: '+String(inventory),async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cg-keeper-fail-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const probeDir=path.join(root,'probe');fs.mkdirSync(probeDir);fs.writeFileSync(path.join(probeDir,'terminal64.exe'),'fixture');
+  const module={exports:{}};let mutations=0;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../agent/ipc-probe.js'),'utf8'),{module,process,Date,setTimeout,clearTimeout,
+   require:name=>name==='node:child_process'?{spawn(){mutations++;throw Error('unsafe spawn');},execFile(file,args,opts,done){assert.equal(file,'powershell.exe');done(inventory===null?Error('access denied'):null,inventory);}}:name.startsWith('./')?require('../agent/'+name.slice(2)):require(name)});
+  const keeper=module.exports.createIpcProbe({config:{ipcProbeDir:probeDir,sandboxUsersDir:path.join(root,'users'),mt5BaseDir:path.join(root,'base')}});
+  const result=await keeper.ensure();assert.equal(result.ok,false);assert.equal(mutations,0);
+ });
+}
+
+test('another terminal MCP listener does not block the owned preflight or get stopped', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-keeper-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const probeDir = path.join(root, 'probe');
   fs.mkdirSync(probeDir); fs.writeFileSync(path.join(probeDir, 'terminal64.exe'), 'fixture');
-  const calls = [], module = { exports: {} };
+  const calls = [], module = { exports: {} };let launched=false;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../agent/ipc-probe.js'), 'utf8'), {
     module, process, Date, setTimeout, clearTimeout,
     require: name => name === 'node:child_process' ? {
-      spawn: () => { throw new Error('User terminal must remain untouched'); },
+      spawn: (file) => { assert.equal(file,path.join(probeDir,'terminal64.exe'));launched=true;const child=new(require('node:events').EventEmitter)();child.pid=777777;return child; },
       execFile: (file, _args, _opts, done) => {
         calls.push(file);
         if (file === 'netstat.exe') done(null, 'TCP 127.0.0.1:22346 0.0.0.0:0 LISTENING 1234');
-        else if (file === 'powershell.exe') done(null, 'terminal64.exe|' + path.join(root, 'users/sbx_0123456789abcdef01/terminal64.exe'));
+        else if (file === 'powershell.exe') done(null, JSON.stringify(launched?[{pid:777777,path:path.join(probeDir,'terminal64.exe')}]:[]));
         else throw new Error('Unexpected process mutation: ' + file);
       }
     } : name.startsWith('./') ? require('../agent/' + name.slice(2)) : require(name)
   });
   const keeper = module.exports.createIpcProbe({ config: { ipcProbeDir: probeDir, sandboxUsersDir: path.join(root, 'users'), mt5BaseDir: path.join(root, 'base') } });
   const result = await keeper.ensure({ allowTakeover: true });
-  assert.equal(result.busy, true);
+  assert.equal(result.ok, true);assert.equal(result.pid,777777);
   assert.ok(!calls.includes('taskkill.exe'));
+  assert.ok(!calls.includes('netstat.exe'),'MCP must not determine Python readiness');
   const ini = fs.readFileSync(path.join(probeDir, 'config/probe-startup.ini'), 'utf16le');
   assert.match(ini, /Enabled=0/); assert.match(ini, /AllowLiveTrading=0/);
 });

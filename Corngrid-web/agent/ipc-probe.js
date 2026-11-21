@@ -2,15 +2,14 @@
 
 // Dedicated MT5 probe terminal (the "IPC keeper").
 //
-// The MetaTrader5 Python bridge can only talk to the single terminal that owns
-// the local IPC pipe 127.0.0.1:22346. Whichever terminal starts first keeps
-// that port until the process exits, so a broker preflight failed with -10004
-// or a misleading -10005 whenever any sandbox terminal was already running.
+// Broker checks reuse one dedicated terminal under the serialized preflight
+// queue. TCP 22346 is MT5's optional MCP listener, not the Python IPC transport;
+// it must never be used as a Python readiness/ownership check.
 //
 // The keeper is a bare MT5 copy outside the sandbox roots whose only job is to
-// own that port. Preflights sign in through it, so a deployment no longer
-// depends on which sandbox happened to start first and no user terminal has to
-// be stopped for a probe. The keeper holds no sandbox and may stay signed in to
+// host preflight sessions. Exact executable paths identify it, and the Python
+// probe verifies its actual account/connection. No user terminal is stopped
+// for a probe. The keeper holds no sandbox and may stay signed in to
 // the last verified account; that state is never read by an EA.
 
 const fs = require('node:fs');
@@ -35,7 +34,6 @@ function createIpcProbe({ config, logger }) {
   const serversHashFile = path.join(probeDir, 'keeper-servers.hash');
   let startPromise = null;
   let ownerCache = null;
-  let lastPid = null;
 
   function log(level, instanceUid, message) {
     const write = logger && typeof logger[level] === 'function' ? logger[level].bind(logger) : null;
@@ -140,6 +138,17 @@ function createIpcProbe({ config, logger }) {
     };
   }
 
+  async function probeOwner() {
+    const escaped = terminalPath.replace(/'/g, "''");
+    const output = await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `$rows=@(Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction Stop | Where-Object {$_.ExecutablePath -and $_.ExecutablePath -ieq '${escaped}'} | ForEach-Object {@{pid=[int]$_.ProcessId;path=$_.ExecutablePath}}); ConvertTo-Json -InputObject $rows -Compress`]);
+    if (output === null) throw new Error('Cannot inspect preflight terminal processes; no replacement was launched.');
+    let rows;try { rows=JSON.parse(output.trim() || '[]'); } catch { throw new Error('Invalid preflight process inventory; no replacement was launched.'); }
+    if (!Array.isArray(rows) || rows.some(row=>!Number.isInteger(row.pid)||row.pid<=0||typeof row.path!=='string'||!isSamePath(row.path,terminalPath))) throw new Error('Unverified preflight process inventory.');
+    if (rows.length>1) throw new Error('Multiple processes use the preflight directory; maintenance is required.');
+    const row=rows[0];return {owned:!!row,isProbe:!!row,pid:row?.pid||null,directory:probeDir,executablePath:row?.path||null,instanceUid:null};
+  }
+
   // -------------------------------------------------------------------------
   // Keeper files
   // -------------------------------------------------------------------------
@@ -203,7 +212,6 @@ function createIpcProbe({ config, logger }) {
       if (!startPromise) log('warn', null, `IPC probe terminal exited (code ${code}).`);
     });
     child.unref?.();
-    lastPid = child.pid;
     // Remember which broker list this keeper loaded. A file that changes on
     // disk is not picked up by a running terminal, so the next preflight has to
     // recycle the keeper instead of trusting the file alone.
@@ -225,6 +233,7 @@ function createIpcProbe({ config, logger }) {
   async function stopOwner(ownerInfo) {
     if (!ownerInfo || !ownerInfo.pid || !isAlive(ownerInfo.pid)) return;
     const pid = ownerInfo.pid;
+    if ((await probeOwner()).pid !== pid) return;
     const terminate = force => new Promise(resolve => {
       execFile('taskkill.exe', ['/PID', String(pid), '/T', ...(force ? ['/F'] : [])],
         { windowsHide: true, timeout: force ? 15000 : config.stopGraceMs }, () => resolve());
@@ -240,11 +249,11 @@ function createIpcProbe({ config, logger }) {
 
   // Stops the keeper (used when its server list changed and it has to reload).
   async function stop() {
-    const current = await owner(true);
+    const current = await probeOwner();
     if (!current.isProbe) return { stopped: false };
     log('info', null, `Stopping the IPC probe terminal (pid ${current.pid}).`);
     await stopOwner(current);
-    return { stopped: !(await owner(true)).owned };
+    return { stopped: !(await probeOwner()).owned };
   }
 
   // Copies the broker server list into the keeper. A login can only resolve a
@@ -263,7 +272,7 @@ function createIpcProbe({ config, logger }) {
     if (!copied || !current) return { copied, changed: false };
     const changed = loaded !== current;
     if (changed) {
-      if ((await owner(true)).isProbe) await stop();
+      if ((await probeOwner()).isProbe) await stop();
       try { fs.rmSync(serversHashFile, { force: true }); } catch (_error) { /* best effort */ }
     }
     return { copied, changed };
@@ -289,32 +298,22 @@ function createIpcProbe({ config, logger }) {
       }
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const current = await owner(true);
+        const current = await probeOwner();
         if (current.isProbe) return { ok: true, pid: current.pid, started: attempt > 0 };
 
-        if (current.owned) {
-          // Existing user terminals must never be interrupted to deploy a new
-          // sandbox. A legacy owner needs an operator maintenance handover.
-          const detail = `IPC port ${IPC_PORT} is occupied (pid ${current.pid}). Schedule an IPC probe handover on this node; existing terminals were left running.`;
-          log('warn', current.instanceUid, detail);
-          return { ok: false, busy: true, pid: current.pid, instanceUid: current.instanceUid, error: detail };
-        }
-
-        // A keeper from an earlier attempt that could not bind is dead weight.
-        if (lastPid && lastPid !== (current.pid || null) && isAlive(lastPid)) await stopOwner({ pid: lastPid });
-
-        // The port is free. Launch the keeper before any new sandbox terminal.
+        // No owned preflight process exists. MCP listeners on other terminals
+        // do not block a new dedicated preflight process.
         launch();
         const pid = await waitFor(async () => {
-          const info = await owner(true);
+          const info = await probeOwner();
           return info.isProbe ? info.pid : null;
         }, 20000, 500);
         if (pid) {
-          log('info', null, `IPC probe terminal owns port ${IPC_PORT} (pid ${pid}).`);
+          log('info', null, `Preflight terminal running (pid ${pid}); Python will verify broker readiness.`);
           return { ok: true, pid, started: true };
         }
       }
-      return { ok: false, error: `IPC probe terminal did not acquire port ${IPC_PORT}.` };
+      return { ok: false, error: 'Preflight terminal did not start from its owned directory.' };
     })().catch(error => {
       log('error', null, `IPC probe failed: ${error.message}`);
       return { ok: false, error: error.message };
@@ -323,10 +322,11 @@ function createIpcProbe({ config, logger }) {
   }
 
   async function status() {
-    const info = await owner(true);
+    const info = await probeOwner();
     return {
       dir: probeDir,
       port: IPC_PORT,
+      portPurpose: 'mcp_diagnostic_only',
       installed: fs.existsSync(terminalPath),
       ownedByProbe: info.isProbe,
       ownerPid: info.pid,
@@ -339,7 +339,7 @@ function createIpcProbe({ config, logger }) {
     let previous=null;try{previous=JSON.parse(fs.readFileSync(file,'utf8'));}catch{}
     if(JSON.stringify(previous)!==JSON.stringify(value)){
       await stop();
-      if((await owner(true)).isProbe)throw new Error('IPC keeper did not stop; proxy configuration was not changed.');
+      if((await probeOwner()).isProbe)throw new Error('IPC keeper did not stop; proxy configuration was not changed.');
       fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value),{mode:0o600});writeProbeStartup();
     }
   }

@@ -47,10 +47,21 @@ with a redeploy instruction, including legacy directories missing their licence.
 
 The Windows IPC keeper has its own directory and starts with EA/live trading
 disabled. It survives child-agent updates. A new deployment never stops a
-running user terminal to acquire IPC port 22346. If a legacy terminal owns the
-port, schedule a node maintenance handover before enabling new deployments.
+running user terminal for preflight. TCP 22346 is the optional MT5 MCP listener,
+not the Python IPC transport. Ownership uses the exact preflight executable
+path; actual readiness requires Python account/server/connection verification.
 Do not fix this by killing all terminal64.exe processes. The keeper directory
 must not overlap the MT5 base or sandbox users directory.
+
+Agent 1.4.2 persists direct connection settings before preflight, including
+clearing any previous protected proxy login. Broker checks first attempt an
+authenticated Python login; a Windows terminal missing broker metadata then
+uses the English broker directory and selects the existing account explicitly.
+Each IPC login attempt is limited to 30 seconds, with at most one transient
+retry. The account, canonical server, connection and tradable symbol must all
+match before an EA can start. Failed or stale results cannot unlock deployment.
+Proxy assignments remain administrative decisions: this release does not
+silently change an assigned proxy to a direct connection on failure.
 
 Error -10005 is an internal/IPC timeout, not proof of an incorrect password;
 -6 indicates authorization failure. Only transient IPC failures retry (at most

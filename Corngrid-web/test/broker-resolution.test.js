@@ -5,6 +5,17 @@ const os = require('node:os');
 const path = require('node:path');
 const { resolveSymbol, validateProbe, resolveBroker } = require('../agent/broker-resolution');
 const symbol = (name, tradeMode = 4, custom = false) => ({ name, tradeMode, custom });
+
+test('Headway company discovery preserves canonical account/server identity',()=>{
+  const {brokerSearch}=require('../agent/broker-resolution');
+  assert.equal(brokerSearch('Headway-Demo'),'Headway');
+  assert.equal(brokerSearch('Headway-Real'),'Headway');
+  assert.equal(brokerSearch('LiteFinance-MT5-Demo'),'LiteFinance');
+  const payload={accountNumber:'123',brokerServer:'Headway-Demo',symbol:'XAUUSD'};
+  const probe={ok:true,connected:true,tradeAllowed:true,accountNumber:'123',server:'Headway-Demo',symbols:[symbol('XAUUSD')]};
+  assert.equal(validateProbe(probe,payload,{}).brokerServer,'Headway-Demo');
+  assert.throws(()=>validateProbe({...probe,server:'Headway-Real'},payload,{}),/different account or server/);
+});
 test('account symbols resolve suffixes, prefixes and gold aliases without guessing ambiguous contracts', () => {
   for (const name of ['XAUUSD.c', 'XAUUSDm', 'GOLD', '#XAUUSD']) assert.equal(resolveSymbol('XAUUSD', [symbol(name)]), name);
   assert.equal(resolveSymbol('EURUSD', [symbol('EURUSD.c')]), 'EURUSD.c');
@@ -16,6 +27,32 @@ test('account symbols resolve suffixes, prefixes and gold aliases without guessi
   assert.throws(() => resolveSymbol('XAUUSD', [symbol('XAUUSD', 3)]), /No tradable/);
   assert.throws(() => resolveSymbol('XAUUSD', [symbol('XAUUSD.c')], 'XAUUSDm'), /Configured symbol/);
   assert.equal(resolveSymbol('XAUUSD', [symbol('XAUUSD.c'), symbol('XAUUSDm')], 'XAUUSD.c'), 'XAUUSD.c');
+});
+
+test('direct preflight clears stored proxy authorization before login while preserving native settings',{skip:process.platform==='linux'},async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'cg-direct-preflight-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const dir=path.join(root,'instance'),probe=path.join(root,'probe');fs.mkdirSync(path.join(probe,'config'),{recursive:true});
+ const file=path.join(probe,'config/common.ini');fs.writeFileSync(file,'\ufeff[Common]\r\nEnvironment=fixture-environment\r\nProxyEnable=1\r\nProxyAuth=old-proxy\r\n[Experts]\r\nWebRequestUrl=https://example.test','utf16le');
+ let stopped=0;const keeper={dir:probe,prepareNetwork:async()=>{},ensure:async()=>({ok:true}),prepareForServer:async()=>{},stop:async()=>{stopped++;}};
+ const run=(_cmd,args,_opts,done)=>{
+  assert.equal(stopped,1);const text=fs.readFileSync(file,'utf16le');assert.match(text,/ProxyEnable=0/);assert.doesNotMatch(text,/old-proxy/);assert.match(text,/Environment=fixture-environment/);assert.match(text,/WebRequestUrl=https:\/\/example.test/);assert.match(text,/Enabled=0/);
+  assert.ok(!args.join(' ').includes('broker-fixture'));const requestId=args[args.indexOf('-RequestId')+1];fs.writeFileSync(path.join(dir,'config/broker-preflight-result.json'),JSON.stringify({ok:true,requestId,accountNumber:'123',server:'Headway-Demo',connected:true,tradeAllowed:true,symbols:[symbol('XAUUSD')]}));done(null);
+ };
+ const result=await resolveBroker(dir,{accountNumber:'123',brokerServer:'Headway-Demo',password:'broker-fixture'}, {},run,keeper);assert.equal(result.resolvedSymbol,'XAUUSD');
+});
+
+test('proxy preflight cannot cache or transfer authorization from an unverified account',{skip:process.platform==='linux'},async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'cg-proxy-identity-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const dir=path.join(root,'instance'),probe=path.join(root,'probe');fs.mkdirSync(path.join(probe,'config'),{recursive:true});
+ const payload={accountNumber:'123',brokerServer:'Headway-Demo',password:'fixture',proxyCommon:{ProxyEnable:1,ProxyType:1,ProxyAddress:'127.0.0.1:32123',ProxyLogin:'local',ProxyPassword:'fixture'}};
+ const keeper={dir:probe,prepareNetwork:async()=>{},ensure:async()=>({ok:true}),prepareForServer:async()=>{},stop:async()=>{}};
+ const run=(_command,args,_opts,done)=>{
+  require('../agent/mt5-startup').mergeIni(path.join(probe,'config/common.ini'),{Common:{Environment:'fixture',ProxyAuth:'protected-fixture'}});
+  const requestId=args[args.indexOf('-RequestId')+1];fs.writeFileSync(path.join(dir,'config/broker-preflight-result.json'),JSON.stringify({ok:true,requestId,accountNumber:'999',server:'Headway-Demo',connected:true,tradeAllowed:true,symbols:[symbol('XAUUSD')]}));done(null);
+ };
+ await assert.rejects(resolveBroker(dir,payload,{brokerCacheDir:path.join(root,'cache')},run,keeper),/different account or server/);
+ for(const name of ['config/common.ini','config/broker-resolution.json'])assert.equal(fs.existsSync(path.join(dir,name)),false);
+ assert.equal(fs.existsSync(path.join(root,'cache')),false);
 });
 
 test('simultaneous accounts serialize the complete shared probe and recover after a failed account', async t => {
