@@ -94,7 +94,9 @@
     for(const category of categories)document.getElementById('cg-cookie-'+category).disabled=!configured.has(category);
     banner.hidden=!!saved;
     const settings=document.createElement('button');settings.type='button';settings.className='cg-cookie-settings';settings.dataset.cookieText='settings';
-    const footer=document.querySelector('footer');(footer||host).append(settings);settings.addEventListener('click',openSettings);
+    const footer=document.querySelector('footer');const slot=footer?[...footer.querySelectorAll('ul.footer-links')].pop():null;
+    if(slot){const item=document.createElement('li');item.className='footer-cookie-item';item.append(settings);slot.append(item);}else{(footer||host).append(settings);}
+    settings.addEventListener('click',openSettings);
     document.getElementById('cg-cookie-close').addEventListener('click',closeSettings);
     host.addEventListener('click',event=>{
       const action=event.target.closest('[data-cookie-action]')?.dataset.cookieAction;
