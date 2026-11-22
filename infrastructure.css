@@ -116,7 +116,7 @@
 .infra-page .sample-status { color: #91c5aa; }
 .strategy-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; }
 .strategy-product { display: flex; align-items: start; gap: 28px; padding: 36px; background: radial-gradient(ellipse at 0 0,#ffd4000a,transparent 75%),#151515; border: 1px solid #53482a; border-radius: 12px; }
-.strategy-product img { border-radius: 12px; }
+.strategy-product img { width: 96px; height: 96px; flex: 0 0 auto; object-fit: contain; border-radius: 12px; }
 .strategy-product .infra-kicker { margin-bottom: 12px; font-size: 8px; }
 .strategy-product h3 { font-size: 29px; }
 .strategy-product p:not(.infra-kicker) { font-size: 11px; margin-top: 16px; }
