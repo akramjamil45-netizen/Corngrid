@@ -1,5 +1,46 @@
 # Signed automatic Sandbox Agent updates
 
+## WebRequest restart fix in 1.4.9
+
+This is the restart fix from the 1.4.8 release line, backported onto the 1.4.9
+project line. A restart reuses the existing `config/sandbox-startup.ini`, so the
+agent now refreshes the `[Experts] WebRequest` keys in **both** that file and
+`config/common.ini` on every launch. MT5 is started with
+`/config:sandbox-startup.ini`; refreshing only `common.ini` leaves a stale
+allowlist and EA WebRequest calls fail with error 4014.
+
+The protected `WebRequestUrl` value is machine/build-specific: prepare it on
+the node itself and point `webRequestSettingsSource` at that profile. A value
+copied from another VPS will not decrypt and MT5 will show an empty allowlist.
+
+## Required WebRequest URLs in 1.4.5
+
+New Windows deployments configure and read back these URLs in the owned MT5
+preflight terminal before the EA starts:
+
+- `https://corngrid.com`
+- `https://control.corngrid.com/text.txt`
+- `https://nfs.faireconomy.media`
+
+The terminal saves its native protected URL list from a writable portable profile;
+the agent then copies only WebRequest settings into the sandbox. An old template
+cannot overwrite the verified list. Existing active MT5 sessions are preserved
+during agent updates. An explicitly stopped sandbox is checked before its next
+start if it lacks the URL receipt. Linux/Wine retains its manual URL template setup.
+
+## Broker metadata seeds in 1.4.3
+
+The signed release and both installation packages include reviewed broker
+directory seeds. Startup checks hashes and installs them separately from learned
+node caches, without touching running terminals. Fresh nodes can use an exact
+server seed before broker preflight; seeds never bypass account login or symbol
+checks. Missing administrator profile paths fall back to learned or bundled
+metadata. See [Broker metadata distribution](BROKER_METADATA.md) for supported
+server names, bundle refresh, Linux limitations and rollout verification.
+Version 1.4.4 adds Headway-Demo from a successful sandbox preflight and
+RoboForex-Pro from an existing terminal profile. Profile metadata is explicitly
+marked without claiming a verified account login; target preflight remains mandatory.
+
 ## Deployment hardening in 1.3.3
 
 Version 1.3.3 skips process inventory entirely when there are no deployed
@@ -65,7 +106,7 @@ silently change an assigned proxy to a direct connection on failure.
 
 Error -10005 is an internal/IPC timeout, not proof of an incorrect password;
 -6 indicates authorization failure. Only transient IPC failures retry (at most
-three attempts). See the [MetaQuotes error definitions](https://www.mql5.com/en/docs/python_metatrader5/mt5lasterror_py).
+two attempts per verification run). See the [MetaQuotes error definitions](https://www.mql5.com/en/docs/python_metatrader5/mt5lasterror_py).
 Broker outages, invalid credentials, missing server seeds and insufficient node
 resources can still block deployment safely; these checks must not be bypassed.
 

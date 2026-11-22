@@ -18,6 +18,31 @@ test('MT5 startup applies authenticated local SOCKS5 and explicitly resets direc
   assert.match(ini,/ProxyEnable=0\r\n/);assert.match(ini,/ProxyAddress=\r\n/);assert.ok(!ini.includes('private-fixture'));
 });
 
+test('restart refreshes the WebRequest list in both common.ini and sandbox-startup.ini', t => {
+  const { ensureStartup } = require('../agent/mt5-startup');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-webrequest-restart-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = path.join(dir, 'source.ini');
+  fs.writeFileSync(source, '[Experts]\r\nWebRequest=1\r\nWebRequestUrl=NEW-LIST\r\n[Common]\r\nPassword=DO-NOT-COPY\r\n');
+  fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+  const common = path.join(dir, 'config/common.ini');
+  const startup = path.join(dir, 'config/sandbox-startup.ini');
+  fs.writeFileSync(common, '\ufeff[Common]\r\nEnvironment=kept\r\n[Experts]\r\nWebRequest=1\r\nWebRequestUrl=OLD-LIST\r\n', 'utf16le');
+  fs.writeFileSync(startup, '\ufeff[Common]\r\nLogin=123\r\n[Experts]\r\nWebRequest=1\r\nWebRequestUrl=OLD-LIST\r\n[StartUp]\r\nExpert=CornGrid\\CornGrid\r\n', 'utf16le');
+
+  assert.equal(ensureStartup(dir, { webRequestSettingsSource: source }), startup);
+  for (const file of [common, startup]) {
+    const text = fs.readFileSync(file, 'utf16le');
+    assert.match(text, /WebRequestUrl=NEW-LIST/);
+    assert.ok(!text.includes('OLD-LIST'));
+    assert.equal((text.match(/WebRequestUrl=/g) || []).length, 1, 'single WebRequestUrl entry');
+    assert.ok(!text.includes('DO-NOT-COPY'), 'only WebRequest keys are copied');
+  }
+  assert.match(fs.readFileSync(common, 'utf16le'), /Environment=kept/);
+  assert.match(fs.readFileSync(startup, 'utf16le'), /Login=123/);
+  assert.match(fs.readFileSync(startup, 'utf16le'), /\[StartUp\]/);
+});
+
 test('restart validates the configured partner EA even when the base contains another executable', t => {
   const { loadStartupPayload } = require('../agent/mt5-startup');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cg-partner-restart-'));

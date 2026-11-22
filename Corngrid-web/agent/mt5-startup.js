@@ -44,6 +44,38 @@ function mergeIni(file, updates) {
   fs.writeFileSync(file, (utf16 ? '\ufeff' : '') + lines.join('\r\n'), utf16 ? 'utf16le' : 'utf8');
 }
 
+function readWebRequestSettings(dir, config) {
+  const settings = require('./webrequest-settings');
+  const sources = [];
+  if (config.webRequestSettingsSource) sources.push(config.webRequestSettingsSource);
+  sources.push(path.join(dir, 'config', 'common.ini'));
+  for (const file of sources) {
+    try { return settings.readEntries(file); } catch (_error) { /* try the next source */ }
+  }
+  try { return settings.readVerifiedSettings(dir); } catch (_error) { /* legacy receipt */ }
+  return null;
+}
+
+// A restart reuses the existing sandbox-startup.ini. Refresh the [Experts]
+// WebRequest keys in both files: MT5 is launched with
+// /config:sandbox-startup.ini while common.ini keeps the terminal's own saved
+// state. Updating only common.ini leaves a stale allowlist and blocks the EA
+// with error 4014. The protected URL list is machine/build-specific and must
+// come from webRequestSettingsSource on this node.
+function applyWebRequest(dir, config) {
+  try {
+    const entries = readWebRequestSettings(dir, config);
+    if (!entries) return { ok: false };
+    const updates = { Experts: entries };
+    mergeIni(path.join(dir, 'config', 'common.ini'), updates);
+    const startupPath = path.join(dir, 'config', 'sandbox-startup.ini');
+    if (fs.existsSync(startupPath)) mergeIni(startupPath, updates);
+    return { ok: true };
+  } catch (_error) {
+    return { ok: false };
+  }
+}
+
 function prepareStartup(dir, payload, config) {
   const selectedPair = payload.symbol || config.startupSymbol || 'XAUUSD';
   const symbol = iniValue(payload.resolvedSymbol || require('./broker-resolution').lookup(config.brokerSymbolMaps, payload.brokerServer)?.[selectedPair] || selectedPair, 'sandbox chart symbol');
@@ -76,7 +108,10 @@ function prepareStartup(dir, payload, config) {
   const preset = [...presetLines, ...syncInputs, ''].join('\r\n');
   fs.writeFileSync(path.join(presetsDir, 'corngrid-sandbox.set'), '\ufeff' + preset, 'utf16le');
   let webRequest = [];
-  if (config.webRequestSettingsSource) {
+  const verifiedWebRequest = require('./webrequest-settings').readVerifiedSettings(dir);
+  if (verifiedWebRequest) {
+    webRequest = Object.entries(verifiedWebRequest).map(([key, value]) => `${key}=${value}`);
+  } else if (config.webRequestSettingsSource) {
     const bytes = fs.readFileSync(config.webRequestSettingsSource);
     const text = bytes.toString(bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8');
     const section = text.match(/\[Experts\]([^]*?)(?=\r?\n\[|$)/);
@@ -155,7 +190,10 @@ function loadStartupPayload(dir) {
 }
 function ensureStartup(dir, config) {
   const startupPath = path.join(dir, 'config', 'sandbox-startup.ini');
-  if (fs.existsSync(startupPath)) return startupPath;
+  if (fs.existsSync(startupPath)) {
+    applyWebRequest(dir, config);
+    return startupPath;
+  }
   return prepareStartup(dir, loadStartupPayload(dir), config);
 }
-module.exports = { prepareStartup, ensureStartup, loadStartupPayload, mergeIni };
+module.exports = { prepareStartup, ensureStartup, loadStartupPayload, mergeIni, readWebRequestSettings, applyWebRequest };
